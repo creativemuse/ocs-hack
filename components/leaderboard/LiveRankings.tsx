@@ -20,11 +20,20 @@ export default function LiveRankings({
   refreshInterval = 5000,
   className = '',
 }: LiveRankingsProps) {
-  const [displayEntries, setDisplayEntries] = useState<LeaderboardEntry[]>(entries);
+  const [displayEntries, setDisplayEntries] = useState<LeaderboardEntry[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    setDisplayEntries(entries);
+    // Sort entries by total score in descending order and take top 10
+    const sortedEntries = [...entries]
+      .sort((a, b) => b.totalScore - a.totalScore)
+      .slice(0, 10)
+      .map((entry, index) => ({
+        ...entry,
+        rank: index + 1 // Reassign ranks based on sorted position
+      }));
+    
+    setDisplayEntries(sortedEntries);
   }, [entries]);
 
   useEffect(() => {
@@ -98,7 +107,7 @@ export default function LiveRankings({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-6 w-6 text-blue-500" />
-            <span>Live Leaderboard</span>
+            <span>Top 10 Leaderboard</span>
           </div>
           {isUpdating && (
             <div className="flex items-center space-x-2 text-sm text-gray-500">

@@ -86,3 +86,67 @@
 
 
 /* Removed global @apply overrides to allow page-level classes (like gradients) to take effect */
+
+/* Floating and hover animations for circles */
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0px) rotate(var(--rotation, 0deg));
+  }
+  50% {
+    transform: translateY(-10px) rotate(var(--rotation, 0deg));
+  }
+}
+
+@keyframes float2 {
+  0%, 100% {
+    transform: translateY(0px) rotate(var(--rotation, 0deg));
+  }
+  50% {
+    transform: translateY(-15px) rotate(var(--rotation, 0deg));
+  }
+}
+
+@keyframes float3 {
+  0%, 100% {
+    transform: translateY(0px) rotate(var(--rotation, 0deg));
+  }
+  50% {
+    transform: translateY(-8px) rotate(var(--rotation, 0deg));
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(255, 255, 255, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
+  }
+}
+
+.animate-float {
+  animation: float 3s ease-in-out infinite;
+}
+
+.animate-float2 {
+  animation: float2 4s ease-in-out infinite;
+}
+
+.animate-float3 {
+  animation: float3 3.5s ease-in-out infinite;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Hover effects for circles */
+.circle-hover {
+  transition: all 0.3s ease;
+}
+
+.circle-hover:hover {
+  transform: scale(1.1) rotate(10deg);
+  filter: brightness(1.2);
+  box-shadow: 0 0 25px rgba(255, 255, 255, 0.8);
+}

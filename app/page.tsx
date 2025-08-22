@@ -1,632 +1,350 @@
 'use client';
 
-import { useState } from 'react';
-import { Wallet } from "@coinbase/onchainkit/wallet";
-import { useAccount } from 'wagmi';
-import { Play, RefreshCw, Trophy, Music, Sparkles, Users, Clock, Zap } from 'lucide-react';
-import Link from 'next/link';
-import TriviaQuestionComponent from '@/components/game/TriviaQuestion';
-import type { TriviaQuestion as TriviaQuestionType } from '@/types/game';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 
-// Mock types and components for now
-type GameState = {
-  currentQuestion: number;
-  questions: TriviaQuestionType[];
-  answers: Answer[];
-  score: number;
-  timeRemaining: number;
-  gameStatus: 'waiting' | 'playing' | 'completed';
-  prizePool: number;
-  entryFee: number;
-};
+const imgEllipse4 = "http://localhost:3845/assets/ee18a2a9ff718cdd3a3c134be489bc60e2c5e9ca.png";
+const imgEllipse7 = "http://localhost:3845/assets/da9c677496caf9618e632f752b62514b0a775282.png";
+const imgEllipse5 = "http://localhost:3845/assets/645a99fbb2ba303dd63b4c02f0f5b11be38939f9.png";
+const imgEllipse6 = "http://localhost:3845/assets/09698eb6a0c157f4f2cf590a6a4d663b0d76adb7.png";
+const imgEllipse8 = "http://localhost:3845/assets/3181aa949007403d2e43ef28c36519e1b766d296.png";
+const imgEllipse9 = "http://localhost:3845/assets/0cb6c409a89ea59f28fddeab9e5fa68185f7de85.png";
+const imgEllipse10 = "http://localhost:3845/assets/8eb09bb788a1cf5563f16634d8bd9b5d1b863ef9.png";
+const imgUiFlame = "http://localhost:3845/assets/301abc372de26b14e2b7f5a56beb6368be51039e.svg";
+const imgVector = "http://localhost:3845/assets/be82fbbfc82dbf546440e6b90de8b6aaee39a992.svg";
 
-type Answer = {
-  questionId: string;
-  selectedAnswer: number;
-  isCorrect: boolean;
-  timeSpent: number;
-  pointsEarned: number;
-};
-
-// Using shared TriviaQuestionType from '@/types/game'
-
-type LeaderboardEntry = {
-  rank: number;
-  playerAddress: string;
-  playerName: string;
-  totalScore: number;
-  gamesPlayed: number;
-  averageScore: number;
-  totalEarnings: number;
-  lastPlayed: number;
-};
-
-// Mock components - you can replace these with actual implementations
-const Card = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <div className={`bg-white/10 backdrop-blur-md border border-white/20 rounded-lg p-6 ${className}`}>
-    {children}
-  </div>
-);
-
-const CardContent = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => <div className={className}>{children}</div>;
-const CardHeader = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => <div className={`mb-4 ${className}`}>{children}</div>;
-const CardTitle = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <h3 className={`text-xl font-bold text-white ${className}`}>{children}</h3>
-);
-
-const Button = ({ children, onClick, disabled = false, className = "", variant = "default" }: {
-  children: React.ReactNode;
-  onClick?: () => void;
-  disabled?: boolean;
-  className?: string;
-  variant?: "default" | "outline";
-}) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-      variant === "outline" 
-        ? "border border-white/50 text-white hover:bg-white/10" 
-        : "bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white"
-    } ${disabled ? "opacity-50 cursor-not-allowed" : ""} ${className}`}
-  >
-    {children}
-  </button>
-);
-
-const Badge = ({ children, className = "" }: { children: React.ReactNode; className?: string }) => (
-  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${className}`}>
-    {children}
-  </span>
-);
-
-// Mock game components (others below remain)
-
-const ScoreDisplay = ({ currentScore, questionsAnswered, totalQuestions, currentStreak, bestStreak, accuracy, averageTime: _averageTime }: {
-  currentScore: number;
-  questionsAnswered: number;
-  totalQuestions: number;
-  currentStreak: number;
-  bestStreak: number;
-  accuracy: number;
-  averageTime: number;
-}) => (
-  <Card className="text-white">
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Trophy className="h-6 w-6 text-yellow-400" />
-        <span>Score: {currentScore}</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-        <div>
-          <div className="text-purple-200">Progress</div>
-          <div className="font-bold">{questionsAnswered}/{totalQuestions}</div>
-        </div>
-        <div>
-          <div className="text-purple-200">Current Streak</div>
-          <div className="font-bold">{currentStreak}</div>
-        </div>
-        <div>
-          <div className="text-purple-200">Best Streak</div>
-          <div className="font-bold">{bestStreak}</div>
-        </div>
-        <div>
-          <div className="text-purple-200">Accuracy</div>
-          <div className="font-bold">{accuracy}%</div>
-        </div>
-      </div>
-    </CardContent>
-  </Card>
-);
-
-const PrizePoolCard = ({ prizePool, onJoinGame, isConnected, isLoading, timeUntilStart: _timeUntilStart }: {
-  prizePool: {
-    totalAmount: number;
-    entryFee: number;
-    participants: number;
-    distribution: {
-      first: number;
-      second: number;
-      third: number;
-      participation: number;
-    };
-    contractAddress: string;
-  };
-  onJoinGame: () => void;
-  isConnected: boolean;
-  isLoading: boolean;
-  timeUntilStart: number;
-}) => (
-  <Card className="text-white">
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Trophy className="h-6 w-6 text-yellow-400" />
-        <span>Prize Pool</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="text-center space-y-4">
-        <div className="text-3xl font-bold text-yellow-400">
-          ${prizePool.totalAmount.toFixed(2)}
-        </div>
-        <div className="text-sm text-purple-200">
-          Entry Fee: ${prizePool.entryFee.toFixed(2)}
-        </div>
-        <div className="text-sm text-purple-200">
-          {prizePool.participants} participants
-        </div>
-        <Button
-          onClick={onJoinGame}
-          disabled={!isConnected || isLoading}
-          className="w-full"
-        >
-          {isLoading ? (
-            <div className="flex items-center space-x-2">
-              <RefreshCw className="h-4 w-4 animate-spin" />
-              <span>Loading...</span>
+export default function Home() {
+  const router = useRouter();
+  return (
+    <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-8 overflow-x-hidden">
+      <div className="relative w-full max-w-[390px] md:max-w-[428px]" data-name="home" data-node-id="1:2">
+        <div className="absolute bg-[#ffffff] box-border content-stretch flex flex-col gap-[17px] items-start justify-start left-[33px] p-[16px] rounded-2xl top-60 w-[328px] z-10" data-node-id="3:164">
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:162">
+            <div className="content-stretch flex gap-1 items-center justify-start relative shrink-0" data-node-id="3:326">
+              <div className="relative shrink-0 size-8" data-name="ui/flame" data-node-id="3:141">
+                <Image alt="flame icon" className="block max-w-none size-full" src={imgUiFlame} width={32} height={32} />
+              </div>
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[12px] text-nowrap" data-node-id="3:111">
+                <p className="leading-[normal] whitespace-pre">LIVE BATTLE</p>
+              </div>
             </div>
-          ) : (
-            <div className="flex items-center space-x-2">
-              <Play className="h-4 w-4" />
-              <span>Join Game</span>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:324">
+              <p className="leading-[normal] whitespace-pre">05:34 min left to join</p>
             </div>
-          )}
-        </Button>
-      </div>
-    </CardContent>
-  </Card>
-);
+          </div>
+          <div className="content-stretch flex flex-col gap-4 items-start justify-start relative shrink-0 w-full" data-node-id="3:163">
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[24px] w-[294px]" data-node-id="3:157">
+              <p className="leading-[normal]">{`100 USDC TOTAL `}</p>
+            </div>
+            <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full" data-node-id="3:161">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:159">
+                <p className="leading-[normal] whitespace-pre">JESSE.BASE.ETH 30 OTHER PLAYERS ARE PLAYING</p>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div className="absolute bg-[#bc58ff] box-border content-stretch flex flex-col font-['Audiowide:Regular',_sans-serif] gap-1 items-center justify-center leading-[0] left-[33px] not-italic px-2.5 py-3 rounded-2xl text-[#000000] text-nowrap top-[361px] w-[328px] z-10 cursor-pointer hover:bg-[#a847e6] transition-colors" data-node-id="3:166" onClick={() => router.push('/game')}>
+          <div className="relative shrink-0 text-[12px]" data-node-id="3:165">
+            <p className="leading-[normal] text-nowrap whitespace-pre">JOIN GAME</p>
+          </div>
+          {/* <div className="relative shrink-0 text-[8px]" data-node-id="3:173">
+            <p className="leading-[normal] text-nowrap whitespace-pre">{` 1 USDC`}</p>
+          </div> */}
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[358px] top-[260px] w-[44.091px] z-0 animate-float [animation-delay:200ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:169">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[317px] top-[415px] w-[44.091px] z-0 animate-float2 [animation-delay:500ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:267">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[305px] top-[341px] w-[44.091px] z-0 animate-float3 [animation-delay:800ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:172">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[7px] top-[388px] w-[44.091px] z-0 animate-float [animation-delay:1000ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:261">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[54px] top-[442px] w-[44.091px] z-0 animate-float2 [animation-delay:1200ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:269">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[40.364px] items-center justify-center left-[1.86px] top-[276.82px] w-[40.364px] z-0 animate-float3 [animation-delay:1400ms]">
+          <div className="flex-none rotate-[7.451deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:170">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[133px] top-[205px] w-[44.091px] z-0 animate-float [animation-delay:300ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:171">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+            </div>
+          </div>
+        </div>
+        <div className="absolute flex h-[44.091px] items-center justify-center left-[229px] top-[401px] w-[44.091px] z-0 animate-float2 [animation-delay:900ms]">
+          <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:270">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+            </div>
+          </div>
+        </div>
 
-const LiveRankings = ({ entries, currentPlayerAddress, refreshInterval: _refreshInterval }: {
-  entries: LeaderboardEntry[];
-  currentPlayerAddress?: string;
-  refreshInterval: number;
-}) => (
-  <Card className="text-white">
-    <CardHeader>
-      <CardTitle className="flex items-center space-x-2">
-        <Users className="h-6 w-6 text-blue-400" />
-        <span>Live Rankings</span>
-      </CardTitle>
-    </CardHeader>
-    <CardContent>
-      <div className="space-y-2">
-        {entries.map((entry) => (
-          <div
-            key={entry.rank}
-            className={`flex items-center justify-between p-2 rounded ${
-              entry.playerAddress === currentPlayerAddress
-                ? "bg-purple-500/20 border border-purple-400"
-                : "bg-white/5"
-            }`}
-          >
-            <div className="flex items-center space-x-3">
-              <span className="font-bold">#{entry.rank}</span>
-              <div>
-                <div className="font-medium">{entry.playerName}</div>
-                <div className="text-xs text-purple-200">
-                  {entry.playerAddress.slice(0, 6)}...{entry.playerAddress.slice(-4)}
+
+        <div className="absolute content-stretch flex flex-col gap-[11px] items-start justify-start left-[33px] top-[557px] w-[328px]" data-node-id="3:214">
+          {/* #1 - Trophy */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:205">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:204">
+              <div className="content-stretch flex gap-2.5 items-center justify-start relative shrink-0 w-5" data-node-id="3:278">
+                <div className="text-yellow-400 text-xl">🏆</div>
+              </div>
+              <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:203">
+                <div className="relative shrink-0 size-9" data-node-id="3:176">
+                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+                </div>
+                <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:177">
+                  <p className="leading-[normal] whitespace-pre">JESSE.BASE.ETH</p>
                 </div>
               </div>
             </div>
-            <div className="text-right">
-              <div className="font-bold">{entry.totalScore}</div>
-              <div className="text-xs text-purple-200">${entry.totalEarnings.toFixed(2)}</div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:178">
+              <p className="leading-[normal] whitespace-pre">400 USDC</p>
             </div>
           </div>
-        ))}
-      </div>
-    </CardContent>
-  </Card>
-);
-
-const MobileControls = ({ onRestart, onHome }: { onRestart: () => void; onHome: () => void }) => (
-  <div className="flex justify-center space-x-4 md:hidden">
-    <Button onClick={onRestart} variant="outline">
-      <RefreshCw className="h-4 w-4 mr-2" />
-      Restart
-    </Button>
-    <Button onClick={onHome} variant="outline">
-      <Users className="h-4 w-4 mr-2" />
-      Home
-    </Button>
-  </div>
-);
-
-export default function Page() {
-  const { address: activeAccount } = useAccount();
-  
-  const [gameState, setGameState] = useState<GameState>({
-    currentQuestion: 0,
-    questions: [],
-    answers: [],
-    score: 0,
-    timeRemaining: 0,
-    gameStatus: 'waiting',
-    prizePool: 0.01,
-    entryFee: 0.01,
-  });
-
-  const [loading, setLoading] = useState(false);
-  const [currentStreak, setCurrentStreak] = useState(0);
-  const [bestStreak, setBestStreak] = useState(0);
-  
-  // Mock prize pool data
-  const prizePool = {
-    totalAmount: gameState.prizePool,
-    entryFee: gameState.entryFee,
-    participants: 7,
-    distribution: {
-      first: gameState.prizePool * 0.5,
-      second: gameState.prizePool * 0.3,
-      third: gameState.prizePool * 0.15,
-      participation: gameState.prizePool * 0.05,
-    },
-    contractAddress: '0x0000000000000000000000000000000000000001',
-  };
-
-  // Mock leaderboard data
-  const [leaderboardData] = useState<LeaderboardEntry[]>([
-    {
-      rank: 1,
-      playerAddress: '0x742d35Cc6634C0532925a3b8D1C91C4e1B8e6C6E',
-      playerName: 'MusicMaster',
-      totalScore: 2850,
-      gamesPlayed: 12,
-      averageScore: 237,
-      totalEarnings: 47.50,
-      lastPlayed: Date.now() - 300000,
-    },
-    {
-      rank: 2,
-      playerAddress: '0x8ba1f109551bD432803012645Hac136c3c739cC8',
-      playerName: 'BeatBattler',
-      totalScore: 2640,
-      gamesPlayed: 8,
-      averageScore: 330,
-      totalEarnings: 23.75,
-      lastPlayed: Date.now() - 600000,
-    },
-    {
-      rank: 3,
-      playerAddress: '0x9ca2f108651aE521893012645Bbd146d4d829dD9',
-      playerName: 'ChartChaser',
-      totalScore: 2420,
-      gamesPlayed: 15,
-      averageScore: 161,
-      totalEarnings: 31.25,
-      lastPlayed: Date.now() - 900000,
-    },
-  ]);
-
-  const startGame = async () => {
-    if (!activeAccount) return;
-    
-    setLoading(true);
-    
-    try {
-      // Mock payment processing
-      console.log('💰 Processing $0.01 entry fee payment...');
-      await new Promise(resolve => setTimeout(resolve, 2000)); // Simulate payment delay
-      console.log('✅ Payment successful!');
-      
-      // Fetch real questions (with Spotify previews)
-      const response = await fetch('/api/questions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ count: 5, difficulty: 'medium' })
-      });
-      if (!response.ok) {
-        throw new Error('Failed to load questions');
-      }
-      const data: { questions: TriviaQuestionType[] } = await response.json();
-      if (!data.questions || data.questions.length === 0) {
-        throw new Error('No questions available');
-      }
-
-      setGameState(prev => ({
-        ...prev,
-        gameStatus: 'playing',
-        currentQuestion: 0,
-        score: 0,
-        answers: [],
-        questions: data.questions,
-      }));
-    } catch (error) {
-      console.error('Error starting game:', error);
-      alert('Failed to start game. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleAnswer = (selectedAnswer: number, timeSpent: number) => {
-    const currentQuestion = gameState.questions[gameState.currentQuestion];
-    if (!currentQuestion) return;
-
-    const isCorrect = selectedAnswer === currentQuestion.correctAnswer;
-    const points = isCorrect ? 100 + Math.max(0, 15 - timeSpent) * 10 : 0;
-
-    // Update streak
-    const newStreak = isCorrect ? currentStreak + 1 : 0;
-    setCurrentStreak(newStreak);
-    setBestStreak(prev => Math.max(prev, newStreak));
-
-    const newAnswer = {
-      questionId: currentQuestion.id,
-      selectedAnswer,
-      isCorrect,
-      timeSpent,
-      pointsEarned: points,
-    };
-
-    setGameState(prev => ({
-      ...prev,
-      answers: [...prev.answers, newAnswer],
-      score: prev.score + points,
-    }));
-
-    // Move to next question or end game
-    setTimeout(() => {
-      if (gameState.currentQuestion + 1 >= gameState.questions.length) {
-        setGameState(prev => ({ ...prev, gameStatus: 'completed' }));
-      } else {
-        setGameState(prev => ({ ...prev, currentQuestion: prev.currentQuestion + 1 }));
-      }
-    }, 2000);
-  };
-
-  const resetGame = () => {
-    setGameState({
-      currentQuestion: 0,
-      questions: [],
-      answers: [],
-      score: 0,
-      timeRemaining: 0,
-      gameStatus: 'waiting',
-      prizePool: 0.01,
-      entryFee: 0.01,
-    });
-    setCurrentStreak(0);
-  };
-
-  const calculateAccuracy = () => {
-    if (gameState.answers.length === 0) return 0;
-    const correct = gameState.answers.filter(a => a.isCorrect).length;
-    return Math.round((correct / gameState.answers.length) * 100);
-  };
-
-  const calculateAverageTime = () => {
-    if (gameState.answers.length === 0) return 0;
-    const total = gameState.answers.reduce((sum, a) => sum + a.timeSpent, 0);
-    return Math.round((total / gameState.answers.length) * 100) / 100;
-  };
-
-  // Waiting/Welcome Screen
-  if (gameState.gameStatus === 'waiting') {
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-        <div className="max-w-7xl mx-auto">
-          {/* Header */}
-          <div className="text-center py-8">
-            <div className="flex items-center justify-center space-x-3 mb-4">
-              <Music className="h-12 w-12 text-purple-400" />
-              <h1 className="text-5xl md:text-6xl font-bold text-white">
-                Trivia <span className="text-purple-400">Beat</span> Battle
-              </h1>
-              <Trophy className="h-12 w-12 text-yellow-400" />
-            </div>
-            <p className="text-xl text-purple-200 mb-2">
-              🎵 Test your music knowledge and earn crypto rewards! 🎵
-            </p>
-            <div className="flex items-center justify-center space-x-6 text-purple-300">
-              <div className="flex items-center space-x-2">
-                <Clock className="h-5 w-5" />
-                <span>Real-time battles</span>
+          {/* #2 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:206">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:277">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5" data-node-id="3:275">
+                <p className="leading-[normal]">#2</p>
               </div>
-              <div className="flex items-center space-x-2">
-                <Zap className="h-5 w-5" />
-                <span>Instant payouts</span>
-              </div>
-              <div className="flex items-center space-x-2">
-                <Users className="h-5 w-5" />
-                <span>Global leaderboard</span>
-              </div>
-            </div>
-            
-            {/* Spotify Trivia Link */}
-            <div className="mt-6">
-              <Link href="/spotify-trivia">
-                <Button className="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 text-white px-6 py-3">
-                  <Music className="w-5 h-5 mr-2" />
-                  Try Spotify Top Global Trivia
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Prize Pool Card */}
-            <div className="lg:col-span-1">
-              <PrizePoolCard
-                prizePool={prizePool}
-                onJoinGame={startGame}
-                isConnected={!!activeAccount}
-                isLoading={loading}
-                timeUntilStart={0}
-              />
-            </div>
-
-            {/* Game Info */}
-            <div className="lg:col-span-1">
-              <Card className="h-full text-white">
-                <CardHeader>
-                  <CardTitle className="flex items-center space-x-2">
-                    <Sparkles className="h-6 w-6 text-purple-400" />
-                    <span>How to Play</span>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-3">
-                    <div className="flex items-start space-x-3">
-                      <Badge className="bg-purple-500 text-white shrink-0">1</Badge>
-                      <div>
-                        <div className="font-semibold">Connect Wallet</div>
-                        <div className="text-sm text-purple-200">Link your crypto wallet to join battles</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Badge className="bg-blue-500 text-white shrink-0">2</Badge>
-                      <div>
-                        <div className="font-semibold">Answer Questions</div>
-                        <div className="text-sm text-purple-200">Listen to music clips and identify songs, artists, or release years</div>
-                      </div>
-                    </div>
-                    <div className="flex items-start space-x-3">
-                      <Badge className="bg-green-500 text-white shrink-0">3</Badge>
-                      <div>
-                        <div className="font-semibold">Earn Rewards</div>
-                        <div className="text-sm text-purple-200">Top players split the prize pool instantly via smart contracts</div>
-                      </div>
-                    </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:207">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:209">
+                  <div className="relative shrink-0 size-9" data-node-id="3:210">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
                   </div>
-
-                  <div className="pt-4 border-t border-white/20">
-                    <div className="text-center">
-                      {!activeAccount ? (
-                        <div className="space-y-3">
-                          <div className="text-purple-200 text-sm">Ready to play?</div>
-                          <div className="flex justify-center">
-                            <Wallet />
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          <div className="flex justify-center">
-                            <Wallet />
-                          </div>
-                          <Button 
-                            onClick={startGame}
-                            disabled={loading}
-                            className="w-full mt-3"
-                          >
-                            {loading ? (
-                              <div className="flex items-center space-x-2">
-                                <RefreshCw className="h-4 w-4 animate-spin" />
-                                <span>Loading Questions...</span>
-                              </div>
-                            ) : (
-                              <div className="flex items-center space-x-2">
-                                <Play className="h-4 w-4" />
-                                <span>Start Playing! ($0.01)</span>
-                              </div>
-                            )}
-                          </Button>
-                        </div>
-                      )}
-                    </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:211">
+                    <p className="leading-[normal] whitespace-pre">JD.ETH</p>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             </div>
-
-            {/* Leaderboard */}
-            <div className="lg:col-span-1">
-              <LiveRankings
-                entries={leaderboardData}
-                currentPlayerAddress={activeAccount}
-                refreshInterval={10000}
-              />
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:212">
+              <p className="leading-[normal] whitespace-pre">380 USDC</p>
+            </div>
+          </div>
+          {/* #3 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:279">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:280">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5" data-node-id="3:281">
+                <p className="leading-[normal]">#3</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:282">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:283">
+                  <div className="relative shrink-0 size-9" data-node-id="3:284">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:285">
+                    <p className="leading-[normal] whitespace-pre">GRROK.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:286">
+              <p className="leading-[normal] whitespace-pre">300 USDC</p>
+            </div>
+          </div>
+          {/* #4 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:288">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:289">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5" data-node-id="3:290">
+                <p className="leading-[normal]">#4</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:291">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:292">
+                  <div className="relative shrink-0 size-9" data-node-id="3:293">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:294">
+                    <p className="leading-[normal] whitespace-pre">SIMON.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:295">
+              <p className="leading-[normal] whitespace-pre">250 USDC</p>
+            </div>
+          </div>
+          {/* #5 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:297">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:298">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5" data-node-id="3:299">
+                <p className="leading-[normal]">#5</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:300">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:301">
+                  <div className="relative shrink-0 size-9" data-node-id="3:302">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse8} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:303">
+                    <p className="leading-[normal] whitespace-pre">AK.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:304">
+              <p className="leading-[normal] whitespace-pre">200 USDC</p>
+            </div>
+          </div>
+          {/* #6 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:306">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:307">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5" data-node-id="3:308">
+                <p className="leading-[normal]">#6</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:309">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:310">
+                  <div className="relative shrink-0 size-9" data-node-id="3:311">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse9} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:312">
+                    <p className="leading-[normal] whitespace-pre">PEPE.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:313">
+              <p className="leading-[normal] whitespace-pre">100 USDC</p>
+            </div>
+          </div>
+          {/* #7 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
+                <p className="leading-[normal]">#7</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+                  <div className="relative shrink-0 size-9">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+                    <p className="leading-[normal] whitespace-pre">ALICE.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+              <p className="leading-[normal] whitespace-pre">80 USDC</p>
+            </div>
+          </div>
+          {/* #8 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
+                <p className="leading-[normal]">#8</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+                  <div className="relative shrink-0 size-9">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+                    <p className="leading-[normal] whitespace-pre">BOB.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+              <p className="leading-[normal] whitespace-pre">60 USDC</p>
+            </div>
+          </div>
+          {/* #9 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
+                <p className="leading-[normal]">#9</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+                  <div className="relative shrink-0 size-9">
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+                    <p className="leading-[normal] whitespace-pre">CAROL.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+              <p className="leading-[normal] whitespace-pre">40 USDC</p>
+            </div>
+          </div>
+          {/* #10 */}
+          <div className="content-stretch flex items-center justify-between relative shrink-0 w-full">
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
+                <p className="leading-[normal]">#10</p>
+              </div>
+              <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+                <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+                  <div className="relative shrink-0 size-9">
+                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+                  </div>
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+                    <p className="leading-[normal] whitespace-pre">DAVE.BASE.ETH</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+              <p className="leading-[normal] whitespace-pre">20 USDC</p>
             </div>
           </div>
         </div>
-      </main>
-    );
-  }
-
-  // Game Playing Screen
-  if (gameState.gameStatus === 'playing') {
-    const currentQuestion = gameState.questions[gameState.currentQuestion];
-    
-    return (
-      <main className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-        <div className="max-w-6xl mx-auto space-y-6">
-          {/* Header */}
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-white mb-4">🎵 Trivia Beat Battle 🎵</h1>
+        <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[33px] not-italic text-[#ffffff] text-[12px] text-nowrap top-[523px]" data-node-id="3:260">
+          <p className="leading-[normal] whitespace-pre">TOP EARNERS</p>
+        </div>
+        <div className="absolute flex h-[45.938px] items-center justify-center left-[119px] top-[412px] w-[45.938px] z-0 animate-float3 [animation-delay:1600ms]">
+          <div className="flex-none rotate-[19.462deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:264">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+            </div>
           </div>
-
-          {/* Score Display */}
-          <ScoreDisplay
-            currentScore={gameState.score}
-            questionsAnswered={gameState.answers.length}
-            totalQuestions={gameState.questions.length}
-            currentStreak={currentStreak}
-            bestStreak={bestStreak}
-            accuracy={calculateAccuracy()}
-            averageTime={calculateAverageTime()}
-          />
-
-          {/* Current Question */}
-          {currentQuestion && (
-            <TriviaQuestionComponent
-              question={currentQuestion}
-              questionNumber={gameState.currentQuestion + 1}
-              totalQuestions={gameState.questions.length}
-              onAnswer={handleAnswer}
-            />
-          )}
-
-          {/* Mobile Controls */}
-          <MobileControls
-            onRestart={resetGame}
-            onHome={() => setGameState(prev => ({ ...prev, gameStatus: 'waiting' }))}
-          />
         </div>
-      </main>
-    );
-  }
-
-  // Game Completed Screen
-  return (
-    <main className="min-h-screen bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 p-4">
-      <div className="max-w-4xl mx-auto text-center space-y-8">
-        <div className="text-white">
-          <Trophy className="h-16 w-16 text-yellow-400 mx-auto mb-4" />
-          <h1 className="text-4xl font-bold mb-4">🎉 Battle Complete! 🎉</h1>
-          <p className="text-xl text-purple-200">Here&apos;s how you performed:</p>
+        <div className="absolute flex h-[45.938px] items-center justify-center left-[297px] top-[203px] w-[45.938px] z-0 animate-float [animation-delay:1800ms]">
+          <div className="flex-none rotate-[19.462deg] circle-hover animate-pulse-glow">
+            <div className="relative size-9" data-node-id="3:268">
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+            </div>
+          </div>
         </div>
-
-        <ScoreDisplay
-          currentScore={gameState.score}
-          questionsAnswered={gameState.answers.length}
-          totalQuestions={gameState.questions.length}
-          currentStreak={currentStreak}
-          bestStreak={bestStreak}
-          accuracy={calculateAccuracy()}
-          averageTime={calculateAverageTime()}
-        />
-
-        <div className="flex justify-center space-x-4">
-          <Button 
-            onClick={resetGame}
-            className="px-8 py-3"
-          >
-            <Play className="h-5 w-5 mr-2" />
-            Play Again
-          </Button>
-          <Button 
-            onClick={() => window.location.reload()}
-            variant="outline"
-            className="px-8 py-3"
-          >
-            <Users className="h-5 w-5 mr-2" />
-            View Leaderboard
-          </Button>
+        <div className="absolute content-stretch flex flex-col gap-[19px] items-center justify-start left-1/2 top-[94px] translate-x-[-50%] w-[185px]" data-node-id="3:327">
+          <div className="h-7 relative shrink-0 w-[185px]" data-name="Vector" data-node-id="3:273">
+            <Image alt="logo" className="block max-w-none size-full" src={imgVector} width={185} height={28} />
+          </div>
+          <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-center w-[130px]" data-node-id="3:266">
+            <p className="leading-[normal]">Name that tune, win your reward.</p>
+          </div>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

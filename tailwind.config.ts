@@ -82,11 +82,19 @@ const config: Config = {
   				to: {
   					height: '0'
   				}
+  			},
+  			bubble: {
+  				'0%': { transform: 'translateY(0) translateX(0) scale(1)', opacity: '0.9' },
+  				'25%': { transform: 'translateY(-20px) translateX(12px) scale(1.03)', opacity: '1' },
+  				'50%': { transform: 'translateY(10px) translateX(-16px) scale(0.97)', opacity: '0.95' },
+  				'75%': { transform: 'translateY(-14px) translateX(8px) scale(1.02)', opacity: '1' },
+  				'100%': { transform: 'translateY(0) translateX(0) scale(1)', opacity: '0.9' }
   			}
   		},
   		animation: {
   			'accordion-down': 'accordion-down 0.2s ease-out',
-  			'accordion-up': 'accordion-up 0.2s ease-out'
+  			'accordion-up': 'accordion-up 0.2s ease-out',
+  			bubble: 'bubble 6s ease-in-out infinite'
   		}
   	}
   },

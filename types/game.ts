@@ -19,7 +19,7 @@ export interface TriviaQuestion {
     releaseYear?: string;
     genre?: string;
     chartPosition?: number;
-    source: 'spotify' | 'musicbrainz' | 'billboard';
+    source: 'spotify' | 'musicbrainz' | 'billboard' | 'supabase';
   };
 }
 

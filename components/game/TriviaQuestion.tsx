@@ -8,6 +8,7 @@ import AudioPlayer from './AudioPlayer';
 import Timer from './Timer';
 import type { TriviaQuestion } from '@/types/game';
 import { Music, User, Calendar, TrendingUp, Tag } from 'lucide-react';
+import Image from 'next/image';
 
 interface TriviaQuestionProps {
   question: TriviaQuestion;
@@ -158,6 +159,7 @@ export default function TriviaQuestion({
               <AudioPlayer 
                 audioUrl={question.audioUrl}
                 autoPlay={true}
+                clipDurationSeconds={10}
                 className="shadow-md"
               />
             </div>
@@ -166,11 +168,12 @@ export default function TriviaQuestion({
           {/* Album Art */}
           {question.imageUrl && (
             <div className="flex justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
+              <Image
                 src={question.imageUrl}
                 alt="Album artwork"
                 className="w-32 h-32 md:w-48 md:h-48 rounded-xl shadow-lg object-cover"
+                width={192}
+                height={192}
               />
             </div>
           )}

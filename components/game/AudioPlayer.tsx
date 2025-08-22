@@ -11,13 +11,17 @@ interface AudioPlayerProps {
   autoPlay?: boolean;
   onEnded?: () => void;
   className?: string;
+  clipDurationSeconds?: number;
+  clipStartSeconds?: number;
 }
 
 export default function AudioPlayer({ 
   audioUrl, 
   autoPlay = false, 
   onEnded, 
-  className = '' 
+  className = '',
+  clipDurationSeconds = 10,
+  clipStartSeconds = 0,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -31,8 +35,21 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
-    const handleTimeUpdate = (): void => setCurrentTime(audio.currentTime);
-    const handleDurationChange = (): void => setDuration(audio.duration);
+    const handleTimeUpdate = (): void => {
+      const t = Math.max(0, audio.currentTime - clipStartSeconds);
+      setCurrentTime(t);
+      if (t >= clipDurationSeconds) {
+        audio.pause();
+        setIsPlaying(false);
+        onEnded?.();
+      }
+    };
+
+    const handleDurationChange = (): void => {
+      const total = isFinite(audio.duration) ? audio.duration : 0;
+      const effective = Math.max(0, total - clipStartSeconds);
+      setDuration(Math.max(0, Math.min(clipDurationSeconds, effective || clipDurationSeconds)));
+    };
     const handleEnded = (): void => {
       setIsPlaying(false);
       onEnded?.();
@@ -59,6 +76,8 @@ export default function AudioPlayer({
     };
 
     const handleLoadedData = (): void => {
+      audio.currentTime = clipStartSeconds;
+      handleDurationChange();
       if (autoPlay) {
         void tryAutoplay();
       }
@@ -75,7 +94,7 @@ export default function AudioPlayer({
       audio.removeEventListener('ended', handleEnded);
       audio.removeEventListener('loadeddata', handleLoadedData);
     };
-  }, [audioUrl, autoPlay, onEnded]);
+  }, [audioUrl, autoPlay, onEnded, clipDurationSeconds, clipStartSeconds]);
 
   const togglePlayPause = (): void => {
     const audio = audioRef.current;
@@ -125,9 +144,9 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio || duration === 0) return;
     const percentage = _newValue[0]! / 100;
-    const newTime = percentage * duration;
+    const newTime = clipStartSeconds + percentage * duration;
     audio.currentTime = newTime;
-    setCurrentTime(newTime);
+    setCurrentTime(Math.max(0, audio.currentTime - clipStartSeconds));
   };
 
   const formatTime = (time: number): string => {
@@ -139,7 +158,7 @@ export default function AudioPlayer({
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div className={`bg-white rounded-lg p-4 shadow-lg border ${className}`}>
+    <div className={`${className}`}>
       <audio
         ref={audioRef}
         src={audioUrl}
@@ -154,7 +173,7 @@ export default function AudioPlayer({
           onClick={togglePlayPause}
           variant="outline"
           size="icon"
-          className="w-12 h-12 rounded-full"
+          className="w-12 h-12 rounded-full bg-white hover:bg-gray-50"
         >
           {isPlaying ? (
             <Pause className="h-6 w-6" />
@@ -170,22 +189,22 @@ export default function AudioPlayer({
             onValueChange={handleSeek}
             className="w-full"
           />
-          <div className="flex justify-between text-sm text-gray-500 mt-1">
+          <div className="flex justify-between text-sm text-white mt-1">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
           {autoplayBlocked && (
-            <div className="text-xs text-orange-600 mt-1">Tap play to start audio</div>
+            <div className="text-xs text-orange-400 mt-1">Tap play to start audio</div>
           )}
         </div>
 
         {/* Volume Control */}
-        <div className="flex items-center space-x-2 w-40">
+        <div className="flex items-center space-x-2 w-32">
           <Button
             onClick={toggleMute}
             variant="ghost"
             size="icon"
-            className="w-8 h-8"
+            className="w-8 h-8 text-white hover:bg-white/10"
           >
             {isMuted || volume === 0 ? (
               <VolumeX className="h-4 w-4" />
@@ -206,7 +225,7 @@ export default function AudioPlayer({
         {Array.from({ length: 20 }, (_, i) => (
           <div
             key={i}
-            className={`w-1 bg-gradient-to-t from-blue-500 to-purple-500 rounded-sm transition-all duration-75 ${
+            className={`w-1 bg-gradient-to-t from-blue-400 to-purple-400 rounded-sm transition-all duration-75 ${
               isPlaying ? 'animate-pulse' : ''
             }`}
             style={{
