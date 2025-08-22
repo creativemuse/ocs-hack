@@ -34,6 +34,7 @@
     "@radix-ui/react-tooltip": "^1.2.8",
     "@supabase/supabase-js": "^2.56.0",
     "@tanstack/react-query": "^5.81.5",
+    "@types/uuid": "^10.0.0",
     "autoprefixer": "^10.4.21",
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
@@ -52,6 +53,7 @@
     "sonner": "^2.0.7",
     "tailwindcss": "^4.1.12",
     "thirdweb": "^5.105.37",
+    "uuid": "^11.1.0",
     "vaul": "^1.1.2",
     "viem": "^2.31.6",
     "wagmi": "^2.16.3"

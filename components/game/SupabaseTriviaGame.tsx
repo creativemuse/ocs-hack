@@ -10,6 +10,8 @@ import Timer from '@/components/game/Timer';
 import type { GameState, DifficultyLevel, QuestionType, TriviaQuestion as TQ } from '@/types/game';
 import { Music, Trophy, Clock, Target, Play } from 'lucide-react';
 import { ScoringSystem } from '@/lib/game/scoring';
+import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { SessionManager } from '@/lib/utils/sessionManager';
 
 export default function SupabaseTriviaGame({ className = '' }: { className?: string }) {
   const [gameState, setGameState] = useState<GameState>({
@@ -28,6 +30,9 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
   const [questionCount, setQuestionCount] = useState(10);
   const [questionType, setQuestionType] = useState<QuestionType>('name-that-tune');
   const [error, setError] = useState<string | null>(null);
+  
+  // Add trial status hook (walletAddress will be null for anonymous users)
+  const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(undefined);
 
   const startGame = useCallback(async () => {
     setIsLoading(true);
@@ -111,6 +116,25 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
     const nextQuestionIndex = gameState.currentQuestion + 1;
 
     if (nextQuestionIndex >= gameState.questions.length) {
+      // Game completed - save to database
+      const finalScore = newScore;
+      const sessionId = SessionManager.getSessionId();
+      
+      // Save game session to database
+      fetch('/api/save-anonymous-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          score: finalScore,
+          questions: gameState.questions,
+          answers: newAnswers
+        })
+      }).catch(console.error);
+      
+      // Increment trial game count
+      incrementTrialGame();
+      
       setGameState(prev => ({
         ...prev,
         answers: newAnswers,
@@ -128,7 +152,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: nextQuestion?.timeLimit || 15,
       }));
     }
-  }, [gameState]);
+  }, [gameState, incrementTrialGame]);
 
   const handleTimeUp = useCallback(() => {
     const tl = gameState.questions[gameState.currentQuestion]?.timeLimit || 15;
@@ -142,6 +166,25 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
     }];
 
     if (nextIndex >= gameState.questions.length) {
+      // Game completed due to time - save to database
+      const finalScore = gameState.score;
+      const sessionId = SessionManager.getSessionId();
+      
+      // Save game session to database
+      fetch('/api/save-anonymous-game', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sessionId,
+          score: finalScore,
+          questions: gameState.questions,
+          answers: newAnswers
+        })
+      }).catch(console.error);
+      
+      // Increment trial game count
+      incrementTrialGame();
+      
       setGameState(prev => ({
         ...prev,
         answers: newAnswers,
@@ -156,7 +199,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: gameState.questions[nextIndex]?.timeLimit || 15,
       }));
     }
-  }, [gameState]);
+  }, [gameState, incrementTrialGame]);
 
   const resetGame = useCallback(() => {
     setGameState({
@@ -188,6 +231,36 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
     };
   };
 
+  // Show trial completion screen if user has used all free games
+  if (trialStatus.requiresWallet) {
+    return (
+      <div className={`max-w-4xl mx-auto ${className}`}>
+        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
+              <Trophy className="w-8 h-8 text-white" />
+            </div>
+            <CardTitle className="text-2xl font-bold text-gray-800 mb-2">
+              Trial Games Complete!
+            </CardTitle>
+            <p className="text-gray-600 text-lg mb-4">
+              You&apos;ve played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+            </p>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button
+              onClick={() => {/* TODO: Trigger wallet connection */}}
+              size="lg"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3"
+            >
+              Connect Wallet to Continue
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (gameState.gameStatus === 'waiting') {
     return (
       <div className={`max-w-4xl mx-auto ${className}`}>
@@ -205,6 +278,18 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
           </CardHeader>
 
           <CardContent className="space-y-6">
+            {/* Trial games counter - only show if trial is active */}
+            {trialStatus.isTrialActive && (
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-center">
+                <p className="text-sm text-blue-700">
+                  🎮 Free Trial: {trialStatus.gamesRemaining} games remaining
+                </p>
+                <p className="text-xs text-blue-600 mt-1">
+                  Game {trialStatus.gamesPlayed + 1} of 3
+                </p>
+              </div>
+            )}
+            
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -272,6 +357,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
                 <Trophy className="w-6 h-6 text-purple-500 mx-auto mb-2" />
                 <p className="text-sm font-medium text-gray-700">Max Score</p>
                 <p className="text-lg font-bold text-purple-600">{questionCount * 100}</p>
+                <p className="text-xs text-purple-500 mt-1">Speed = More Points!</p>
               </div>
             </div>
 

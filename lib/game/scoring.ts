@@ -1,14 +1,14 @@
 import type { DifficultyLevel, GameSession } from '@/types/game';
 
 export class ScoringSystem {
-  private static readonly BASE_POINTS = 100;
-  private static readonly TIME_BONUS_MULTIPLIER = 0.5;
-  private static readonly STREAK_BONUS_MULTIPLIER = 0.2;
+  private static readonly MAX_POINTS_PER_QUESTION = 100;
+  private static readonly MIN_POINTS_PER_QUESTION = 10; // Minimum points for correct answer
+  private static readonly STREAK_BONUS_MULTIPLIER = 0.1; // Reduced streak bonus
   private static readonly DIFFICULTY_MULTIPLIERS: Record<DifficultyLevel, number> = {
     easy: 1.0,
-    medium: 1.5,
-    hard: 2.0,
-    expert: 2.5,
+    medium: 1.0,
+    hard: 1.0,
+    expert: 1.0,
   };
 
   static calculateQuestionScore(
@@ -20,18 +20,20 @@ export class ScoringSystem {
   ): number {
     if (!isCorrect) return 0;
 
-    // Base points based on difficulty
-    const basePoints = this.BASE_POINTS * this.DIFFICULTY_MULTIPLIERS[difficulty]!;
-
-    // Time bonus (faster answers get more points)
+    // Time-based scoring: faster answers get more points
+    // Calculate percentage of time remaining (0-1)
     const timeRemaining = Math.max(0, timeLimit - timeSpent);
-    const timeBonus = (timeRemaining / timeLimit) * this.TIME_BONUS_MULTIPLIER * basePoints;
+    const timePercentage = timeRemaining / timeLimit;
+    
+    // Base score based on speed (10-90 points)
+    const speedPoints = this.MIN_POINTS_PER_QUESTION + 
+      (timePercentage * (this.MAX_POINTS_PER_QUESTION - this.MIN_POINTS_PER_QUESTION - 10));
+    
+    // Small streak bonus (up to 10 points for long streaks)
+    const streakBonus = Math.min(currentStreak, 10) * this.STREAK_BONUS_MULTIPLIER * 10;
 
-    // Streak bonus (consecutive correct answers)
-    const streakBonus = Math.min(currentStreak, 10) * this.STREAK_BONUS_MULTIPLIER * basePoints;
-
-    const totalScore = Math.round(basePoints + timeBonus + streakBonus);
-    return Math.max(0, totalScore);
+    const totalScore = Math.round(speedPoints + streakBonus);
+    return Math.min(this.MAX_POINTS_PER_QUESTION, Math.max(this.MIN_POINTS_PER_QUESTION, totalScore));
   }
 
   static calculateSessionScore(session: GameSession): number {
@@ -117,7 +119,7 @@ export class ScoringSystem {
   } {
     return {
       base: this.DIFFICULTY_MULTIPLIERS[difficulty]!,
-      time: this.TIME_BONUS_MULTIPLIER,
+      time: 1.0, // Time is now the primary scoring factor
       streak: this.STREAK_BONUS_MULTIPLIER,
     };
   }

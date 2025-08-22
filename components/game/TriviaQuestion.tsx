@@ -9,6 +9,7 @@ import Timer from './Timer';
 import type { TriviaQuestion } from '@/types/game';
 import { Music, User, Calendar, TrendingUp, Tag } from 'lucide-react';
 import Image from 'next/image';
+import { ScoringSystem } from '@/lib/game/scoring';
 
 interface TriviaQuestionProps {
   question: TriviaQuestion;
@@ -28,11 +29,15 @@ export default function TriviaQuestion({
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [isAnswered, setIsAnswered] = useState(false);
+  const [pointsEarned, setPointsEarned] = useState<number>(0);
+  const [timeSpent, setTimeSpent] = useState<number>(0);
 
   useEffect(() => {
     setSelectedAnswer(null);
     setIsAnswered(false);
     setStartTime(Date.now());
+    setPointsEarned(0);
+    setTimeSpent(0);
   }, [question.id]);
 
   const handleAnswerSelection = (answerIndex: number): void => {
@@ -41,8 +46,24 @@ export default function TriviaQuestion({
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
     
-    const timeSpent = Math.round((Date.now() - startTime) / 1000);
-    onAnswer(answerIndex, timeSpent);
+    // Calculate precise time spent with millisecond accuracy, then round to tenths
+    const timeSpentMs = Date.now() - startTime;
+    const calculatedTimeSpent = Math.round(timeSpentMs / 100) / 10; // Round to nearest 0.1 seconds
+    setTimeSpent(calculatedTimeSpent);
+    
+    // Calculate points earned if correct
+    if (answerIndex === question.correctAnswer) {
+      const points = ScoringSystem.calculateQuestionScore(
+        true,
+        calculatedTimeSpent,
+        question.timeLimit,
+        question.difficulty,
+        0 // No streak bonus in this context
+      );
+      setPointsEarned(points);
+    }
+    
+    onAnswer(answerIndex, calculatedTimeSpent);
   };
 
   const handleTimeUp = (): void => {
@@ -213,8 +234,16 @@ export default function TriviaQuestion({
           {isAnswered && (
             <div className="text-center pt-4">
               {selectedAnswer === question.correctAnswer ? (
-                <div className="text-green-600 font-semibold text-lg">
-                  🎉 Correct! Great job!
+                <div className="space-y-2">
+                  <div className="text-green-600 font-semibold text-lg">
+                    🎉 Correct! Great job!
+                  </div>
+                  <div className="text-sm text-gray-600">
+                    ⏱️ {timeSpent.toFixed(1)}s • +{pointsEarned} points
+                  </div>
+                  <div className="text-xs text-green-600 font-medium">
+                    {timeSpent <= 2 ? 'Lightning fast!' : timeSpent <= 5 ? 'Nice speed!' : 'Good answer!'}
+                  </div>
                 </div>
               ) : selectedAnswer === -1 ? (
                 <div className="text-orange-600 font-semibold text-lg">
