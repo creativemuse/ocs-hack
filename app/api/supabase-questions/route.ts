@@ -106,19 +106,29 @@ export async function GET(req: NextRequest) {
     console.log(`🎵 Fetching questions from Supabase: bucket=${bucket}, folder=${folder}, mode=${mode}, count=${count}`);
 
     let files: Array<{ name: string; path: string; artistName: string; songTitle: string }> = [];
-    let source = 'local'; // Force local since Supabase is not configured
+    let source = 'local';
 
-    try {
-      // Try Supabase first (but skip since env vars are not set)
-      if (process.env.SUPABASE_URL && process.env.SUPABASE_ANON_KEY) {
+    // Check Supabase configuration first
+    if (SupabaseStorage.isConfigured()) {
+      try {
         files = await SupabaseStorage.listAudioFiles(bucket, prefix);
-        console.log(`📁 Found ${files.length} audio files in Supabase ${bucket}/${folder}`);
-        source = 'supabase';
-      } else {
-        throw new Error('Supabase not configured');
+        if (files.length === 0) {
+          console.log(`📁 Supabase bucket ${bucket}/${folder} is empty, falling back to local files`);
+          files = getLocalAudioFiles();
+          source = 'local';
+          console.log(`📁 Found ${files.length} local audio files`);
+        } else {
+          console.log(`📁 Found ${files.length} audio files in Supabase ${bucket}/${folder}`);
+          source = 'supabase';
+        }
+      } catch (supabaseError) {
+        console.warn('⚠️ Supabase storage failed, falling back to local files:', supabaseError);
+        files = getLocalAudioFiles();
+        source = 'local';
+        console.log(`📁 Found ${files.length} local audio files`);
       }
-    } catch (supabaseError) {
-      console.warn('⚠️ Supabase storage failed, falling back to local files:', supabaseError);
+    } else {
+      console.log('ℹ️ Supabase not configured, using local files');
       files = getLocalAudioFiles();
       source = 'local';
       console.log(`📁 Found ${files.length} local audio files`);

@@ -9,6 +9,19 @@ const nextConfig: NextConfig = {
         port: "3845",
         pathname: "/assets/**",
       },
+      // Add your production asset domain here
+      // Example for CDN:
+      {
+         protocol: "https",
+         hostname: "beatme.creativeplatform.xyz",
+         pathname: "/assets/**",
+      },
+      // Example for custom asset server:
+      // {
+      //   protocol: "https", 
+      //   hostname: "your-asset-server.com",
+      //   pathname: "/assets/**",
+      // },
     ],
   },
   webpack: (config) => {

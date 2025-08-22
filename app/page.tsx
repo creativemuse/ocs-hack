@@ -3,15 +3,7 @@
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
-const imgEllipse4 = "http://localhost:3845/assets/ee18a2a9ff718cdd3a3c134be489bc60e2c5e9ca.png";
-const imgEllipse7 = "http://localhost:3845/assets/da9c677496caf9618e632f752b62514b0a775282.png";
-const imgEllipse5 = "http://localhost:3845/assets/645a99fbb2ba303dd63b4c02f0f5b11be38939f9.png";
-const imgEllipse6 = "http://localhost:3845/assets/09698eb6a0c157f4f2cf590a6a4d663b0d76adb7.png";
-const imgEllipse8 = "http://localhost:3845/assets/3181aa949007403d2e43ef28c36519e1b766d296.png";
-const imgEllipse9 = "http://localhost:3845/assets/0cb6c409a89ea59f28fddeab9e5fa68185f7de85.png";
-const imgEllipse10 = "http://localhost:3845/assets/8eb09bb788a1cf5563f16634d8bd9b5d1b863ef9.png";
-const imgUiFlame = "http://localhost:3845/assets/301abc372de26b14e2b7f5a56beb6368be51039e.svg";
-const imgVector = "http://localhost:3845/assets/be82fbbfc82dbf546440e6b90de8b6aaee39a992.svg";
+import { ASSETS } from '@/lib/config/assets';
 
 export default function Home() {
   const router = useRouter();
@@ -22,7 +14,7 @@ export default function Home() {
           <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:162">
             <div className="content-stretch flex gap-1 items-center justify-start relative shrink-0" data-node-id="3:326">
               <div className="relative shrink-0 size-8" data-name="ui/flame" data-node-id="3:141">
-                <Image alt="flame icon" className="block max-w-none size-full" src={imgUiFlame} width={32} height={32} />
+                <Image alt="flame icon" className="block max-w-none size-full" src={ASSETS.uiFlame} width={32} height={32} />
               </div>
               <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[12px] text-nowrap" data-node-id="3:111">
                 <p className="leading-[normal] whitespace-pre">LIVE BATTLE</p>
@@ -54,56 +46,56 @@ export default function Home() {
         <div className="absolute flex h-[44.091px] items-center justify-center left-[358px] top-[260px] w-[44.091px] z-0 animate-float [animation-delay:200ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:169">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse4} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[317px] top-[415px] w-[44.091px] z-0 animate-float2 [animation-delay:500ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:267">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse4} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[305px] top-[341px] w-[44.091px] z-0 animate-float3 [animation-delay:800ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:172">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse7} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[7px] top-[388px] w-[44.091px] z-0 animate-float [animation-delay:1000ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:261">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse7} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[54px] top-[442px] w-[44.091px] z-0 animate-float2 [animation-delay:1200ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:269">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse7} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[40.364px] items-center justify-center left-[1.86px] top-[276.82px] w-[40.364px] z-0 animate-float3 [animation-delay:1400ms]">
           <div className="flex-none rotate-[7.451deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:170">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse5} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[133px] top-[205px] w-[44.091px] z-0 animate-float [animation-delay:300ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:171">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse6} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[44.091px] items-center justify-center left-[229px] top-[401px] w-[44.091px] z-0 animate-float2 [animation-delay:900ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:270">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse6} width="36" />
             </div>
           </div>
         </div>
@@ -118,7 +110,7 @@ export default function Home() {
               </div>
               <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:203">
                 <div className="relative shrink-0 size-9" data-node-id="3:176">
-                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse7} width="36" />
+                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse7} width="36" />
                 </div>
                 <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:177">
                   <p className="leading-[normal] whitespace-pre">JESSE.BASE.ETH</p>
@@ -138,7 +130,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:207">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:209">
                   <div className="relative shrink-0 size-9" data-node-id="3:210">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse4} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:211">
                     <p className="leading-[normal] whitespace-pre">JD.ETH</p>
@@ -159,7 +151,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:282">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:283">
                   <div className="relative shrink-0 size-9" data-node-id="3:284">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse5} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:285">
                     <p className="leading-[normal] whitespace-pre">GRROK.BASE.ETH</p>
@@ -180,7 +172,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:291">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:292">
                   <div className="relative shrink-0 size-9" data-node-id="3:293">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse6} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:294">
                     <p className="leading-[normal] whitespace-pre">SIMON.BASE.ETH</p>
@@ -201,7 +193,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:300">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:301">
                   <div className="relative shrink-0 size-9" data-node-id="3:302">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse8} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse8} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:303">
                     <p className="leading-[normal] whitespace-pre">AK.BASE.ETH</p>
@@ -222,7 +214,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0" data-node-id="3:309">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0" data-node-id="3:310">
                   <div className="relative shrink-0 size-9" data-node-id="3:311">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse9} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse9} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap" data-node-id="3:312">
                     <p className="leading-[normal] whitespace-pre">PEPE.BASE.ETH</p>
@@ -243,7 +235,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
                   <div className="relative shrink-0 size-9">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse10} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
                     <p className="leading-[normal] whitespace-pre">ALICE.BASE.ETH</p>
@@ -264,7 +256,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
                   <div className="relative shrink-0 size-9">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse4} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse4} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
                     <p className="leading-[normal] whitespace-pre">BOB.BASE.ETH</p>
@@ -285,7 +277,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
                   <div className="relative shrink-0 size-9">
-                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse5} width="36" />
+                    <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse5} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
                     <p className="leading-[normal] whitespace-pre">CAROL.BASE.ETH</p>
@@ -306,7 +298,7 @@ export default function Home() {
               <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
                 <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
                   <div className="relative shrink-0 size-9">
-                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse6} width="36" />
+                  <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse6} width="36" />
                   </div>
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
                     <p className="leading-[normal] whitespace-pre">DAVE.BASE.ETH</p>
@@ -325,20 +317,20 @@ export default function Home() {
         <div className="absolute flex h-[45.938px] items-center justify-center left-[119px] top-[412px] w-[45.938px] z-0 animate-float3 [animation-delay:1600ms]">
           <div className="flex-none rotate-[19.462deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:264">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse10} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute flex h-[45.938px] items-center justify-center left-[297px] top-[203px] w-[45.938px] z-0 animate-float [animation-delay:1800ms]">
           <div className="flex-none rotate-[19.462deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:268">
-              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={imgEllipse10} width="36" />
+              <Image alt="player avatar" className="block max-w-none size-full" height="36" src={ASSETS.ellipse10} width="36" />
             </div>
           </div>
         </div>
         <div className="absolute content-stretch flex flex-col gap-[19px] items-center justify-start left-1/2 top-[94px] translate-x-[-50%] w-[185px]" data-node-id="3:327">
           <div className="h-7 relative shrink-0 w-[185px]" data-name="Vector" data-node-id="3:273">
-            <Image alt="logo" className="block max-w-none size-full" src={imgVector} width={185} height={28} />
+            <Image alt="logo" className="block max-w-none size-full" src={ASSETS.vectorHome} width={185} height={28} />
           </div>
           <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-center w-[130px]" data-node-id="3:266">
             <p className="leading-[normal]">Name that tune, win your reward.</p>

@@ -7,9 +7,14 @@ type AudioFile = {
   songTitle: string;
 };
 
-const getServerClient = (): SupabaseClient => {
-  const supabaseUrl = process.env.SUPABASE_URL!;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY!;
+const getServerClient = (): SupabaseClient | null => {
+  const supabaseUrl = process.env.SUPABASE_URL;
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  
+  if (!supabaseUrl || !serviceKey) {
+    return null;
+  }
+  
   return createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 };
 
@@ -28,8 +33,16 @@ const parseArtistAndTitle = (filename: string): { artistName: string; songTitle:
 };
 
 export const SupabaseStorage = {
+  // Check if Supabase is properly configured
+  isConfigured(): boolean {
+    return !!(process.env.SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+  },
+
   async listAudioFiles(bucket: string, prefix = ''): Promise<AudioFile[]> {
     const s = getServerClient();
+    if (!s) {
+      throw new Error('Supabase client not initialized');
+    }
     const { data, error } = await s.storage.from(bucket).list(prefix, { 
       limit: 1000, 
       sortBy: { column: 'name', order: 'asc' } 
@@ -52,6 +65,9 @@ export const SupabaseStorage = {
 
   async createSignedUrl(bucket: string, path: string, expiresInSeconds = 300): Promise<string> {
     const s = getServerClient();
+    if (!s) {
+      throw new Error('Supabase client not initialized');
+    }
     const { data, error } = await s.storage.from(bucket).createSignedUrl(path, expiresInSeconds);
     if (error) throw error;
     return data.signedUrl;

@@ -6,10 +6,7 @@ import type { KeyboardEvent } from 'react';
 import Image from 'next/image';
 import AudioPlayer from '@/components/game/AudioPlayer';
 import type { TriviaQuestion } from '@/types/game';
-
-const imgEllipse14 = "http://localhost:3845/assets/cfc305dd8cf03fc40f5cc7683a1ae9871ccb7440.png";
-const imgNounVoice79623611 = "http://localhost:3845/assets/5ab9a61a534bd0769868dcf4132c8d1c2e0d18dc.svg";
-const imgVector = "http://localhost:3845/assets/4f728f2c86986f7c84521056d149c0b6892a11e8.svg";
+import { ASSETS } from '@/lib/config/assets';
 
 export default function Game() {
   const router = useRouter();
@@ -126,10 +123,10 @@ export default function Game() {
   return (
     <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-8 overflow-x-hidden">
       <div className="relative w-full max-w-[390px] md:max-w-[428px]">
-        <div className="bg-[#000000] overflow-visible relative rounded-3xl min-h-[844px] w-full" data-name="game" data-node-id="3:328">
+        <div className="bg-[#000000] overflow-visible relative rounded-3xl min-h-[1100px] w-full" data-name="game" data-node-id="3:328">
           {/* Voice/Music Icon */}
           {/* <div className="absolute left-[29px] size-[336px] top-[50px]" data-name="noun-voice-7962361 1" data-node-id="3:417">
-            <Image alt="music icon" className="block max-w-none size-full" src={imgNounVoice79623611} width={336} height={336} />
+            <Image alt="music icon" className="block max-w-none size-full" src={ASSETS.nounVoice79623611} width={336} height={336} />
           </div> */}
           
           {/* Leave Room Button */}
@@ -204,12 +201,12 @@ export default function Game() {
           
           {/* Logo */}
           <div className="absolute h-3.5 left-6 top-[29px] w-[92px]" data-name="Vector" data-node-id="3:455">
-            <Image alt="logo" className="block max-w-none size-full" src={imgVector} width={92} height={14} />
+            <Image alt="logo" className="block max-w-none size-full" src={ASSETS.vectorGame} width={92} height={14} />
           </div>
           
           {/* Next Question Button - shown after answering */}
           {isAnswered && (
-            <div className="absolute left-6 top-[520px] w-[345px]">
+            <div className="absolute left-6 top-[950px] w-[345px]">
               <button
                 onClick={handleNextQuestion}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors"
@@ -220,69 +217,69 @@ export default function Game() {
           )}
           
           {/* Rewards Section */}
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[805px] translate-x-[-50%]" data-node-id="3:465">
+          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[1048px] translate-x-[-50%]" data-node-id="3:465">
             <p className="leading-[normal] whitespace-pre">YOUR REWARDS THIS ROUND: {score} USDC</p>
           </div>
           
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[777px] translate-x-[-50%]" data-node-id="7:3">
+          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[1020px] translate-x-[-50%]" data-node-id="7:3">
             <p className="leading-[normal] whitespace-pre">IN THIS ROUND</p>
           </div>
           
           {/* Player Icons */}
-          <div className="absolute box-border content-stretch flex items-center justify-start left-36 pl-0 pr-2 py-0 top-[775px]" data-node-id="7:7">
+          <div className="absolute box-border content-stretch flex items-center justify-start left-36 pl-0 pr-2 py-0 top-[1018px]" data-node-id="7:7">
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:4">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:5">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:6">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:8">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:10">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:12">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:14">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:16">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:18">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:20">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:22">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:24">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:26">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:28">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:30">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:32">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:34">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:36">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={imgEllipse14} width="20" />
+              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
           </div>
         </div>
