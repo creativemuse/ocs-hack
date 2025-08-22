@@ -7,6 +7,7 @@ import Image from 'next/image';
 import AudioPlayer from '@/components/game/AudioPlayer';
 import type { TriviaQuestion } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
+import { ScoringSystem } from '@/lib/game/scoring';
 
 export default function Game() {
   const router = useRouter();
@@ -16,12 +17,14 @@ export default function Game() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
+  const [startTime, setStartTime] = useState<number>(Date.now());
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     setSelectedAnswer(null);
     setIsAnswered(false);
+    setStartTime(Date.now());
 
     try {
       const params = new URLSearchParams({
@@ -56,6 +59,7 @@ export default function Game() {
       });
 
       setCurrentQuestion(question);
+      setStartTime(Date.now()); // Reset timer when question loads
     } catch (e) {
       console.error('❌ Error loading question:', e);
       setError(e instanceof Error ? e.message : 'Failed to load question');
@@ -88,7 +92,20 @@ export default function Game() {
     
     const isCorrect = answerIndex === currentQuestion.correctAnswer;
     if (isCorrect) {
-      setScore(prev => prev + 100);
+      // Calculate precise time spent with millisecond accuracy, then round to tenths
+      const timeSpentMs = Date.now() - startTime;
+      const timeSpent = Math.round(timeSpentMs / 100) / 10; // Round to nearest 0.1 seconds
+      
+      // Use the new scoring system for time-based points
+      const pointsEarned = ScoringSystem.calculateQuestionScore(
+        true,
+        timeSpent,
+        currentQuestion.timeLimit,
+        currentQuestion.difficulty,
+        0 // No streak bonus for single questions
+      );
+      
+      setScore(prev => prev + pointsEarned);
     }
   };
 
@@ -220,7 +237,7 @@ export default function Game() {
           
           {/* Rewards Section */}
           <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[848px] translate-x-[-50%]" data-node-id="3:465">
-            <p className="leading-[normal] whitespace-pre">YOUR REWARDS THIS ROUND: {score} USDC</p>
+            <p className="leading-[normal] whitespace-pre">YOUR POINTS THIS ROUND: {score} USDC</p>
           </div>
           
           <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[820px] translate-x-[-50%]" data-node-id="7:3">

@@ -12,9 +12,14 @@ const getServerClient = (): SupabaseClient | null => {
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   
   if (!supabaseUrl || !serviceKey) {
+    console.error('Supabase configuration missing:', { 
+      hasUrl: !!supabaseUrl, 
+      hasKey: !!serviceKey 
+    });
     return null;
   }
   
+  console.log('Creating Supabase client with URL:', supabaseUrl);
   return createClient(supabaseUrl, serviceKey, { auth: { persistSession: false } });
 };
 
@@ -72,4 +77,231 @@ export const SupabaseStorage = {
     if (error) throw error;
     return data.signedUrl;
   },
+};
+
+// Add database operations
+export const SupabaseDatabase = {
+  // Get server client for database operations
+  getClient(): SupabaseClient | null {
+    return getServerClient();
+  },
+
+  // Player management
+  async createPlayer(walletAddress: string, username?: string): Promise<any> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    const { data, error } = await client
+      .from('players')
+      .upsert({ 
+        wallet_address: walletAddress, 
+        username: username || `Player_${walletAddress.slice(-6)}`,
+        trial_games_remaining: 3,
+        trial_completed: false,
+        wallet_connected: true
+      })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    return data;
+  },
+
+  async getPlayer(walletAddress: string): Promise<any> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    const { data, error } = await client
+      .from('players')
+      .select('*')
+      .eq('wallet_address', walletAddress)
+      .single();
+      
+    if (error && error.code !== 'PGRST116') throw error; // PGRST116 = not found
+    return data;
+  },
+
+  // Anonymous session management
+  async getOrCreateAnonymousSession(sessionId: string): Promise<any> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    // Try to get existing session
+    let { data, error } = await client
+      .from('anonymous_sessions')
+      .select('*')
+      .eq('session_id', sessionId)
+      .single();
+    
+    if (error && error.code !== 'PGRST116') throw error;
+    
+    // Create new session if doesn't exist
+    if (!data) {
+      const { data: newSession, error: createError } = await client
+        .from('anonymous_sessions')
+        .insert({ session_id: sessionId })
+        .select()
+        .single();
+        
+      if (createError) throw createError;
+      data = newSession;
+    }
+    
+    return data;
+  },
+
+  async updateAnonymousSession(sessionId: string, gameScore: number): Promise<void> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    // First get current values
+    const { data: current, error: fetchError } = await client
+      .from('anonymous_sessions')
+      .select('games_played, total_score, best_score')
+      .eq('session_id', sessionId)
+      .single();
+      
+    if (fetchError) throw fetchError;
+    
+    const { error } = await client
+      .from('anonymous_sessions')
+      .update({
+        games_played: (current?.games_played || 0) + 1,
+        total_score: (current?.total_score || 0) + gameScore,
+        best_score: Math.max(current?.best_score || 0, gameScore),
+        updated_at: new Date().toISOString()
+      })
+      .eq('session_id', sessionId);
+      
+    if (error) throw error;
+  },
+
+  // Trial management
+  async getPlayerTrialStatus(walletAddress: string): Promise<any> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    const { data, error } = await client
+      .from('players')
+      .select('trial_games_remaining, trial_completed, wallet_connected')
+      .eq('wallet_address', walletAddress)
+      .single();
+      
+    if (error && error.code !== 'PGRST116') throw error;
+    return data;
+  },
+
+  async decrementTrialGames(walletAddress: string): Promise<void> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    // First get current trial games remaining
+    const { data: current, error: fetchError } = await client
+      .from('players')
+      .select('trial_games_remaining')
+      .eq('wallet_address', walletAddress)
+      .single();
+      
+    if (fetchError) throw fetchError;
+    
+    const newTrialGames = Math.max(0, (current?.trial_games_remaining || 0) - 1);
+    const trialCompleted = newTrialGames === 0;
+    
+    const { error } = await client
+      .from('players')
+      .update({
+        trial_games_remaining: newTrialGames,
+        trial_completed: trialCompleted
+      })
+      .eq('wallet_address', walletAddress);
+      
+    if (error) throw error;
+  },
+
+  // Game session management
+  async saveGameSession(sessionData: {
+    playerAddress?: string;
+    sessionId?: string;
+    totalScore: number;
+    entryFee: number;
+    questions: any[];
+    answers: any[];
+  }): Promise<any> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    const { data, error } = await client
+      .from('game_sessions')
+      .insert({
+        player_address: sessionData.playerAddress || null,
+        session_id: sessionData.sessionId || null,
+        total_score: sessionData.totalScore,
+        entry_fee: sessionData.entryFee,
+        questions_data: sessionData.questions,
+        answers_data: sessionData.answers,
+        end_time: new Date().toISOString(),
+        status: 'completed'
+      })
+      .select()
+      .single();
+      
+    if (error) throw error;
+    
+    // Update player stats if wallet connected
+    if (sessionData.playerAddress) {
+      await this.updatePlayerStats(sessionData.playerAddress, sessionData.totalScore);
+    }
+    
+    return data;
+  },
+
+  async updatePlayerStats(playerAddress: string, newScore: number): Promise<void> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    // First get current values
+    const { data: current, error: fetchError } = await client
+      .from('players')
+      .select('total_score, games_played, best_score')
+      .eq('wallet_address', playerAddress)
+      .single();
+      
+    if (fetchError) throw fetchError;
+    
+    const { error } = await client
+      .from('players')
+      .update({
+        total_score: (current?.total_score || 0) + newScore,
+        games_played: (current?.games_played || 0) + 1,
+        best_score: Math.max(current?.best_score || 0, newScore),
+        updated_at: new Date().toISOString()
+      })
+      .eq('wallet_address', playerAddress);
+      
+    if (error) throw error;
+  },
+
+  // Leaderboard
+  async getLeaderboard(limit: number = 10): Promise<any[]> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    
+    const { data, error } = await client
+      .from('players')
+      .select(`
+        id,
+        wallet_address,
+        username,
+        total_score,
+        games_played,
+        best_score,
+        total_earnings,
+        updated_at
+      `)
+      .order('total_score', { ascending: false })
+      .limit(limit);
+      
+    if (error) throw error;
+    return data || [];
+  }
 };
