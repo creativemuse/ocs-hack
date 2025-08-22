@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SupabaseStorage } from '@/lib/apis/supabase';
-import type { QuestionType, DifficultyLevel } from '@/types/game';
+import type { DifficultyLevel } from '@/types/game';
 import fs from 'fs';
 import path from 'path';
 
