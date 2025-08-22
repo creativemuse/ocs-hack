@@ -7,6 +7,67 @@ type AudioFile = {
   songTitle: string;
 };
 
+// Database types
+interface Player {
+  id: string;
+  wallet_address: string;
+  username: string;
+  trial_games_remaining: number;
+  trial_completed: boolean;
+  wallet_connected: boolean;
+  total_score: number;
+  games_played: number;
+  best_score: number;
+  total_earnings: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface AnonymousSession {
+  id: string;
+  session_id: string;
+  games_played: number;
+  total_score: number;
+  best_score: number;
+  created_at: string;
+  updated_at: string;
+}
+
+interface GameSession {
+  id: string;
+  player_address: string | null;
+  session_id: string | null;
+  total_score: number;
+  entry_fee: number;
+  questions_data: TriviaQuestion[];
+  answers_data: GameAnswer[];
+  start_time: string;
+  end_time: string;
+  status: string;
+  created_at: string;
+}
+
+interface TriviaQuestion {
+  id: string;
+  type: string;
+  question: string;
+  options: string[];
+  correctAnswer: number;
+  audioUrl?: string;
+  imageUrl?: string;
+  difficulty: string;
+  timeLimit: number;
+  metadata: Record<string, unknown>;
+}
+
+interface GameAnswer {
+  questionId: string;
+  selectedAnswer: number;
+  isCorrect: boolean;
+  timeSpent: number;
+  pointsEarned: number;
+}
+
 const getServerClient = (): SupabaseClient | null => {
   const supabaseUrl = process.env.SUPABASE_URL;
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
@@ -87,7 +148,7 @@ export const SupabaseDatabase = {
   },
 
   // Player management
-  async createPlayer(walletAddress: string, username?: string): Promise<any> {
+  async createPlayer(walletAddress: string, username?: string): Promise<Player | null> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     
@@ -107,7 +168,7 @@ export const SupabaseDatabase = {
     return data;
   },
 
-  async getPlayer(walletAddress: string): Promise<any> {
+  async getPlayer(walletAddress: string): Promise<Player | null> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     
@@ -122,12 +183,12 @@ export const SupabaseDatabase = {
   },
 
   // Anonymous session management
-  async getOrCreateAnonymousSession(sessionId: string): Promise<any> {
+  async getOrCreateAnonymousSession(sessionId: string): Promise<AnonymousSession | null> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     
     // Try to get existing session
-    let { data, error } = await client
+    const { data, error } = await client
       .from('anonymous_sessions')
       .select('*')
       .eq('session_id', sessionId)
@@ -144,7 +205,7 @@ export const SupabaseDatabase = {
         .single();
         
       if (createError) throw createError;
-      data = newSession;
+      return newSession;
     }
     
     return data;
@@ -177,7 +238,7 @@ export const SupabaseDatabase = {
   },
 
   // Trial management
-  async getPlayerTrialStatus(walletAddress: string): Promise<any> {
+  async getPlayerTrialStatus(walletAddress: string): Promise<Pick<Player, 'trial_games_remaining' | 'trial_completed' | 'wallet_connected'> | null> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     
@@ -224,9 +285,9 @@ export const SupabaseDatabase = {
     sessionId?: string;
     totalScore: number;
     entryFee: number;
-    questions: any[];
-    answers: any[];
-  }): Promise<any> {
+    questions: TriviaQuestion[];
+    answers: GameAnswer[];
+  }): Promise<GameSession | null> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     
@@ -282,7 +343,7 @@ export const SupabaseDatabase = {
   },
 
   // Leaderboard
-  async getLeaderboard(limit: number = 10): Promise<any[]> {
+  async getLeaderboard(limit: number = 10): Promise<Pick<Player, 'id' | 'wallet_address' | 'username' | 'total_score' | 'games_played' | 'best_score' | 'total_earnings' | 'updated_at'>[]> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
     

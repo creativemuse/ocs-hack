@@ -32,7 +32,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
   const [error, setError] = useState<string | null>(null);
   
   // Add trial status hook (walletAddress will be null for anonymous users)
-  const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(undefined);
+  const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(undefined);
 
   const startGame = useCallback(async () => {
     setIsLoading(true);
@@ -152,7 +152,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: nextQuestion?.timeLimit || 15,
       }));
     }
-  }, [gameState]);
+  }, [gameState, incrementTrialGame]);
 
   const handleTimeUp = useCallback(() => {
     const tl = gameState.questions[gameState.currentQuestion]?.timeLimit || 15;
@@ -199,7 +199,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: gameState.questions[nextIndex]?.timeLimit || 15,
       }));
     }
-  }, [gameState]);
+  }, [gameState, incrementTrialGame]);
 
   const resetGame = useCallback(() => {
     setGameState({
@@ -244,7 +244,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
               Trial Games Complete!
             </CardTitle>
             <p className="text-gray-600 text-lg mb-4">
-              You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+              You&apos;ve played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
             </p>
           </CardHeader>
           <CardContent className="text-center">

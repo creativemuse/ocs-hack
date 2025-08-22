@@ -34,6 +34,9 @@ export async function GET(req: NextRequest) {
       const session = await SupabaseDatabase.getOrCreateAnonymousSession(sessionId);
       
       console.log('Anonymous session data:', session);
+      if (!session) {
+        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
+      }
       return NextResponse.json({
         gamesPlayed: session.games_played,
         totalScore: session.total_score,
@@ -44,9 +47,10 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
   } catch (error) {
     console.error('Error checking trial status:', error);
-    console.error('Error details:', error.message);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.error('Error details:', errorMessage);
     return NextResponse.json(
-      { error: 'Failed to check trial status', details: error.message },
+      { error: 'Failed to check trial status', details: errorMessage },
       { status: 500 }
     );
   }
