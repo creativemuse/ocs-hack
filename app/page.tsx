@@ -35,7 +35,7 @@ export default function Home() {
             </div>
           </div>
         </div>
-        <div className="absolute bg-[#bc58ff] box-border content-stretch flex flex-col font-['Audiowide:Regular',_sans-serif] gap-1 items-center justify-center leading-[0] left-[33px] not-italic px-2.5 py-3 rounded-2xl text-[#000000] text-nowrap top-[361px] w-[328px] z-10 cursor-pointer hover:bg-[#a847e6] transition-colors" data-node-id="3:166" onClick={() => router.push('/game')}>
+        <div className="absolute bg-[#bc58ff] box-border mt-2 content-stretch flex flex-col font-['Audiowide:Regular',_sans-serif] gap-1 items-center justify-center leading-[0] left-[33px] not-italic px-2.5 py-3 rounded-2xl text-[#000000] text-nowrap top-[361px] w-[328px] z-10 cursor-pointer hover:bg-[#a847e6] transition-colors" data-node-id="3:166" onClick={() => router.push('/game')}>
           <div className="relative shrink-0 text-[12px]" data-node-id="3:165">
             <p className="leading-[normal] text-nowrap whitespace-pre">JOIN GAME</p>
           </div>
