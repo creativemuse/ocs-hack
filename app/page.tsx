@@ -14,7 +14,7 @@ export default function Home() {
           <div className="content-stretch flex items-center justify-between relative shrink-0 w-full" data-node-id="3:162">
             <div className="content-stretch flex gap-1 items-center justify-start relative shrink-0" data-node-id="3:326">
               <div className="relative shrink-0 size-8" data-name="ui/flame" data-node-id="3:141">
-                <Image alt="flame icon" className="block max-w-none size-full" src={ASSETS.uiFlame} width={32} height={32} />
+                <p className="block max-w-none size-full text-2xl">🔥</p>
               </div>
               <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[12px] text-nowrap" data-node-id="3:111">
                 <p className="leading-[normal] whitespace-pre">LIVE BATTLE</p>

@@ -182,11 +182,11 @@ export default function Game() {
           )}
           
           {/* Answer Options */}
-          <div className="absolute content-stretch flex flex-col gap-2 items-start justify-start left-6 top-[400px] w-[345px]" data-node-id="3:442">
+          <div className="absolute content-stretch grid grid-cols-2 gap-2 items-start justify-start left-6 top-[400px] w-[345px]" data-node-id="3:442">
             {currentQuestion?.options.map((option, index) => (
               <div 
                 key={index}
-                className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[81px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full cursor-pointer transition-colors ${
+                className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full cursor-pointer transition-colors ${
                   selectedAnswer === index 
                     ? index === currentQuestion.correctAnswer 
                       ? 'bg-green-200 border-2 border-green-500' 
@@ -196,7 +196,7 @@ export default function Game() {
                 onClick={() => handleAnswerSelect(index)}
               >
                 <div className="content-stretch flex flex-col gap-2 items-start justify-start relative shrink-0 w-full" data-node-id="3:428">
-                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[24px] w-[294px]" data-node-id="3:429">
+                  <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[18px] w-full" data-node-id="3:429">
                     <p className="leading-[normal]">{option}</p>
                   </div>
                   <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full" data-node-id="3:430">
@@ -206,7 +206,7 @@ export default function Game() {
                           ? index === currentQuestion.correctAnswer 
                             ? '✅ CORRECT!' 
                             : '❌ INCORRECT'
-                          : 'IS PLAYING'
+                          : ''
                         }
                       </p>
                     </div>
@@ -225,27 +225,27 @@ export default function Game() {
           
           {/* Next Question Button - shown after answering */}
           {isAnswered && (
-            <div className="absolute left-6 top-[750px] w-[345px]">
+            <div className="absolute left-6 top-[630px] w-[345px]">
               <button
                 onClick={handleNextQuestion}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors"
               >
-                Next Question
+                Next <span className="font-audiowide">Beat</span>
               </button>
             </div>
           )}
           
           {/* Rewards Section */}
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[848px] translate-x-[-50%]" data-node-id="3:465">
+          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[730px] translate-x-[-50%]" data-node-id="3:465">
             <p className="leading-[normal] whitespace-pre">YOUR POINTS THIS ROUND: {score} USDC</p>
           </div>
           
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[820px] translate-x-[-50%]" data-node-id="7:3">
+          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[700px] translate-x-[-50%]" data-node-id="7:3">
             <p className="leading-[normal] whitespace-pre">IN THIS ROUND</p>
           </div>
           
           {/* Player Icons */}
-          <div className="absolute box-border content-stretch flex items-center justify-start left-36 pl-0 pr-2 py-0 top-[818px]" data-node-id="7:7">
+          <div className="absolute box-border content-stretch flex items-center justify-start left-36 pl-0 pr-2 py-0 top-[698px]" data-node-id="7:7">
             <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:4">
               <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
             </div>
