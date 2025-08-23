@@ -10,7 +10,7 @@
   
   /* Audiowide font utility class */
   .font-audiowide {
-    font-family: "Audiowide", cursive;
+    font-family: var(--font-audiowide), cursive;
   }
 }
 

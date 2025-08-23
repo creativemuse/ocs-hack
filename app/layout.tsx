@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Inter, Source_Code_Pro } from "next/font/google";
+import localFont from "next/font/local";
 import { RootProvider } from "./rootProvider";
 import "./globals.css";
 
@@ -11,6 +12,13 @@ const inter = Inter({
 const sourceCodePro = Source_Code_Pro({
   variable: "--font-source-code-pro",
   subsets: ["latin"],
+});
+
+const audiowide = localFont({
+  src: "../public/font/Audiowide-Regular.ttf",
+  variable: "--font-audiowide",
+  weight: "400",
+  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -41,12 +49,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Audiowide&display=swap" rel="stylesheet" />
-      </head>
-      <body className={`${inter.variable} ${sourceCodePro.variable} min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50`}>
+      <body className={`${inter.variable} ${sourceCodePro.variable} ${audiowide.variable} min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50`}>
         <RootProvider>{children}</RootProvider>
       </body>
     </html>
