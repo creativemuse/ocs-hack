@@ -31,10 +31,14 @@ export default function AudioPlayer({
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
+  const [isMetadataLoaded, setIsMetadataLoaded] = useState(false);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
+
+    // Ensure appropriate preload for quickest start
+    audio.preload = 'auto';
 
     const handleTimeUpdate = (): void => {
       const t = Math.max(0, audio.currentTime - clipStartSeconds);
@@ -57,14 +61,28 @@ export default function AudioPlayer({
       onEnded?.();
     };
 
-    const handleLoadedData = (): void => {
-      setIsLoading(false);
-      setHasError(false);
-      audio.currentTime = clipStartSeconds;
+    const handleLoadedMetadata = (): void => {
+      setIsMetadataLoaded(true);
       handleDurationChange();
+      // Guard: only seek once metadata is known
+      if (!Number.isNaN(clipStartSeconds) && clipStartSeconds > 0 && isFinite(audio.duration)) {
+        try {
+          audio.currentTime = Math.min(Math.max(0, clipStartSeconds), audio.duration || clipStartSeconds);
+        } catch {}
+      }
       if (autoPlay) {
         void tryAutoplay();
+      } else {
+        setIsLoading(false);
       }
+    };
+
+    const handleLoadedData = (): void => {
+      setHasError(false);
+    };
+
+    const handleCanPlay = (): void => {
+      setIsLoading(false);
     };
 
     const handleError = (): void => {
@@ -78,10 +96,9 @@ export default function AudioPlayer({
         await audio.play();
         setIsPlaying(true);
         setAutoplayBlocked(false);
-      } catch (error) {
-        console.warn('Autoplay blocked:', error);
+      } catch {
+        // Autoplay blocked; wait for first user gesture to start playback
         setAutoplayBlocked(true);
-        // Fallback: wait for first user gesture to start playback
         const resumeOnGesture = async () => {
           try {
             await audio.play();
@@ -99,14 +116,18 @@ export default function AudioPlayer({
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('loadeddata', handleLoadedData);
+    audio.addEventListener('canplay', handleCanPlay);
     audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('loadeddata', handleLoadedData);
+      audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('error', handleError);
     };
   }, [audioUrl, autoPlay, onEnded, clipDurationSeconds, clipStartSeconds]);
@@ -118,26 +139,33 @@ export default function AudioPlayer({
     if (isPlaying) {
       audio.pause();
       setIsPlaying(false);
-    } else {
-      audio
-        .play()
-        .then(() => {
-          setIsPlaying(true);
-          setAutoplayBlocked(false);
-        })
-        .catch((error) => {
-          console.error('Failed to play audio:', error);
-          setAutoplayBlocked(true);
-        });
+      return;
     }
+
+    audio
+      .play()
+      .then(() => {
+        setIsPlaying(true);
+        setAutoplayBlocked(false);
+        // If user explicitly plays, ensure unmuted
+        if (audio.muted) {
+          audio.muted = false;
+          setIsMuted(false);
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to play audio:', error);
+        setAutoplayBlocked(true);
+      });
   };
 
   const toggleMute = (): void => {
     const audio = audioRef.current;
     if (!audio) return;
 
-    audio.muted = !isMuted;
-    setIsMuted(!isMuted);
+    const newMuted = !isMuted;
+    audio.muted = newMuted;
+    setIsMuted(newMuted);
   };
 
   const handleVolumeChange = (_newVolume: number[]): void => {
@@ -146,6 +174,10 @@ export default function AudioPlayer({
     
     if (audio) {
       audio.volume = volumeValue;
+      if (volumeValue > 0 && audio.muted) {
+        audio.muted = false;
+        setIsMuted(false);
+      }
     }
     setVolume(volumeValue);
     
@@ -158,11 +190,13 @@ export default function AudioPlayer({
 
   const handleSeek = (_newValue: number[]): void => {
     const audio = audioRef.current;
-    if (!audio || duration === 0) return;
+    if (!audio || duration === 0 || !isMetadataLoaded) return;
     const percentage = _newValue[0]! / 100;
     const newTime = clipStartSeconds + percentage * duration;
-    audio.currentTime = newTime;
-    setCurrentTime(Math.max(0, audio.currentTime - clipStartSeconds));
+    try {
+      audio.currentTime = newTime;
+      setCurrentTime(Math.max(0, audio.currentTime - clipStartSeconds));
+    } catch {}
   };
 
   const formatTime = (time: number): string => {
@@ -187,9 +221,8 @@ export default function AudioPlayer({
       <audio
         ref={audioRef}
         src={audioUrl}
-        preload="metadata"
+        preload="auto"
         playsInline
-        crossOrigin="anonymous"
       />
       
       <div className="flex items-center space-x-4">
