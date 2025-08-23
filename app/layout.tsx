@@ -15,18 +15,18 @@ const sourceCodePro = Source_Code_Pro({
 
 export const metadata: Metadata = {
   title: "BEATME",
-  description: "Name that tune, win your reward",
+  description: "Name that tune, win your reward.",
   other: {
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: "https://usdozf7pplhxfvrl.public.blob.vercel-storage.com/thumbnail_71c11dee-b398-4ff8-9e06-6a78958cd5cc-RUsgkllNAu2j9Yd4GgqronDXhWL88r",
+      imageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
       button: {
         title: "Drop the Beat",
         action: {
           type: "launch_frame",
           name: "BEATME",
           url: "https://beatme.creativeplatform.xyz",
-          splashImageUrl: "https://usdozf7pplhxfvrl.public.blob.vercel-storage.com/farcaster/splash_images/splash_image1.svg",
+          splashImageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME.png",
           splashBackgroundColor: "#000000"
         }
       }
