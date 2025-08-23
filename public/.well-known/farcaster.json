@@ -1,0 +1,30 @@
+{
+    "accountAssociation": {
+      "header": "",
+      "payload": "",
+      "signature": ""
+    },
+    "baseBuilder": {
+      "allowedAddresses": ["0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260"]
+    },
+    "frame": {
+      "version": "1",
+      "name": "BEATME",
+      "homeUrl": "https://beatme.creativeplatform.xyz",
+      "iconUrl": "https://beatme.creativeplatform.xyz/assets/4f728f2c86986f7c84521056d149c0b6892a11e8.svg",
+      "splashImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME.png",
+      "splashBackgroundColor": "#000000",
+      "webhookUrl": "https://beatme.creativeplatform.xyz/api/webhook",
+      "subtitle": "Can you beat me?",
+      "description": "Name that tune, win your reward.",
+      "screenshotUrls": [],
+      "primaryCategory": "games",
+      "tags": ["music", "trivia", "earn"],
+      "heroImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "tagline": "Can you beat me?",
+      "ogTitle": "BEATME",
+      "ogDescription": "Name that tune, win your reward.",
+      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "noindex": true
+    }
+  }
