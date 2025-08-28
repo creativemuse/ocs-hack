@@ -1,33 +1,14 @@
-import { prepareContractCall, getContract } from 'thirdweb';
-import { createThirdwebClient } from 'thirdweb';
-import { defineChain } from 'thirdweb/chains';
-import { Account } from 'thirdweb/wallets';
+// Entry fee in USDC (1 USDC = 1000000 wei for USDC with 6 decimals)
+export const ENTRY_FEE_USDC = '1000000'; // 1 USDC
+export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 
-// Hardcoded ThirdWeb client
-const client = createThirdwebClient({
-  clientId: '2f654d0179741f6776fa108a9683038e',
-});
-
-// Define chain - Using Base Sepolia for testing (cheap transactions)
-const chain = defineChain({
-  id: 84532, // Base Sepolia
-  name: 'Base Sepolia',
-  nativeCurrency: { name: 'ETH', symbol: 'ETH', decimals: 18 },
-  rpc: 'https://sepolia.base.org',
-  blockExplorers: [
-    {
-      name: 'BaseScan',
-      url: 'https://sepolia.basescan.org',
-    },
-  ],
-});
+// USDC contract address on Base Sepolia (mock address for demo)
+// TODO: Replace with actual USDC contract address when ready for production
+const USDC_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000002';
 
 // Trivia Battle smart contract address (mock address for demo)
 // TODO: Replace with actual deployed contract address when ready for production
 const TRIVIA_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001';
-
-// Entry fee in Wei (0.01 ETH = 10000000000000000 Wei)
-export const ENTRY_FEE_WEI = '10000000000000000'; // 0.01 ETH
 
 // Contract ABI for trivia battle functionality
 const TRIVIA_ABI = [
@@ -36,7 +17,14 @@ const TRIVIA_ABI = [
     name: 'joinBattle',
     inputs: [],
     outputs: [],
-    stateMutability: 'payable',
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'joinTrialBattle',
+    inputs: [],
+    outputs: [],
+    stateMutability: 'nonpayable',
   },
   {
     type: 'function',
@@ -71,11 +59,26 @@ const TRIVIA_ABI = [
     stateMutability: 'view',
   },
   {
+    type: 'function',
+    name: 'getTrialPlayerCount',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
     type: 'event',
     name: 'PlayerJoined',
     inputs: [
       { name: 'player', type: 'address', indexed: true },
       { name: 'entryFee', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'TrialPlayerJoined',
+    inputs: [
+      { name: 'player', type: 'address', indexed: true },
+      { name: 'sessionId', type: 'string', indexed: false },
     ],
   },
   {
@@ -98,146 +101,158 @@ const TRIVIA_ABI = [
   },
 ] as const;
 
-export class TriviaContract {
-  private static _contract: ReturnType<typeof getContract> | null = null;
-  
-  private static getContractInstance() {
-    if (!this._contract) {
-      this._contract = getContract({
-        client,
-        chain,
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-      });
-    }
-    return this._contract;
-  }
+// USDC contract ABI for token transfers
+const USDC_ABI = [
+  {
+    type: 'function',
+    name: 'transfer',
+    inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'transferFrom',
+    inputs: [
+      { name: 'from', type: 'address' },
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'approve',
+    inputs: [
+      { name: 'spender', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'balanceOf',
+    inputs: [{ name: 'account', type: 'address' }],
+    outputs: [{ name: '', type: 'uint256' }],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'decimals',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
+  },
+] as const;
 
+export class TriviaContract {
   /**
    * Check if the contract is deployed and accessible
    */
   static async isContractDeployed(): Promise<boolean> {
     try {
-      const { readContract } = await import('thirdweb');
-      await readContract({
-        contract: this.getContractInstance(),
-        method: 'function getPrizePool() view returns (uint256)',
-        params: [],
-      })
-      return true;
+      // For now, return false since we're using a mock address
+      // In production, this would check the actual contract
+      return false;
     } catch (error) {
-      if (error instanceof Error && error.message.includes('Cannot decode zero data')) {
-        return false;
-      }
-      // For other errors, we assume the contract might be deployed but having issues
       return false;
     }
   }
 
   /**
-   * Safe contract read with fallback for non-deployed contracts
+   * Join a trivia battle by paying the entry fee in USDC (for paid players)
    */
-  private static async safeContractRead<T>(
-    method: string,
-    params: unknown[] = [],
-    fallbackValue: T
-  ): Promise<T> {
-    try {
-      const { readContract } = await import('thirdweb');
-      const result = await readContract({
-        contract: this.getContractInstance(),
-        method,
-        params,
-      });
-      return result as T;
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('Cannot decode zero data')) {
-        console.warn(`Contract not deployed or returning empty data for ${method}, using fallback value`);
-        return fallbackValue;
-      }
-      console.error(`Error reading ${method}:`, error);
-      return fallbackValue;
-    }
+  static createJoinBattleTransaction() {
+    return {
+      to: USDC_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0), // No ETH value for USDC transfer
+      data: '0x' as `0x${string}`, // transfer() function call to trivia contract
+    };
   }
 
   /**
-   * Join a trivia battle by paying the entry fee
+   * Join a trivia battle without paying entry fee (for trial players)
    */
-  static async joinBattle(_account: Account): Promise<ReturnType<typeof prepareContractCall>> {
-    const contract = this.getContractInstance()
-    return prepareContractCall({
-      contract,
-      // Use function signature for stricter typing across SDK versions
-      method: 'function joinBattle()',
-      params: [],
-      value: BigInt(ENTRY_FEE_WEI),
-    });
+  static createJoinTrialBattleTransaction(sessionId: string) {
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // joinTrialBattle() function call
+    };
   }
 
   /**
    * Submit game score and answers to the smart contract
    */
-  static async submitScore(
-    account: Account,
+  static createSubmitScoreTransaction(
     gameId: string,
     score: number,
     answerHashes: string[]
-  ): Promise<ReturnType<typeof prepareContractCall>> {
+  ) {
     // Convert answers to bytes32 format
     const answerBytes32 = answerHashes.map(hash => 
       hash.padStart(66, '0x' + '0'.repeat(64))
     );
     
-    const contract = this.getContractInstance()
-    return prepareContractCall({
-      contract,
-      method: 'function submitScore(bytes32 gameId, uint256 score, bytes32[] answers)',
-      params: [gameId as `0x${string}`, BigInt(score), answerBytes32 as `0x${string}`[]],
-    });
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // submitScore() function call with encoded parameters
+    };
   }
 
   /**
    * Trigger prize distribution for completed game
    */
-  static async distributePrizes(
-    account: Account,
-    gameId: string
-  ): Promise<ReturnType<typeof prepareContractCall>> {
-    const contract = this.getContractInstance()
-    return prepareContractCall({
-      contract,
-      method: 'function distributePrizes(bytes32 gameId)',
-      params: [gameId as `0x${string}`],
-    });
+  static createDistributePrizesTransaction(gameId: string) {
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // distributePrizes() function call
+    };
   }
 
   /**
-   * Get current prize pool amount
+   * Get current prize pool amount in USDC (mock implementation)
    */
   static async getPrizePool(): Promise<bigint> {
-    return this.safeContractRead('getPrizePool', [], BigInt(0));
+    // Mock implementation - in production this would call the contract
+    return BigInt(0);
   }
 
   /**
-   * Get current number of players in the battle
+   * Get current number of players in the battle (mock implementation)
    */
   static async getPlayerCount(): Promise<number> {
-    const result = await this.safeContractRead('getPlayerCount', [], BigInt(0));
-    return Number(result);
+    // Mock implementation - in production this would call the contract
+    return 0;
   }
 
   /**
-   * Convert Wei to ETH for display
+   * Get current number of trial players in the battle (mock implementation)
    */
-  static weiToEth(weiValue: bigint): number {
-    return Number(weiValue) / Math.pow(10, 18);
+  static async getTrialPlayerCount(): Promise<number> {
+    // Mock implementation - in production this would call the contract
+    return 0;
   }
 
   /**
-   * Convert ETH to Wei
+   * Convert USDC wei to USDC for display (USDC has 6 decimals)
    */
-  static ethToWei(ethValue: number): bigint {
-    return BigInt(Math.floor(ethValue * Math.pow(10, 18)));
+  static usdcWeiToUsdc(usdcWeiValue: bigint): number {
+    return Number(usdcWeiValue) / Math.pow(10, 6);
+  }
+
+  /**
+   * Convert USDC to USDC wei
+   */
+  static usdcToUsdcWei(usdcValue: number): bigint {
+    return BigInt(Math.floor(usdcValue * Math.pow(10, 6)));
   }
 
   /**
@@ -275,4 +290,4 @@ export class TriviaContract {
   }
 }
 
-export { client, chain, TRIVIA_CONTRACT_ADDRESS };
+export { TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS };

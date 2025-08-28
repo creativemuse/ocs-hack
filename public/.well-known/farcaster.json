@@ -9,7 +9,7 @@
     },
     "frame": {
       "version": "1",
-      "name": "BEATME",
+      "name": "BEAT ME",
       "homeUrl": "https://beatme.creativeplatform.xyz",
       "iconUrl": "/assets/4f728f2c86986f7c84521056d149c0b6892a11e8.svg",
       "splashImageUrl": "/assets/BEATME.png",
@@ -22,7 +22,7 @@
       "tags": ["music", "trivia", "earn"],
       "heroImageUrl": "/assets/BEATME_hero.png",
       "tagline": "Can you beat me?",
-      "ogTitle": "BEATME",
+      "ogTitle": "BEAT ME",
       "ogDescription": "Name that tune, win your reward.",
       "ogImageUrl": "/assets/BEATME_hero.png",
       "noindex": true

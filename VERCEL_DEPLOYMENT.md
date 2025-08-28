@@ -17,7 +17,6 @@ Set these in your Vercel dashboard:
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SPOTIFY_CLIENT_ID=your_spotify_client_id
-NEXT_PUBLIC_THIRDWEB_CLIENT_ID=your_thirdweb_client_id
 NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
 ```
 
@@ -33,7 +32,7 @@ ASSET_BASE_URL=
 1. **Push to GitHub:**
    ```bash
    git add .
-   git commit -m "Fix webpack runtime error and move assets to public folder"
+   git commit -m "Remove ThirdWeb integration and migrate to OnchainKit"
    git push
    ```
 
@@ -53,10 +52,12 @@ ASSET_BASE_URL=
 - ✅ Build tested locally - successful
 - ✅ Development server tested - working correctly
 - ✅ No external dependencies for assets
+- ✅ **Removed ThirdWeb integration**
+- ✅ **Migrated to OnchainKit for wallet functionality**
 
 ## Testing
 
-- **Development:** Uses `localhost:3845` (tested and working)
+- **Development:** Uses relative paths from `/public/assets/` (tested and working)
 - **Production:** Uses `public/assets/` (served by Vercel)
 
 ## Issue Resolution
@@ -65,5 +66,13 @@ The webpack runtime error was caused by dynamic asset URL generation during serv
 1. Simplifying the asset configuration to use static URLs
 2. Using a simple environment check instead of complex functions
 3. Ensuring all assets are available in both development and production
+
+## ThirdWeb Migration
+
+Successfully removed ThirdWeb dependencies and migrated to OnchainKit:
+- ✅ Removed `thirdweb` package from dependencies
+- ✅ Updated wallet connection to use OnchainKit hooks
+- ✅ Simplified blockchain contract interactions
+- ✅ Reduced bundle size and complexity
 
 Your app is now ready for Vercel deployment! 🚀

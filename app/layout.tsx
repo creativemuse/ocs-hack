@@ -22,7 +22,7 @@ const audiowide = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "BEATME",
+  title: "BEAT ME",
   description: "Name that tune, win your reward.",
   other: {
     "fc:frame": JSON.stringify({
@@ -32,7 +32,7 @@ export const metadata: Metadata = {
         title: "Drop the Beat",
         action: {
           type: "launch_frame",
-          name: "BEATME",
+          name: "BEAT ME",
           url: "https://beatme.creativeplatform.xyz",
           splashImageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME.png",
           splashBackgroundColor: "#000000"

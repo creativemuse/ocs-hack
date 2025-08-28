@@ -9,6 +9,7 @@ interface AudioPlayerProps {
   audioUrl: string;
   autoPlay?: boolean;
   onEnded?: () => void;
+  onTimeUpdate?: (currentTime: number, duration: number) => void;
   className?: string;
   clipDurationSeconds?: number;
   clipStartSeconds?: number;
@@ -18,6 +19,7 @@ export default function AudioPlayer({
   audioUrl, 
   autoPlay = false, 
   onEnded, 
+  onTimeUpdate,
   className = '',
   clipDurationSeconds = 10,
   clipStartSeconds = 0,
@@ -43,6 +45,8 @@ export default function AudioPlayer({
     const handleTimeUpdate = (): void => {
       const t = Math.max(0, audio.currentTime - clipStartSeconds);
       setCurrentTime(t);
+      // Emit a stable duration equal to the configured clip length to keep external timers in sync
+      onTimeUpdate?.(t, clipDurationSeconds);
       if (t >= clipDurationSeconds) {
         audio.pause();
         setIsPlaying(false);
@@ -130,7 +134,7 @@ export default function AudioPlayer({
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('error', handleError);
     };
-  }, [audioUrl, autoPlay, onEnded, clipDurationSeconds, clipStartSeconds]);
+  }, [audioUrl, autoPlay, onEnded, onTimeUpdate, clipDurationSeconds, clipStartSeconds]);
 
   const togglePlayPause = (): void => {
     const audio = audioRef.current;
@@ -231,7 +235,7 @@ export default function AudioPlayer({
           onClick={togglePlayPause}
           variant="outline"
           size="icon"
-          className="w-12 h-12 rounded-full bg-white hover:bg-gray-50"
+          className="w-12 h-12 rounded-full bg-white hover:bg-gray-50 hidden"
           disabled={isLoading || hasError}
         >
           {isLoading ? (
@@ -248,15 +252,15 @@ export default function AudioPlayer({
           <Slider
             value={[progressPercentage]}
             onValueChange={handleSeek}
-            className="w-full"
+            className="w-full hidden"
             disabled={isLoading || hasError}
           />
-          <div className="flex justify-between text-sm text-white mt-1">
+          <div className="flex justify-between text-sm text-white mt-1 hidden">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>
           {autoplayBlocked && (
-            <div className="text-xs text-orange-400 mt-1">Tap play to start audio</div>
+            <div className="text-xs text-orange-400 mt-1">Tap to start audio</div>
           )}
         </div>
 
@@ -266,7 +270,7 @@ export default function AudioPlayer({
             onClick={toggleMute}
             variant="ghost"
             size="icon"
-            className="w-8 h-8 text-white hover:bg-white/10"
+            className="w-8 h-8 text-white hover:bg-white/10 hidden"
             disabled={isLoading || hasError}
           >
             {isMuted || volume === 0 ? (
@@ -278,14 +282,14 @@ export default function AudioPlayer({
           <Slider
             value={[Math.round(volume * 100)]}
             onValueChange={handleVolumeChange}
-            className="w-full"
+            className="w-full hidden"
             disabled={isLoading || hasError}
           />
         </div>
       </div>
 
       {/* Waveform Visual (Simulated) */}
-      <div className="mt-3 h-8 flex items-end justify-center space-x-1">
+      <div className="mt-4 h-8 flex items-end justify-center space-x-1">
         {Array.from({ length: 20 }, (_, i) => (
           <div
             key={i}

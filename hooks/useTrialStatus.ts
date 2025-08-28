@@ -8,6 +8,7 @@ interface TrialStatus {
   gamesRemaining: number;
   isTrialActive: boolean;
   requiresWallet: boolean;
+  canJoinPrizePool: boolean; // New field to allow trial players in prize pools
 }
 
 export const useTrialStatus = (walletAddress?: string) => {
@@ -15,7 +16,8 @@ export const useTrialStatus = (walletAddress?: string) => {
     gamesPlayed: 0,
     gamesRemaining: 3,
     isTrialActive: true,
-    requiresWallet: false
+    requiresWallet: false,
+    canJoinPrizePool: true // Trial players can always join prize pools
   });
   const [isLoading, setIsLoading] = useState(true);
 
@@ -31,7 +33,8 @@ export const useTrialStatus = (walletAddress?: string) => {
               gamesPlayed: 3 - data.trialGamesRemaining,
               gamesRemaining: data.trialGamesRemaining,
               isTrialActive: data.trialGamesRemaining > 0,
-              requiresWallet: false
+              requiresWallet: false, // Wallet users never require wallet connection
+              canJoinPrizePool: true // Wallet users can always join prize pools
             });
           }
         } else {
@@ -44,7 +47,8 @@ export const useTrialStatus = (walletAddress?: string) => {
               gamesPlayed: data.gamesPlayed,
               gamesRemaining: Math.max(0, 3 - data.gamesPlayed),
               isTrialActive: data.gamesPlayed < 3,
-              requiresWallet: data.gamesPlayed >= 3
+              requiresWallet: false, // Trial players can still play, just with limited games
+              canJoinPrizePool: true // Trial players can always join prize pools
             });
           }
         }
@@ -57,7 +61,8 @@ export const useTrialStatus = (walletAddress?: string) => {
             gamesPlayed,
             gamesRemaining: Math.max(0, 3 - gamesPlayed),
             isTrialActive: gamesPlayed < 3,
-            requiresWallet: gamesPlayed >= 3
+            requiresWallet: false, // Trial players can still play
+            canJoinPrizePool: true // Trial players can always join prize pools
           });
         }
       } finally {
@@ -77,7 +82,8 @@ export const useTrialStatus = (walletAddress?: string) => {
       gamesPlayed: prev.gamesPlayed + 1,
       gamesRemaining: Math.max(0, prev.gamesRemaining - 1),
       isTrialActive: prev.gamesPlayed < 2,
-      requiresWallet: prev.gamesPlayed >= 2
+      requiresWallet: false, // Never require wallet connection
+      canJoinPrizePool: true // Always allow prize pool participation
     }));
   };
 

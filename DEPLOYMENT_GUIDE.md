@@ -1,7 +1,7 @@
 # Deployment Guide: Fixing Image Display on Vercel
 
 ## Problem
-Images are hardcoded to use `localhost:3845` URLs, which only work in development. When deployed to Vercel, these images won't display.
+Images now use relative paths (`/assets/...`) which work in both development and production environments.
 
 ## Solution Implemented
 We've created a flexible asset configuration system that adapts to different environments.
@@ -66,7 +66,7 @@ We've created a flexible asset configuration system that adapts to different env
    ```
 
 ## Testing
-- Development: Images continue to work with `localhost:3845`
+- Development: Images work with relative paths from `/public/assets/`
 - Production: Images will use your configured production URLs
 
 ## Asset Files Referenced

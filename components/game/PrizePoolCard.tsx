@@ -47,10 +47,13 @@ export default function PrizePoolCard({
   };
 
   const formatCurrency = (amount: number): string => {
-    return `$${amount.toFixed(2)}`;
+    return `${amount.toFixed(2)} USDC`;
   };
 
   const participationRate = Math.min(prizePool.participants / 100, 1) * 100; // Assume max 100 players
+
+  const canJoinPrizePool = isConnected && timeRemaining === 0;
+  const isTrialPlayer = prizePool.entryFee === 0;
 
   return (
     <Card className={`bg-gradient-to-br from-purple-900 via-blue-900 to-indigo-900 text-white border-0 shadow-2xl ${className}`}>
@@ -148,17 +151,17 @@ export default function PrizePoolCard({
         {/* Join Button */}
         <Button
           onClick={onJoinGame}
-          disabled={!isConnected || isLoading || timeRemaining > 0}
+          disabled={!canJoinPrizePool || isLoading || timeRemaining > 0}
           className={`w-full h-12 text-lg font-bold transition-all duration-200 ${
-            isConnected && timeRemaining === 0
+            canJoinPrizePool && timeRemaining === 0
               ? 'bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 shadow-lg hover:shadow-xl transform hover:scale-105'
               : 'bg-gray-600 cursor-not-allowed'
           }`}
         >
-          {!isConnected ? (
+          {!canJoinPrizePool ? (
             <span className="flex items-center space-x-2">
-              <DollarSign className="h-5 w-5" />
-              <span>Connect Wallet to Play</span>
+              <Clock className="h-5 w-5" />
+              <span>Prize Pool Unavailable</span>
             </span>
           ) : isLoading ? (
             <span className="flex items-center space-x-2">
@@ -170,6 +173,11 @@ export default function PrizePoolCard({
               <Clock className="h-5 w-5" />
               <span>Waiting for Next Battle</span>
             </span>
+          ) : isTrialPlayer ? (
+            <span className="flex items-center space-x-2">
+              <Trophy className="h-5 w-5" />
+              <span>Join Battle (Free Trial)</span>
+            </span>
           ) : (
             <span className="flex items-center space-x-2">
               <Trophy className="h-5 w-5" />
@@ -177,6 +185,16 @@ export default function PrizePoolCard({
             </span>
           )}
         </Button>
+
+        {/* Trial Player Info */}
+        {isTrialPlayer && (
+          <div className="text-center text-xs text-green-300 pt-2 border-t border-gray-700">
+            <div className="flex items-center justify-center space-x-1">
+              <Trophy className="w-3 h-3" />
+              <span>Equal opportunity - compete with paid players!</span>
+            </div>
+          </div>
+        )}
 
         {/* Contract Info */}
         <div className="text-center text-xs text-gray-400 pt-2 border-t border-gray-700">

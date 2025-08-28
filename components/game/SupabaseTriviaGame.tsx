@@ -17,12 +17,18 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
   const [gameState, setGameState] = useState<GameState>({
     currentQuestion: 0,
     questions: [],
+    allQuestions: [],
     answers: [],
     score: 0,
     timeRemaining: 0,
     gameStatus: 'waiting',
     prizePool: 0,
     entryFee: 0,
+    isTrialPlayer: true, // Default to trial player for Supabase game
+    sessionId: undefined,
+    currentRound: 0,
+    totalRounds: 3,
+    questionsPerRound: 10,
   });
 
   const [isLoading, setIsLoading] = useState(false);
@@ -34,54 +40,74 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
   // Add trial status hook (walletAddress will be null for anonymous users)
   const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(undefined);
 
+  const DEFAULT_TOTAL_ROUNDS = 3;
+  const DEFAULT_QUESTIONS_PER_ROUND = 10;
+
+  const loadRoundQuestions = useCallback(async (perRound: number) => {
+    const params = new URLSearchParams({
+      bucket: 'Songs',
+      folder: 'Global_Top_100',
+      mode: questionType,
+      count: String(perRound),
+      difficulty,
+      choices: '4',
+    });
+    const res = await fetch(`/api/supabase-questions?${params.toString()}`, { cache: 'no-store' });
+    if (!res.ok) {
+      const errorData = await res.json();
+      throw new Error(errorData.error || 'Failed to load questions');
+    }
+    const data: { questions: TQ[] } = await res.json();
+    if (!data.questions?.length) throw new Error('No questions generated from Supabase bucket');
+    return data.questions;
+  }, [difficulty, questionType]);
+
+  const startRound = useCallback(async (roundNumber: number) => {
+    setIsLoading(true);
+    try {
+      const perRound = gameState.questionsPerRound || DEFAULT_QUESTIONS_PER_ROUND;
+      const qs = await loadRoundQuestions(perRound);
+      setGameState(prev => ({
+        ...prev,
+        questions: qs,
+        currentQuestion: 0,
+        gameStatus: 'playing',
+        timeRemaining: qs[0]?.timeLimit || 15,
+        currentRound: roundNumber,
+        totalRounds: prev.totalRounds || DEFAULT_TOTAL_ROUNDS,
+        questionsPerRound: perRound,
+      }));
+    } catch (e) {
+      console.error('❌ Error starting round:', e);
+      setError(e instanceof Error ? e.message : 'Failed to start round');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [gameState.questionsPerRound, loadRoundQuestions]);
+
   const startGame = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const params = new URLSearchParams({
-        bucket: 'Songs',
-        folder: 'Global_Top_100',
-        mode: questionType,
-        count: String(questionCount),
-        difficulty,
-        choices: '4',
-      });
-
       console.log('🎮 Starting Supabase trivia game...');
-      const res = await fetch(`/api/supabase-questions?${params.toString()}`, { 
-        cache: 'no-store' 
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to load questions');
-      }
-
-      const data: { questions: TQ[] } = await res.json();
-
-      if (!data.questions?.length) {
-        throw new Error('No questions generated from Supabase bucket');
-      }
-
       setGameState(prev => ({
         ...prev,
-        questions: data.questions,
-        currentQuestion: 0,
         answers: [],
         score: 0,
-        gameStatus: 'playing',
-        timeRemaining: data.questions[0]?.timeLimit || 15,
+        isTrialPlayer: true,
+        sessionId: undefined,
+        totalRounds: DEFAULT_TOTAL_ROUNDS,
+        questionsPerRound: DEFAULT_QUESTIONS_PER_ROUND,
       }));
-
-      console.log(`✅ Loaded ${data.questions.length} questions successfully`);
+      await startRound(1);
     } catch (e) {
       console.error('❌ Error starting game:', e);
       setError(e instanceof Error ? e.message : 'Failed to start game');
     } finally {
       setIsLoading(false);
     }
-  }, [questionCount, difficulty, questionType]);
+  }, [startRound]);
 
   const handleAnswer = useCallback((selectedAnswer: number, timeSpent: number) => {
     const currentQ = gameState.questions[gameState.currentQuestion];
@@ -116,32 +142,39 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
     const nextQuestionIndex = gameState.currentQuestion + 1;
 
     if (nextQuestionIndex >= gameState.questions.length) {
-      // Game completed - save to database
-      const finalScore = newScore;
-      const sessionId = SessionManager.getSessionId();
-      
-      // Save game session to database
-      fetch('/api/save-anonymous-game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          score: finalScore,
-          questions: gameState.questions,
-          answers: newAnswers
-        })
-      }).catch(console.error);
-      
-      // Increment trial game count
-      incrementTrialGame();
-      
-      setGameState(prev => ({
-        ...prev,
-        answers: newAnswers,
-        score: newScore,
-        gameStatus: 'completed',
-        timeRemaining: 0,
-      }));
+      // Round completed: either next round or finish game and save
+      const nextRound = (gameState.currentRound || 1) + 1;
+      if (nextRound <= (gameState.totalRounds || DEFAULT_TOTAL_ROUNDS)) {
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+          score: newScore,
+        }));
+        void startRound(nextRound);
+      } else {
+        const finalScore = newScore;
+        const sessionId = SessionManager.getSessionId();
+        fetch('/api/save-anonymous-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            score: finalScore,
+            questions: gameState.questions,
+            answers: newAnswers
+          })
+        }).catch(console.error);
+        incrementTrialGame();
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+          score: newScore,
+          gameStatus: 'completed',
+          timeRemaining: 0,
+          isTrialPlayer: true,
+          sessionId: undefined,
+        }));
+      }
     } else {
       const nextQuestion = gameState.questions[nextQuestionIndex];
       setGameState(prev => ({
@@ -152,7 +185,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: nextQuestion?.timeLimit || 15,
       }));
     }
-  }, [gameState, incrementTrialGame]);
+  }, [gameState, incrementTrialGame, startRound]);
 
   const handleTimeUp = useCallback(() => {
     const tl = gameState.questions[gameState.currentQuestion]?.timeLimit || 15;
@@ -166,31 +199,35 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
     }];
 
     if (nextIndex >= gameState.questions.length) {
-      // Game completed due to time - save to database
-      const finalScore = gameState.score;
-      const sessionId = SessionManager.getSessionId();
-      
-      // Save game session to database
-      fetch('/api/save-anonymous-game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          score: finalScore,
-          questions: gameState.questions,
-          answers: newAnswers
-        })
-      }).catch(console.error);
-      
-      // Increment trial game count
-      incrementTrialGame();
-      
-      setGameState(prev => ({
-        ...prev,
-        answers: newAnswers,
-        gameStatus: 'completed',
-        timeRemaining: 0,
-      }));
+      // End of round due to time
+      const nextRound = (gameState.currentRound || 1) + 1;
+      if (nextRound <= (gameState.totalRounds || DEFAULT_TOTAL_ROUNDS)) {
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+        }));
+        void startRound(nextRound);
+      } else {
+        const finalScore = gameState.score;
+        const sessionId = SessionManager.getSessionId();
+        fetch('/api/save-anonymous-game', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            score: finalScore,
+            questions: gameState.questions,
+            answers: newAnswers
+          })
+        }).catch(console.error);
+        incrementTrialGame();
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+          gameStatus: 'completed',
+          timeRemaining: 0,
+        }));
+      }
     } else {
       setGameState(prev => ({
         ...prev,
@@ -199,7 +236,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
         timeRemaining: gameState.questions[nextIndex]?.timeLimit || 15,
       }));
     }
-  }, [gameState, incrementTrialGame]);
+  }, [gameState, incrementTrialGame, startRound]);
 
   const resetGame = useCallback(() => {
     setGameState({
@@ -211,6 +248,8 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
       gameStatus: 'waiting',
       prizePool: 0,
       entryFee: 0,
+      isTrialPlayer: true,
+      sessionId: undefined,
     });
     setError(null);
   }, []);
@@ -400,8 +439,11 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
                 <Music className="w-3 h-3 mr-1" />
                 Global Top 100
               </Badge>
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                Round {gameState.currentRound || 1} of {gameState.totalRounds || DEFAULT_TOTAL_ROUNDS}
+              </Badge>
               <span className="text-sm text-gray-600">
-                Question {gameState.currentQuestion + 1} of {gameState.questions.length}
+                Question {gameState.currentQuestion + 1} of {gameState.questionsPerRound || DEFAULT_QUESTIONS_PER_ROUND}
               </span>
             </div>
             

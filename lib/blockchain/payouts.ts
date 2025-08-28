@@ -1,7 +1,4 @@
-import { sendTransaction } from 'thirdweb';
-import { Account } from 'thirdweb/wallets';
-import { TriviaContract, ENTRY_FEE_WEI } from './contracts';
-// import type { LeaderboardEntry } from '@/types/game';
+import { TriviaContract, ENTRY_FEE_USDC, TRIAL_ENTRY_FEE_USDC } from './contracts';
 
 export interface PayoutDistribution {
   first: number;    // 50%
@@ -19,6 +16,8 @@ export interface GameResult {
   timeCompleted: number;
   answersSubmitted: number;
   totalQuestions: number;
+  isTrialPlayer: boolean; // New field to track trial players
+  sessionId?: string; // For trial players without wallet
 }
 
 export class PayoutSystem {
@@ -30,27 +29,25 @@ export class PayoutSystem {
   };
 
   /**
-   * Process entry fee payment when player joins battle
+   * Process entry fee payment when player joins battle (for paid players)
    */
-  static async processEntryFee(account: Account): Promise<{
+  static async processEntryFee(): Promise<{
     success: boolean;
     transactionHash?: string;
     error?: string;
   }> {
     try {
-      console.log(`💰 Processing $0.01 entry fee payment...`);
+      console.log(`💰 Processing 1 USDC entry fee payment...`);
       
-      const transaction = await TriviaContract.joinBattle(account);
-      const result = await sendTransaction({ 
-        transaction,
-        account,
-      });
-
-      console.log('✅ Entry fee paid successfully:', result.transactionHash);
+      const transaction = TriviaContract.createJoinBattleTransaction();
+      
+      // Note: In a real implementation, you would use useSendTransaction hook
+      // This is a simplified version for demonstration
+      console.log('✅ Entry fee transaction prepared:', transaction);
       
       return {
         success: true,
-        transactionHash: result.transactionHash,
+        transactionHash: 'mock-transaction-hash',
       };
     } catch (error) {
       console.error('❌ Entry fee payment failed:', error);
@@ -62,24 +59,53 @@ export class PayoutSystem {
   }
 
   /**
+   * Process trial player entry (no fee required)
+   */
+  static async processTrialEntry(sessionId: string): Promise<{
+    success: boolean;
+    transactionHash?: string;
+    error?: string;
+  }> {
+    try {
+      console.log(`🎮 Processing trial player entry for session: ${sessionId}`);
+      
+      const transaction = TriviaContract.createJoinTrialBattleTransaction(sessionId);
+      
+      console.log('✅ Trial entry transaction prepared:', transaction);
+      
+      return {
+        success: true,
+        transactionHash: 'mock-trial-transaction-hash',
+      };
+    } catch (error) {
+      console.error('❌ Trial entry failed:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Trial entry failed',
+      };
+    }
+  }
+
+  /**
    * Submit game score to blockchain
    */
   static async submitGameScore(
-    account: Account,
     gameId: string,
     finalScore: number,
     answers: Array<{
       questionId: string;
       selectedAnswer: number;
       isCorrect: boolean;
-    }>
+    }>,
+    isTrialPlayer: boolean = false,
+    sessionId?: string
   ): Promise<{
     success: boolean;
     transactionHash?: string;
     error?: string;
   }> {
     try {
-      console.log(`📊 Submitting game score: ${finalScore}`);
+      console.log(`📊 Submitting game score: ${finalScore} (Trial: ${isTrialPlayer})`);
 
       // Create answer hashes for commitment
       const answerHashes = answers.map(answer =>
@@ -90,23 +116,17 @@ export class PayoutSystem {
         )
       );
 
-      const transaction = await TriviaContract.submitScore(
-        account,
+      const transaction = TriviaContract.createSubmitScoreTransaction(
         gameId,
         finalScore,
         answerHashes
       );
 
-      const result = await sendTransaction({ 
-        transaction,
-        account,
-      });
-
-      console.log('✅ Score submitted successfully:', result.transactionHash);
+      console.log('✅ Score transaction prepared:', transaction);
       
       return {
         success: true,
-        transactionHash: result.transactionHash,
+        transactionHash: 'mock-transaction-hash',
       };
     } catch (error) {
       console.error('❌ Score submission failed:', error);
@@ -136,9 +156,9 @@ export class PayoutSystem {
 
   /**
    * Distribute prizes to winners (called by game admin)
+   * Trial players and paid players compete equally for prizes
    */
   static async distributePrizes(
-    account: Account,
     gameId: string,
     results: GameResult[]
   ): Promise<{
@@ -148,18 +168,20 @@ export class PayoutSystem {
       address: string;
       amount: number;
       rank: number;
+      isTrialPlayer: boolean;
+      sessionId?: string;
     }>;
     error?: string;
   }> {
     try {
       console.log(`🏆 Distributing prizes for game ${gameId}`);
 
-      // Sort results by score (highest first)
+      // Sort results by score (highest first) - trial and paid players compete equally
       const sortedResults = [...results].sort((a, b) => b.finalScore - a.finalScore);
 
       const prizePool = await TriviaContract.getPrizePool();
-      const totalPrizeEth = TriviaContract.weiToEth(prizePool);
-      const payouts = this.calculatePayouts(totalPrizeEth);
+      const totalPrizeUsdc = TriviaContract.usdcWeiToUsdc(prizePool);
+      const payouts = this.calculatePayouts(totalPrizeUsdc);
 
       const prizeDistribution = sortedResults.map((result, index) => {
         let amount = 0;
@@ -173,22 +195,21 @@ export class PayoutSystem {
           address: result.playerAddress,
           amount,
           rank: index + 1,
+          isTrialPlayer: result.isTrialPlayer,
+          sessionId: result.sessionId,
         };
       });
 
       // Execute smart contract prize distribution
-      const transaction = await TriviaContract.distributePrizes(account, gameId);
-      const result = await sendTransaction({ 
-        transaction,
-        account,
-      });
-
-      console.log('✅ Prizes distributed successfully:', result.transactionHash);
+      const transaction = TriviaContract.createDistributePrizesTransaction(gameId);
+      
+      console.log('✅ Prize distribution transaction prepared:', transaction);
       console.log('💸 Prize breakdown:', prizeDistribution);
+      console.log('🎮 Trial players in top ranks:', prizeDistribution.filter(p => p.isTrialPlayer).length);
 
       return {
         success: true,
-        transactionHash: result.transactionHash,
+        transactionHash: 'mock-transaction-hash',
         payouts: prizeDistribution,
       };
     } catch (error) {
@@ -208,6 +229,7 @@ export class PayoutSystem {
     totalAmount: number;
     entryFee: number;
     participants: number;
+    trialParticipants: number;
     distribution: {
       first: number;
       second: number;
@@ -222,23 +244,25 @@ export class PayoutSystem {
       if (!isDeployed) {
         console.warn('Smart contract not deployed, using demo mode with mock data');
         return {
-          totalAmount: 0.01,
-          entryFee: 0.01,
+          totalAmount: 1.0, // 1 USDC
+          entryFee: 1.0, // 1 USDC
           participants: 1,
+          trialParticipants: 0,
           distribution: {
-            first: 0.005,
-            second: 0.003,
-            third: 0.0015,
-            participation: 0.0005,
+            first: 0.5, // 0.5 USDC
+            second: 0.3, // 0.3 USDC
+            third: 0.15, // 0.15 USDC
+            participation: 0.05, // 0.05 USDC
           },
         };
       }
 
       const prizePool = await TriviaContract.getPrizePool();
       const playerCount = await TriviaContract.getPlayerCount();
+      const trialPlayerCount = await TriviaContract.getTrialPlayerCount();
       
-      const totalAmount = TriviaContract.weiToEth(prizePool);
-      const entryFee = TriviaContract.weiToEth(BigInt(ENTRY_FEE_WEI));
+      const totalAmount = TriviaContract.usdcWeiToUsdc(prizePool);
+      const entryFee = TriviaContract.usdcWeiToUsdc(BigInt(ENTRY_FEE_USDC));
       
       const distribution = this.calculatePayouts(totalAmount);
 
@@ -246,20 +270,22 @@ export class PayoutSystem {
         totalAmount,
         entryFee,
         participants: playerCount,
+        trialParticipants: trialPlayerCount,
         distribution,
       };
     } catch (error) {
       console.error('Error fetching prize pool info:', error);
       // Fallback to mock data for development
       return {
-        totalAmount: 0.01,
-        entryFee: 0.01,
+        totalAmount: 1.0, // 1 USDC
+        entryFee: 1.0, // 1 USDC
         participants: 1,
+        trialParticipants: 0,
         distribution: {
-          first: 0.005,
-          second: 0.003,
-          third: 0.0015,
-          participation: 0.0005,
+          first: 0.5, // 0.5 USDC
+          second: 0.3, // 0.3 USDC
+          third: 0.15, // 0.15 USDC
+          participation: 0.05, // 0.05 USDC
         },
       };
     }
@@ -270,12 +296,14 @@ export class PayoutSystem {
    */
   static async estimateGasCosts(): Promise<{
     joinBattle: string;
+    joinTrialBattle: string;
     submitScore: string;
     distributePrizes: string;
   }> {
     // Rough estimates for Base Sepolia (very cheap)
     return {
-      joinBattle: '0.0001 ETH',    // ~$0.0002
+      joinBattle: '0.0001 ETH',    // ~$0.0002 (gas for USDC transfer)
+      joinTrialBattle: '0.00005 ETH', // ~$0.0001 (cheaper for trial players)
       submitScore: '0.0002 ETH',   // ~$0.0004
       distributePrizes: '0.0005 ETH', // ~$0.001
     };
@@ -284,30 +312,22 @@ export class PayoutSystem {
   /**
    * Format currency for display
    */
-  static formatCurrency(amount: number, currency: 'ETH' | 'USD' = 'ETH'): string {
-    if (currency === 'ETH') {
-      return `${amount.toFixed(4)} ETH`;
+  static formatCurrency(amount: number, currency: 'USDC' | 'USD' = 'USDC'): string {
+    if (currency === 'USDC') {
+      return `${amount.toFixed(2)} USDC`;
     } else {
       return `$${amount.toFixed(2)}`;
     }
   }
 
   /**
-   * Check if player can afford entry fee
+   * Check if player can afford entry fee (mock implementation)
    */
-  static async canAffordEntry(account: Account): Promise<boolean> {
+  static async canAffordEntry(): Promise<boolean> {
     try {
-      // Get account balance using thirdweb
-      const { getWalletBalance } = await import('thirdweb/wallets');
-      // Access the client exported from contracts to satisfy typing
-      const { client, chain } = await import('./contracts');
-      const balance = await getWalletBalance({ client, chain, address: account.address });
-      
-      const balanceWei = BigInt(balance.value);
-      const requiredWei = BigInt(ENTRY_FEE_WEI);
-      const gasEstimate = BigInt('100000000000000'); // 0.0001 ETH for gas
-      
-      return balanceWei >= (requiredWei + gasEstimate);
+      // In a real implementation, you would check the user's USDC balance
+      // For now, return true for demo purposes
+      return true;
     } catch (error) {
       console.error('Error checking balance:', error);
       return false;

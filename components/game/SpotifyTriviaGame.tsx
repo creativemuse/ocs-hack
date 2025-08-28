@@ -30,6 +30,11 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
     gameStatus: 'waiting',
     prizePool: 0,
     entryFee: 0,
+    isTrialPlayer: true, // Default to trial player for Spotify game
+    sessionId: undefined,
+    currentRound: 0,
+    totalRounds: 3,
+    questionsPerRound: 10,
   });
   
   const [isLoading, setIsLoading] = useState(false);
@@ -50,41 +55,62 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
     setIsSpotifyConnected(false);
   }, []);
 
+  const DEFAULT_TOTAL_ROUNDS = 3;
+  const DEFAULT_QUESTIONS_PER_ROUND = 10;
+
+  const startRound = useCallback(async (roundNumber: number) => {
+    setIsLoading(true);
+    try {
+      const perRound = gameState.questionsPerRound || DEFAULT_QUESTIONS_PER_ROUND;
+      const qs = await QuestionGenerator.generateTopGlobalQuestionSet(
+        perRound,
+        difficulty
+      );
+
+      if (!qs.length) throw new Error('Failed to generate questions. Please try again.');
+
+      setGameState(prev => ({
+        ...prev,
+        questions: qs,
+        currentQuestion: 0,
+        gameStatus: 'playing',
+        timeRemaining: qs[0]?.timeLimit || 15,
+        currentRound: roundNumber,
+        totalRounds: prev.totalRounds || DEFAULT_TOTAL_ROUNDS,
+        questionsPerRound: perRound,
+      }));
+    } catch (err) {
+      console.error('Error starting round:', err);
+      setError(err instanceof Error ? err.message : 'Failed to start round');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [difficulty, gameState.questionsPerRound]);
+
   const startGame = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
       console.log('Starting Spotify trivia game...');
-      
-      // Generate questions from Top Global playlist
-      const questions = await QuestionGenerator.generateTopGlobalQuestionSet(
-        questionCount,
-        difficulty
-      );
-
-      if (questions.length === 0) {
-        throw new Error('Failed to generate questions. Please try again.');
-      }
-
+      // Initialize rounds config and load first round
       setGameState(prev => ({
         ...prev,
-        questions,
-        currentQuestion: 0,
         answers: [],
         score: 0,
-        gameStatus: 'playing',
-        timeRemaining: questions[0]?.timeLimit || 15,
+        isTrialPlayer: true,
+        sessionId: undefined,
+        totalRounds: DEFAULT_TOTAL_ROUNDS,
+        questionsPerRound: DEFAULT_QUESTIONS_PER_ROUND,
       }));
-
-      console.log(`Generated ${questions.length} questions from Top Global playlist`);
+      await startRound(1);
     } catch (error) {
       console.error('Error starting game:', error);
       setError(error instanceof Error ? error.message : 'Failed to start game');
     } finally {
       setIsLoading(false);
     }
-  }, [questionCount, difficulty]);
+  }, [difficulty, startRound]);
 
   const handleAnswer = useCallback((selectedAnswer: number, timeSpent: number) => {
     const currentQ = gameState.questions[gameState.currentQuestion];
@@ -106,14 +132,26 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
     const nextQuestionIndex = gameState.currentQuestion + 1;
 
     if (nextQuestionIndex >= gameState.questions.length) {
-      // Game completed
-      setGameState(prev => ({
-        ...prev,
-        answers: newAnswers,
-        score: newScore,
-        gameStatus: 'completed',
-        timeRemaining: 0,
-      }));
+      // Round completed - either start next round or finish game
+      const nextRound = (gameState.currentRound || 1) + 1;
+      if (nextRound <= (gameState.totalRounds || DEFAULT_TOTAL_ROUNDS)) {
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+          score: newScore,
+        }));
+        void startRound(nextRound);
+      } else {
+        setGameState(prev => ({
+          ...prev,
+          answers: newAnswers,
+          score: newScore,
+          gameStatus: 'completed',
+          timeRemaining: 0,
+          isTrialPlayer: true,
+          sessionId: undefined,
+        }));
+      }
     } else {
       // Move to next question
       const nextQuestion = gameState.questions[nextQuestionIndex];
@@ -123,6 +161,8 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
         score: newScore,
         currentQuestion: nextQuestionIndex,
         timeRemaining: nextQuestion?.timeLimit || 15,
+        isTrialPlayer: true,
+        sessionId: undefined,
       }));
     }
   }, [gameState]);
@@ -141,6 +181,8 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
       gameStatus: 'waiting',
       prizePool: 0,
       entryFee: 0,
+      isTrialPlayer: true, // Default to trial player
+      sessionId: undefined,
     });
     setCurrentTrack(null);
     setError(null);
@@ -151,7 +193,7 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
   };
 
   const getGameStats = () => {
-    const totalQuestions = gameState.questions.length;
+    const totalQuestions = gameState.answers.length;
     const correctAnswers = gameState.answers.filter(a => a.isCorrect).length;
     const averageTime = gameState.answers.length > 0 
       ? gameState.answers.reduce((sum, a) => sum + a.timeSpent, 0) / gameState.answers.length 
@@ -323,8 +365,11 @@ export default function SpotifyTriviaGame({ className = '' }: SpotifyTriviaGameP
                 <Music className="w-3 h-3 mr-1" />
                 Top Global
               </Badge>
+              <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">
+                Round {gameState.currentRound || 1} of {gameState.totalRounds || DEFAULT_TOTAL_ROUNDS}
+              </Badge>
               <span className="text-sm text-gray-600">
-                Question {gameState.currentQuestion + 1} of {gameState.questions.length}
+                Question {gameState.currentQuestion + 1} of {gameState.questionsPerRound || DEFAULT_QUESTIONS_PER_ROUND}
               </span>
             </div>
             

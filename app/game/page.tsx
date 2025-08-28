@@ -5,6 +5,9 @@ import { useRouter } from 'next/navigation';
 import type { KeyboardEvent } from 'react';
 import Image from 'next/image';
 import AudioPlayer from '@/components/game/AudioPlayer';
+import CountdownDisplay from '@/components/game/CountdownDisplay';
+import ActivePlayers from '@/components/game/ActivePlayers';
+import PlayerCount from '@/components/game/PlayerCount';
 import type { TriviaQuestion } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
 import { ScoringSystem } from '@/lib/game/scoring';
@@ -17,7 +20,15 @@ export default function Game() {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [isAnswered, setIsAnswered] = useState(false);
   const [score, setScore] = useState(0);
+  const [totalScore, setTotalScore] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
+  const [timeRemaining, setTimeRemaining] = useState(10);
+  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
+  const [currentRound, setCurrentRound] = useState(1);
+  const totalRounds = 3;
+  const questionsPerRound = 10;
+  const [questionNumberInRound, setQuestionNumberInRound] = useState(1);
+  const [gameCompleted, setGameCompleted] = useState(false);
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -25,6 +36,8 @@ export default function Game() {
     setSelectedAnswer(null);
     setIsAnswered(false);
     setStartTime(Date.now());
+    setTimeRemaining(10);
+    setAudioCurrentTime(0);
 
     try {
       const params = new URLSearchParams({
@@ -72,6 +85,16 @@ export default function Game() {
     loadRandomQuestion();
   }, [loadRandomQuestion]);
 
+  // Timer effect - now synced with audio player
+  useEffect(() => {
+    if (isAnswered || isLoading || !currentQuestion) return;
+
+    // When time runs out, mark as answered
+    if (timeRemaining <= 0 && !isAnswered) {
+      setIsAnswered(true);
+    }
+  }, [timeRemaining, isAnswered, isLoading, currentQuestion]);
+
   const handleLeaveRoom = () => {
     router.push('/');
   };
@@ -106,11 +129,33 @@ export default function Game() {
       );
       
       setScore(prev => prev + pointsEarned);
+      setTotalScore(prev => prev + pointsEarned);
     }
   };
 
   const handleNextQuestion = () => {
+    // Advance question/round counters and reset per-round state if needed
+    if (questionNumberInRound >= questionsPerRound) {
+      if (currentRound < totalRounds) {
+        setCurrentRound(prev => prev + 1);
+        setQuestionNumberInRound(1);
+        setScore(0);
+      } else {
+        setGameCompleted(true);
+        return;
+      }
+    } else {
+      setQuestionNumberInRound(prev => prev + 1);
+    }
+
     loadRandomQuestion();
+  };
+
+  const handleAudioTimeUpdate = (currentTime: number, duration: number) => {
+    setAudioCurrentTime(currentTime);
+    // Sync countdown with audio time: show remaining time based on audio progress
+    const remaining = Math.max(0, Math.ceil(duration - currentTime));
+    setTimeRemaining(remaining);
   };
 
   if (isLoading) {
@@ -137,6 +182,38 @@ export default function Game() {
     );
   }
 
+  if (gameCompleted) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px] text-center text-white">
+          <h2 className="text-2xl font-audiowide mb-2">All Rounds Complete</h2>
+          <p className="mb-6 text-sm">Total Score: {totalScore} USDC</p>
+          <div className="flex gap-3 justify-center">
+            <button
+              onClick={() => {
+                setCurrentRound(1);
+                setQuestionNumberInRound(1);
+                setScore(0);
+                setTotalScore(0);
+                setGameCompleted(false);
+                loadRandomQuestion();
+              }}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
+            >
+              Play Again
+            </button>
+            <button
+              onClick={() => router.push('/')}
+              className="bg-[#32353d] hover:bg-[#404550] text-white px-4 py-2 rounded-lg"
+            >
+              Leave Room
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-4 overflow-x-hidden">
       <div className="relative w-full max-w-[390px] md:max-w-[428px]">
@@ -153,6 +230,21 @@ export default function Game() {
             </div>
           </div>
 
+          {/* Round Indicator */}
+          <div className="absolute left-1/2 -translate-x-1/2 top-[80px] bg-[#1f2937] text-white text-[11px] px-3 py-1 rounded-full border border-white/10">
+            Round {currentRound} of {totalRounds} • Q {questionNumberInRound}/{questionsPerRound}
+          </div>
+
+          {/* Countdown Display */}
+          {!isAnswered && (
+            <div className="absolute left-[29px] top-[150px] w-[336px]">
+              <CountdownDisplay 
+                timeRemaining={timeRemaining}
+                className="z-10"
+              />
+            </div>
+          )}
+
           {/* Audio Player - positioned where the waveform would be */}
           {currentQuestion?.audioUrl && (
             <div className="absolute left-[29px] top-[200px] w-[336px]">
@@ -161,6 +253,7 @@ export default function Game() {
                 audioUrl={currentQuestion.audioUrl}
                 autoPlay={true}
                 clipDurationSeconds={10}
+                onTimeUpdate={handleAudioTimeUpdate}
                 className="bg-transparent border-0 shadow-none"
               />
             </div>
@@ -186,14 +279,21 @@ export default function Game() {
             {currentQuestion?.options.map((option, index) => (
               <div 
                 key={index}
-                className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full cursor-pointer transition-colors ${
+                className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full transition-colors ${
                   selectedAnswer === index 
                     ? index === currentQuestion.correctAnswer 
                       ? 'bg-green-200 border-2 border-green-500' 
                       : 'bg-red-200 border-2 border-red-500'
-                    : 'hover:bg-[#f0f0f0]'
+                    : isAnswered || timeRemaining <= 0
+                    ? 'cursor-not-allowed opacity-50'
+                    : 'cursor-pointer hover:bg-[#f0f0f0]'
                 }`}
-                onClick={() => handleAnswerSelect(index)}
+                onClick={() => {
+                  // Only allow clicking if not answered and timer hasn't run out
+                  if (!isAnswered && timeRemaining > 0) {
+                    handleAnswerSelect(index);
+                  }
+                }}
               >
                 <div className="content-stretch flex flex-col gap-2 items-start justify-start relative shrink-0 w-full" data-node-id="3:428">
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[18px] w-full" data-node-id="3:429">
@@ -216,10 +316,10 @@ export default function Game() {
             ))}
           </div>
           
-          {/* BEATME Title with Audiowide Font */}
+          {/* BEAT ME Title with Audiowide Font */}
           <div className="absolute left-6 top-[29px] w-[92px] h-3.5 flex items-center" data-name="BEATME Title" data-node-id="3:455">
-            <h1 className="text-white text-lg font-audiowide tracking-wider">
-              BEATME
+            <h1 className="text-white text-lg font-audiowide tracking-wider whitespace-nowrap">
+              BEAT ME
             </h1>
           </div>
           
@@ -240,66 +340,18 @@ export default function Game() {
             <p className="leading-[normal] whitespace-pre">YOUR POINTS THIS ROUND: {score} USDC</p>
           </div>
           
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[75.5px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[700px] translate-x-[-50%]" data-node-id="7:3">
-            <p className="leading-[normal] whitespace-pre">IN THIS ROUND</p>
+          <div className="absolute left-[75.5px] top-[700px] translate-x-[-50%]">
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic text-[#ffffff] text-[12px] text-center text-nowrap">
+              <p className="leading-[normal] whitespace-pre">IN THIS ROUND</p>
+            </div>
+            <div className="mt-1">
+              <PlayerCount showLabel={false} />
+            </div>
           </div>
           
-          {/* Player Icons */}
-          <div className="absolute box-border content-stretch flex items-center justify-start left-36 pl-0 pr-2 py-0 top-[698px]" data-node-id="7:7">
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:4">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:5">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:6">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:8">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:10">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:12">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:14">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:16">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:18">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:20">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:22">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:24">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:26">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:28">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:30">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:32">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:34">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
-            <div className="mr-[-8px] relative shrink-0 size-5" data-node-id="7:36">
-              <Image alt="player" className="block max-w-none size-full" height="20" src={ASSETS.ellipse14} width="20" />
-            </div>
+          {/* Active Players */}
+          <div className="absolute left-36 top-[698px]">
+            <ActivePlayers maxPlayers={16} />
           </div>
         </div>
       </div>
