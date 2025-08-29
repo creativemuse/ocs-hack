@@ -16,7 +16,6 @@ Set these in your Vercel dashboard:
 ```
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_URL=your_supabase_url
-NEXT_PUBLIC_SPOTIFY_CLIENT_ID=your_spotify_client_id
 NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
 ```
 
