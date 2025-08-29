@@ -29,6 +29,7 @@ export default function Game() {
   const questionsPerRound = 10;
   const [questionNumberInRound, setQuestionNumberInRound] = useState(1);
   const [gameCompleted, setGameCompleted] = useState(false);
+  const [audioError, setAudioError] = useState(false);
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -38,10 +39,10 @@ export default function Game() {
     setStartTime(Date.now());
     setTimeRemaining(10);
     setAudioCurrentTime(0);
+    setAudioError(false);
 
     try {
       const params = new URLSearchParams({
-        bucket: 'Songs',
         folder: 'Global_Top_100',
         mode: 'name-that-tune',
         count: '1',
@@ -49,7 +50,7 @@ export default function Game() {
         choices: '4',
       });
 
-      const res = await fetch(`/api/supabase-questions?${params.toString()}`, { 
+      const res = await fetch(`/api/lighthouse-questions?${params.toString()}`, { 
         cache: 'no-store' 
       });
       
@@ -68,8 +69,26 @@ export default function Game() {
       console.log('🎵 Loaded question:', {
         audioUrl: question.audioUrl,
         songTitle: question.metadata?.songTitle,
-        artistName: question.metadata?.artistName
+        artistName: question.metadata?.artistName,
+        source: question.metadata?.source
       });
+
+      // Test if the audio URL is accessible
+      if (question.audioUrl && question.audioUrl.startsWith('http')) {
+        fetch(question.audioUrl, { method: 'HEAD' })
+          .then(response => {
+            console.log('🎵 Audio URL test:', {
+              url: question.audioUrl,
+              status: response.status,
+              contentType: response.headers.get('content-type'),
+              contentLength: response.headers.get('content-length'),
+              acceptRanges: response.headers.get('accept-ranges')
+            });
+          })
+          .catch(error => {
+            console.error('🎵 Audio URL test failed:', question.audioUrl, error);
+          });
+      }
 
       setCurrentQuestion(question);
       setStartTime(Date.now()); // Reset timer when question loads
@@ -97,6 +116,15 @@ export default function Game() {
 
   const handleLeaveRoom = () => {
     router.push('/');
+  };
+
+  const handleAudioError = () => {
+    console.log('Audio failed, trying different question...');
+    setAudioError(true);
+    // Try loading a different question after a short delay
+    setTimeout(() => {
+      loadRandomQuestion();
+    }, 1000);
   };
 
   const handleLeaveRoomKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
@@ -246,7 +274,7 @@ export default function Game() {
           )}
 
           {/* Audio Player - positioned where the waveform would be */}
-          {currentQuestion?.audioUrl && (
+          {currentQuestion?.audioUrl && !audioError && (
             <div className="absolute left-[29px] top-[200px] w-[336px]">
               <AudioPlayer 
                 key={currentQuestion.audioUrl}
@@ -254,22 +282,27 @@ export default function Game() {
                 autoPlay={true}
                 clipDurationSeconds={10}
                 onTimeUpdate={handleAudioTimeUpdate}
+                onError={handleAudioError}
                 className="bg-transparent border-0 shadow-none"
               />
             </div>
           )}
           
           {/* Audio Error Fallback */}
-          {currentQuestion && !currentQuestion.audioUrl && (
+          {currentQuestion && (!currentQuestion.audioUrl || audioError) && (
             <div className="absolute left-[29px] top-[200px] w-[336px] h-20 flex items-center justify-center bg-gray-800 rounded-lg">
               <div className="text-white text-center">
-                <div className="text-sm text-gray-400">Audio not available</div>
-                <button 
-                  onClick={loadRandomQuestion}
-                  className="text-xs text-blue-400 hover:text-blue-300 mt-1 underline"
-                >
-                  Try different song
-                </button>
+                <div className="text-sm text-gray-400">
+                  {audioError ? 'Audio failed, trying different song...' : 'Audio not available'}
+                </div>
+                {!audioError && (
+                  <button 
+                    onClick={loadRandomQuestion}
+                    className="text-xs text-blue-400 hover:text-blue-300 mt-1 underline"
+                  >
+                    Try different song
+                  </button>
+                )}
               </div>
             </div>
           )}

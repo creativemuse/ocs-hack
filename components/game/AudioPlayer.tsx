@@ -10,6 +10,7 @@ interface AudioPlayerProps {
   autoPlay?: boolean;
   onEnded?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
+  onError?: () => void;
   className?: string;
   clipDurationSeconds?: number;
   clipStartSeconds?: number;
@@ -20,6 +21,7 @@ export default function AudioPlayer({
   autoPlay = false, 
   onEnded, 
   onTimeUpdate,
+  onError,
   className = '',
   clipDurationSeconds = 10,
   clipStartSeconds = 0,
@@ -34,13 +36,125 @@ export default function AudioPlayer({
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   const [isMetadataLoaded, setIsMetadataLoaded] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
+  const [gatewayIndex, setGatewayIndex] = useState(0);
+  const [useLocalFallback, setUseLocalFallback] = useState(false);
+  const maxRetries = 3;
+  const maxGateways = 5;
+
+  // Function to try different IPFS gateways
+  const tryDifferentGateway = (url: string): string => {
+    const gateways = [
+      "https://gateway.lighthouse.storage/ipfs",
+      "https://bafybeidv5zzk3w7323kkv35tezalkiynykggbayx4c73jsizapkcdasbna.ipfs.w3s.link",
+      "https://bafybeidv5zzk3w7323kkv35tezalkiynykggbayx4c73jsizapkcdasbna.ipfs.nftstorage.link",
+      "https://ipfs.io/ipfs",
+      "https://dweb.link/ipfs"
+    ];
+    
+    // Extract CID from current URL - handle both filename and CID patterns
+    let cid = '';
+    if (url.includes('/ipfs/')) {
+      const parts = url.split('/ipfs/');
+      cid = parts[1]?.split('/')[0] || '';
+    } else {
+      const fileName = url.split('/').pop();
+      if (!fileName) return url;
+      cid = fileName;
+    }
+    
+    if (!cid) return url;
+    
+    // Use next gateway
+    const nextGateway = gateways[gatewayIndex + 1] || gateways[0];
+    return `${nextGateway}/${cid}`;
+  };
+
+  // Function to get local fallback URL
+  const getLocalFallbackUrl = (url: string): string | null => {
+    const fileName = url.split('/').pop();
+    if (!fileName) return null;
+    
+    // Check if we have a local version of this file
+    const localFiles = [
+      "Chappell Roan - Pink Pony Club.mp3",
+      "The Spins.mp3",
+      "Pierce The Veil - So Far So Fake.mp3",
+      "Travis Scott - HIGHEST IN THE ROOM.mp3",
+      "Luke Combs - Fast Car.mp3",
+      "Bad Bunny - Tití Me Preguntó.mp3",
+      "Ed Sheeran - Perfect.mp3",
+      "Radiohead - Creep.mp3",
+      "Drake - One Dance.mp3",
+      "Chris Stapleton - Tennessee Whiskey.mp3",
+      "will.i.am - Scream & Shout.mp3",
+      "The Black Eyed Peas - Rock That Body.mp3",
+      "Travis Scott - goosebumps  ft. Kendrick Lamar.mp3",
+      "The Weeknd - Blinding Lights.mp3",
+      "Billie Eilish - Ocean Eyes.mp3",
+      "Fuerza Regida - TU SANCHO.mp3",
+      "Ed Sheeran - Shape of You.mp3",
+      "Bad Bunny - DtMF.mp3",
+      "Future - WAIT FOR U.mp3",
+      "Taylor Swift - Cruel Summer.mp3",
+      "Sabrina Carpenter - Espresso.mp3",
+      "NOKIA.mp3",
+      "Shaboozey - A Bar Song (Tipsy).mp3",
+      "Teddy Swims - Lose Control.mp3",
+      "SZA - 30 For 30 feat. Kendrick Lamar.mp3",
+      "Billie Eilish - BIRDS OF A FEATHER.mp3",
+      "Kendrick Lamar - luther.mp3",
+      "Gunna - wgft.mp3",
+      "Not Like Us.mp3",
+      "Post Malone - I Had Some Help.mp3",
+      "ROSÉ & Bruno Mars - APT.mp3",
+      "Sabrina Carpenter - Manchild.mp3",
+      "Kehlani - Folded.mp3",
+      "Lady Gaga, Bruno Mars - Die With A Smile.mp3",
+      "BLACKPINK - JUMP.mp3",
+      "Chris Brown - It Depends (Audio) ft. Bryson Tiller.mp3",
+      "Morgan Wallen, Tate McRae - What I Want.mp3",
+      "Justin Beiber-YUKON.mp3",
+      "Justin Beiber-DAISIES.mp3",
+      "Alex Warren - Ordinary.mp3",
+      "Huntrix - Golden.mp3"
+    ];
+    
+    if (localFiles.includes(fileName)) {
+      return `/music/${fileName}`;
+    }
+    
+    return null;
+  };
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
+    console.log('🔊 AudioPlayer useEffect triggered for URL:', audioUrl);
+
+    // Reset retry count and gateway index when URL changes
+    setRetryCount(0);
+    setGatewayIndex(0);
+    setUseLocalFallback(false);
+    setHasError(false);
+    setIsLoading(true);
+    setAutoplayBlocked(false);
+    setIsMetadataLoaded(false);
+
     // Ensure appropriate preload for quickest start
     audio.preload = 'auto';
+    
+    // Test CORS preflight for debugging
+    if (audioUrl && audioUrl.startsWith('https://')) {
+      fetch(audioUrl, { method: 'HEAD' })
+        .then(response => {
+          console.log('✅ CORS preflight successful:', response.status, response.headers.get('content-type'));
+        })
+        .catch(error => {
+          console.warn('⚠️ CORS preflight failed:', error.message);
+        });
+    }
 
     const handleTimeUpdate = (): void => {
       const t = Math.max(0, audio.currentTime - clipStartSeconds);
@@ -66,6 +180,12 @@ export default function AudioPlayer({
     };
 
     const handleLoadedMetadata = (): void => {
+      console.log('🔊 Audio metadata loaded:', {
+        url: audioUrl,
+        duration: audio.duration,
+        networkState: audio.networkState,
+        readyState: audio.readyState
+      });
       setIsMetadataLoaded(true);
       handleDurationChange();
       // Guard: only seek once metadata is known
@@ -91,24 +211,112 @@ export default function AudioPlayer({
 
     const handleError = (): void => {
       setIsLoading(false);
-      setHasError(true);
-      console.error('Audio failed to load:', audioUrl);
+      
+      // Log additional debugging information
+      console.log('🔊 Audio error details:', {
+        url: audioUrl,
+        networkState: audio.networkState,
+        readyState: audio.readyState,
+        error: audio.error?.code,
+        errorMessage: audio.error?.message,
+        src: audio.src,
+        currentSrc: audio.currentSrc
+      });
+      
+      // Try different gateway first
+      if (gatewayIndex < maxGateways - 1) {
+        console.log(`Trying different gateway (${gatewayIndex + 1}/${maxGateways})...`);
+        setGatewayIndex(prev => prev + 1);
+        setRetryCount(0);
+        setHasError(false);
+        setIsLoading(true);
+        
+        // Update audio source with new gateway
+        setTimeout(() => {
+          if (audio) {
+            const newUrl = tryDifferentGateway(audioUrl);
+            audio.src = newUrl;
+            audio.load();
+          }
+        }, 500);
+      }
+      // Try local fallback if all gateways failed
+      else if (!useLocalFallback) {
+        console.log('Trying local fallback...');
+        setUseLocalFallback(true);
+        setRetryCount(0);
+        setHasError(false);
+        setIsLoading(true);
+        
+        // Try local file
+        setTimeout(() => {
+          if (audio) {
+            const localUrl = getLocalFallbackUrl(audioUrl);
+            if (localUrl) {
+              console.log(`Using local fallback: ${localUrl}`);
+              audio.src = localUrl;
+              audio.load();
+            } else {
+              // No local fallback available, try retries
+              setRetryCount(prev => prev + 1);
+              audio.load();
+            }
+          }
+        }, 500);
+      }
+      // Then try retries with same source
+      else if (retryCount < maxRetries) {
+        console.log(`Retrying audio load (${retryCount + 1}/${maxRetries})...`);
+        setRetryCount(prev => prev + 1);
+        setHasError(false);
+        setIsLoading(true);
+        
+        // Reset audio element and retry
+        setTimeout(() => {
+          if (audio) {
+            audio.load();
+          }
+        }, 1000);
+      } else {
+        setHasError(true);
+        console.error('🔊 Audio failed to load after all retries:', audioUrl);
+        // Try one final fallback to local file
+        const localUrl = getLocalFallbackUrl(audioUrl);
+        if (localUrl && localUrl !== audioUrl) {
+          console.log('🔊 Final attempt with local fallback:', localUrl);
+          setTimeout(() => {
+            if (audio) {
+              audio.src = localUrl;
+              audio.load();
+            }
+          }, 1000);
+        } else {
+          // Notify parent component about the error
+          onError?.();
+        }
+      }
     };
 
     const tryAutoplay = async (): Promise<void> => {
       try {
+        console.log('🔊 Attempting autoplay for:', audioUrl);
         await audio.play();
+        console.log('🔊 Autoplay successful');
         setIsPlaying(true);
         setAutoplayBlocked(false);
-      } catch {
+      } catch (error) {
+        console.log('🔊 Autoplay blocked, waiting for user gesture:', error);
         // Autoplay blocked; wait for first user gesture to start playback
         setAutoplayBlocked(true);
         const resumeOnGesture = async () => {
           try {
+            console.log('🔊 User gesture detected, resuming playback');
             await audio.play();
             setIsPlaying(true);
             setAutoplayBlocked(false);
-          } catch {}
+          } catch (gestureError) {
+            console.log('🔊 Failed to play after user gesture:', gestureError);
+          }
         };
         const onceOpts: AddEventListenerOptions | boolean = { once: true } as AddEventListenerOptions;
         window.addEventListener('pointerdown', resumeOnGesture, onceOpts);
@@ -215,7 +423,19 @@ export default function AudioPlayer({
     return (
       <div className={`${className} flex items-center justify-center p-4 bg-red-50 border border-red-200 rounded-lg`}>
         <AlertCircle className="h-5 w-5 text-red-500 mr-2" />
-        <span className="text-red-700 text-sm">Audio file not found</span>
+        <div className="text-red-700 text-sm">
+          <div>Audio file not found</div>
+          {retryCount > 0 && (
+            <div className="text-xs text-red-500 mt-1">
+              Retried {retryCount} times
+            </div>
+          )}
+          {useLocalFallback && (
+            <div className="text-xs text-blue-500 mt-1">
+              Tried local fallback
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -226,6 +446,7 @@ export default function AudioPlayer({
         ref={audioRef}
         src={audioUrl}
         preload="auto"
+        crossOrigin="anonymous"
         playsInline
       />
       
@@ -260,7 +481,14 @@ export default function AudioPlayer({
             <span>{formatTime(duration)}</span>
           </div>
           {autoplayBlocked && (
-            <div className="text-xs text-orange-400 mt-1">Tap to start audio</div>
+            <div className="text-center mt-2">
+              <button
+                onClick={togglePlayPause}
+                className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                🔊 Tap to Play Audio
+              </button>
+            </div>
           )}
         </div>
 

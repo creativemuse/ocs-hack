@@ -4,9 +4,18 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 
 import { ASSETS } from '@/lib/config/assets';
+import { useGameSession } from '@/hooks/useGameSession';
+import { formatTimeRemainingText } from '@/lib/utils/timeUtils';
 
 export default function Home() {
   const router = useRouter();
+  const { session, timeRemaining, canJoin, isLoading, joinGame } = useGameSession();
+
+  const handleJoinGame = async () => {
+    await joinGame();
+    router.push('/game');
+  };
+
   return (
     <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-8 overflow-x-hidden">
       <div className="relative w-full max-w-[390px] md:max-w-[428px]" data-name="home" data-node-id="1:2">
@@ -21,21 +30,25 @@ export default function Home() {
               </div>
             </div>
             <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:324">
-              <p className="leading-[normal] whitespace-pre">05:34 min left to join</p>
+              <p className="leading-[normal] whitespace-pre">
+                {isLoading ? 'Loading...' : formatTimeRemainingText(timeRemaining)}
+              </p>
             </div>
           </div>
           <div className="content-stretch flex flex-col gap-4 items-start justify-start relative shrink-0 w-full" data-node-id="3:163">
             <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[24px] w-[294px]" data-node-id="3:157">
-              <p className="leading-[normal]">{`100 USDC TOTAL `}</p>
+              <p className="leading-[normal]">{`${session?.prize_pool || 100} USDC TOTAL `}</p>
             </div>
             <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0 w-full" data-node-id="3:161">
               <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:159">
-                <p className="leading-[normal] whitespace-pre">JESSE.BASE.ETH 30 OTHER PLAYERS ARE PLAYING</p>
+                <p className="leading-[normal] whitespace-pre">
+                  {session?.player_count ? `${session.player_count} PLAYERS ARE PLAYING` : 'WAITING FOR PLAYERS'}
+                </p>
               </div>
             </div>
           </div>
         </div>
-        <div className="absolute bg-[#bc58ff] box-border mt-2 content-stretch flex flex-col font-['Audiowide:Regular',_sans-serif] gap-1 items-center justify-center leading-[0] left-[33px] not-italic px-2.5 py-3 rounded-2xl text-[#000000] text-nowrap top-[361px] w-[328px] z-10 cursor-pointer hover:bg-[#a847e6] transition-colors" data-node-id="3:166" onClick={() => router.push('/game')}>
+        <div className={`absolute bg-[#bc58ff] box-border mt-2 content-stretch flex flex-col font-['Audiowide:Regular',_sans-serif] gap-1 items-center justify-center leading-[0] left-[33px] not-italic px-2.5 py-3 rounded-2xl text-[#000000] text-nowrap top-[361px] w-[328px] z-10 transition-colors ${canJoin ? 'cursor-pointer hover:bg-[#a847e6]' : 'cursor-not-allowed opacity-50'}`} data-node-id="3:166" onClick={canJoin ? handleJoinGame : undefined}>
           <div className="relative shrink-0 text-[12px]" data-node-id="3:165">
             <p className="leading-[normal] text-nowrap whitespace-pre">JOIN GAME</p>
           </div>
