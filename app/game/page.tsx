@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import type { KeyboardEvent } from 'react';
 import Image from 'next/image';
@@ -8,9 +8,13 @@ import AudioPlayer from '@/components/game/AudioPlayer';
 import CountdownDisplay from '@/components/game/CountdownDisplay';
 import ActivePlayers from '@/components/game/ActivePlayers';
 import PlayerCount from '@/components/game/PlayerCount';
+import GameEntry from '@/components/game/GameEntry';
+import GuestModeEntry from '@/components/game/GuestModeEntry';
+import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import type { TriviaQuestion } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
 import { ScoringSystem } from '@/lib/game/scoring';
+import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
 
 export default function Game() {
   const router = useRouter();
@@ -30,6 +34,13 @@ export default function Game() {
   const [questionNumberInRound, setQuestionNumberInRound] = useState(1);
   const [gameCompleted, setGameCompleted] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [gameStarted, setGameStarted] = useState(false);
+  const [isGuestMode, setIsGuestMode] = useState(false);
+  const [guestName, setGuestName] = useState('');
+  const [showGuestMode, setShowGuestMode] = useState(true);
+  const [pendingGuestSync, setPendingGuestSync] = useState<{score: number, gameData: any} | null>(null);
+  const timerTriggeredRef = useRef(false);
+  const [highScores, setHighScores] = useState<Array<{score: number}>>([]);
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -40,6 +51,7 @@ export default function Game() {
     setTimeRemaining(10);
     setAudioCurrentTime(0);
     setAudioError(false);
+    timerTriggeredRef.current = false; // Reset timer trigger
 
     try {
       const params = new URLSearchParams({
@@ -108,8 +120,9 @@ export default function Game() {
   useEffect(() => {
     if (isAnswered || isLoading || !currentQuestion) return;
 
-    // When time runs out, mark as answered
-    if (timeRemaining <= 0 && !isAnswered) {
+    // When time runs out, mark as answered (but only once)
+    if (timeRemaining <= 0 && !isAnswered && !timerTriggeredRef.current) {
+      timerTriggeredRef.current = true;
       setIsAnswered(true);
     }
   }, [timeRemaining, isAnswered, isLoading, currentQuestion]);
@@ -157,7 +170,14 @@ export default function Game() {
       );
       
       setScore(prev => prev + pointsEarned);
-      setTotalScore(prev => prev + pointsEarned);
+      setTotalScore(prev => {
+        const newTotal = prev + pointsEarned;
+        // Check if this might be a new high score and update the display
+        if (highScores.length > 0 && newTotal >= Math.max(...highScores.map(s => s.score))) {
+          // This could be a new high score, but we'll wait until game completion to submit
+        }
+        return newTotal;
+      });
     }
   };
 
@@ -186,6 +206,86 @@ export default function Game() {
     setTimeRemaining(remaining);
   };
 
+  const handleGameStart = () => {
+    setGameStarted(true);
+    fetchHighScores(); // Fetch high scores when game starts
+    loadRandomQuestion();
+  };
+
+  const fetchHighScores = useCallback(async () => {
+    try {
+      const response = await fetch('/api/high-scores?limit=10');
+      if (response.ok) {
+        const data = await response.json();
+        setHighScores(data.highScores || []);
+      }
+    } catch (error) {
+      console.error('Failed to fetch high scores:', error);
+    }
+  }, []);
+
+  const handleGuestStart = async (name: string) => {
+    setGuestName(name);
+    setIsGuestMode(true);
+    await GuestSessionManager.createGuestPlayer(name);
+    setShowGuestMode(false);
+    setGameStarted(true);
+    fetchHighScores(); // Fetch high scores when game starts
+    loadRandomQuestion();
+  };
+
+  const handleWalletConnect = () => {
+    setShowGuestMode(false);
+    // This will trigger the regular game entry flow
+  };
+
+  // Handle guest sync when game completes - MUST be before any conditional returns
+  useEffect(() => {
+    if (gameCompleted && isGuestMode) {
+      if (pendingGuestSync) {
+        // Sync the pending data
+        GuestSessionManager.recordGameResult(pendingGuestSync.score, pendingGuestSync.gameData);
+        setPendingGuestSync(null);
+      } else {
+        // Set pending sync for the first time
+        setPendingGuestSync({
+          score: totalScore,
+          gameData: {
+            questionsAnswered: currentRound * questionsPerRound,
+            correctAnswers: Math.floor(totalScore / 10), // Rough estimate
+            gameMode: 'guest',
+            rounds: currentRound
+          }
+        });
+      }
+    }
+  }, [gameCompleted, isGuestMode, pendingGuestSync, totalScore, currentRound, questionsPerRound]);
+
+  // Show guest mode entry screen first
+  if (showGuestMode) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <GuestModeEntry 
+            onGuestStart={handleGuestStart}
+            onWalletConnect={handleWalletConnect}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  // Show regular game entry screen if wallet connect was chosen
+  if (!gameStarted && !showGuestMode) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <GameEntry onGameStart={handleGameStart} />
+        </div>
+      </div>
+    );
+  }
+
   if (isLoading) {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center">
@@ -211,12 +311,30 @@ export default function Game() {
   }
 
   if (gameCompleted) {
+
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-[390px] md:max-w-[428px] text-center text-white">
-          <h2 className="text-2xl font-audiowide mb-2">All Rounds Complete</h2>
-          <p className="mb-6 text-sm">Total Score: {totalScore} USDC</p>
-          <div className="flex gap-3 justify-center">
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4 py-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <div className="text-center text-white mb-6">
+            <h2 className="text-2xl font-audiowide mb-2">All Rounds Complete</h2>
+            {isGuestMode && (
+              <p className="text-sm text-green-400 mb-2">Playing as {guestName}</p>
+            )}
+            <p className="text-lg font-bold text-yellow-400 mb-4">Total Score: {totalScore} USDC</p>
+          </div>
+          
+          {/* High Score Display */}
+          <div className="mb-6">
+            <HighScoreDisplay
+              currentScore={totalScore}
+              playerName={isGuestMode ? guestName : 'Player'}
+              isGuest={isGuestMode}
+              guestId={isGuestMode ? GuestSessionManager.getGuestPlayer()?.id : undefined}
+              className="w-full"
+            />
+          </div>
+          
+          <div className="flex gap-3 justify-center flex-wrap">
             <button
               onClick={() => {
                 setCurrentRound(1);
@@ -224,12 +342,20 @@ export default function Game() {
                 setScore(0);
                 setTotalScore(0);
                 setGameCompleted(false);
-                loadRandomQuestion();
+                setGameStarted(false); // Reset to entry screen
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
             >
               Play Again
             </button>
+            {isGuestMode && (
+              <button
+                onClick={() => router.push('/guest-demo?profile=true')}
+                className="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded-lg"
+              >
+                View Profile
+              </button>
+            )}
             <button
               onClick={() => router.push('/')}
               className="bg-[#32353d] hover:bg-[#404550] text-white px-4 py-2 rounded-lg"
@@ -258,10 +384,40 @@ export default function Game() {
             </div>
           </div>
 
+          {/* Guest Profile Button */}
+          {isGuestMode && (
+            <div className="absolute bg-purple-600 box-border content-stretch flex gap-2.5 items-center justify-center left-[150px] p-[10px] rounded-lg top-[18px] cursor-pointer hover:bg-purple-700 transition-colors" role="button" tabIndex={0} aria-label="View guest profile" onClick={() => router.push('/guest-demo?profile=true')}>
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-white text-[10px] text-center text-nowrap">
+                <p className="leading-[normal] whitespace-pre">PROFILE</p>
+              </div>
+            </div>
+          )}
+
           {/* Round Indicator */}
           <div className="absolute left-1/2 -translate-x-1/2 top-[80px] bg-[#1f2937] text-white text-[11px] px-3 py-1 rounded-full border border-white/10">
             Round {currentRound} of {totalRounds} • Q {questionNumberInRound}/{questionsPerRound}
+            {isGuestMode && (
+              <span className="ml-2 text-green-400">• Guest: {guestName}</span>
+            )}
           </div>
+
+          {/* High Score Indicator */}
+          {highScores.length > 0 && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-[110px]">
+              <div className="bg-yellow-500 text-black text-[10px] px-3 py-1 rounded-full border border-yellow-300 font-bold animate-pulse">
+                🏆 HIGH SCORE: {Math.max(...highScores.map(s => s.score))} USDC
+              </div>
+            </div>
+          )}
+
+          {/* You're in the Lead Indicator */}
+          {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && totalScore > 0 && (
+            <div className="absolute left-1/2 -translate-x-1/2 top-[140px]">
+              <div className="bg-green-500 text-white text-[10px] px-3 py-1 rounded-full border border-green-300 font-bold animate-bounce">
+                👑 YOU WIN!
+              </div>
+            </div>
+          )}
 
           {/* Countdown Display */}
           {!isAnswered && (

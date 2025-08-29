@@ -53,6 +53,32 @@ pub struct PlayerStats {
     pub last_played: Timestamp,
 }
 
+// Guest player data stored in SpacetimeDB
+#[spacetimedb::table(name = guest_players)]
+pub struct GuestPlayer {
+    pub guest_id: String,
+    pub name: String,
+    pub games_played: u32,
+    pub total_score: u32,
+    pub best_score: u32,
+    pub achievements: String, // JSON string of achievement IDs
+    pub created_at: Timestamp,
+    pub last_played: Timestamp,
+}
+
+// Guest game sessions stored in SpacetimeDB
+#[spacetimedb::table(name = guest_game_sessions)]
+pub struct GuestGameSession {
+    pub session_id: String,
+    pub guest_id: String,
+    pub score: u32,
+    pub questions_answered: u32,
+    pub correct_answers: u32,
+    pub started_at: Timestamp,
+    pub ended_at: Option<Timestamp>,
+    pub game_data: String, // JSON string of game details
+}
+
 // Question attempts stored in SpacetimeDB
 #[spacetimedb::table(name = question_attempts)]
 pub struct QuestionAttempt {
@@ -97,6 +123,71 @@ pub fn identity_connected(ctx: &ReducerContext) {
 pub fn identity_disconnected(ctx: &ReducerContext) {
     let identity = ctx.sender;
     log::info!("👤 Player disconnected: {:?}", identity);
+}
+
+// Guest player reducers
+#[spacetimedb::reducer]
+pub fn create_guest_player(ctx: &ReducerContext, guest_id: String, name: String) {
+    log::info!("👤 Creating guest player: {} ({})", name, guest_id);
+    
+    // Check if guest player already exists
+    let existing_guest = ctx.db.guest_players().iter().find(|guest| guest.guest_id == guest_id);
+    if existing_guest.is_none() {
+        ctx.db.guest_players().insert(GuestPlayer {
+            guest_id: guest_id.clone(),
+            name,
+            games_played: 0,
+            total_score: 0,
+            best_score: 0,
+            achievements: "[]".to_string(), // Empty JSON array
+            created_at: ctx.timestamp,
+            last_played: ctx.timestamp,
+        });
+        log::info!("✅ Guest player created: {}", guest_id);
+    } else {
+        log::info!("⚠️ Guest player already exists: {}", guest_id);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn update_guest_player(ctx: &ReducerContext, guest_id: String, games_played: u32, total_score: u32, best_score: u32, achievements: String) {
+    log::info!("📊 Updating guest player: {} (games: {}, score: {}, best: {})", guest_id, games_played, total_score, best_score);
+    
+    // Find and update existing guest player
+    if let Some(guest) = ctx.db.guest_players().iter().find(|g| g.guest_id == guest_id) {
+        ctx.db.guest_players().delete_by_id(&guest.id);
+        ctx.db.guest_players().insert(GuestPlayer {
+            guest_id: guest_id.clone(),
+            name: guest.name.clone(),
+            games_played,
+            total_score,
+            best_score,
+            achievements,
+            created_at: guest.created_at,
+            last_played: ctx.timestamp,
+        });
+        log::info!("✅ Guest player updated: {}", guest_id);
+    } else {
+        log::warn!("❌ Guest player not found for update: {}", guest_id);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn record_guest_game(ctx: &ReducerContext, session_id: String, guest_id: String, score: u32, questions_answered: u32, correct_answers: u32, game_data: String) {
+    log::info!("🎮 Recording guest game: {} for guest {} (score: {})", session_id, guest_id, score);
+    
+    ctx.db.guest_game_sessions().insert(GuestGameSession {
+        session_id,
+        guest_id,
+        score,
+        questions_answered,
+        correct_answers,
+        started_at: ctx.timestamp,
+        ended_at: Some(ctx.timestamp),
+        game_data,
+    });
+    
+    log::info!("✅ Guest game recorded: {}", session_id);
 }
 
 // Add audio file to the database

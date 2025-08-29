@@ -35,7 +35,7 @@ export default function Timer({
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isActive, timeRemaining]);
+  }, [isActive]); // Removed timeRemaining from dependencies to prevent infinite loop
 
   // Notify tick listeners when time changes
   useEffect(() => {

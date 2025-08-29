@@ -56,6 +56,8 @@ export default function Home() {
             <p className="leading-[normal] text-nowrap whitespace-pre">{` 1 USDC`}</p>
           </div> */}
         </div>
+        
+
         <div className="absolute flex h-[44.091px] items-center justify-center left-[358px] top-[260px] w-[44.091px] z-0 animate-float [animation-delay:200ms]">
           <div className="flex-none rotate-[345deg] circle-hover animate-pulse-glow">
             <div className="relative size-9" data-node-id="3:169">

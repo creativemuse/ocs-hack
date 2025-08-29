@@ -55,3 +55,29 @@ export async function GET(req: NextRequest) {
     );
   }
 }
+
+export async function POST(req: NextRequest) {
+  try {
+    const body = await req.json();
+    const { walletAddress, sessionId } = body;
+
+    if (walletAddress) {
+      // Update wallet player trial games
+      await SupabaseDatabase.decrementTrialGames(walletAddress);
+      return NextResponse.json({ success: true });
+    } else if (sessionId) {
+      // Update anonymous session games played
+      await SupabaseDatabase.updateAnonymousSession(sessionId, 0); // Increment games played
+      return NextResponse.json({ success: true });
+    }
+
+    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+  } catch (error) {
+    console.error('Error updating trial status:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    return NextResponse.json(
+      { error: 'Failed to update trial status', details: errorMessage },
+      { status: 500 }
+    );
+  }
+}

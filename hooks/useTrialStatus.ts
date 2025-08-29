@@ -73,18 +73,47 @@ export const useTrialStatus = (walletAddress?: string) => {
     checkTrialStatus();
   }, [walletAddress]);
 
-  const incrementTrialGame = () => {
-    if (!walletAddress) {
-      SessionManager.incrementTrialGames();
+  const incrementTrialGame = async () => {
+    try {
+      if (walletAddress) {
+        // Update wallet player trial games in database
+        await fetch('/api/trial-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress })
+        });
+      } else {
+        // Update anonymous session
+        SessionManager.incrementTrialGames();
+        const sessionId = SessionManager.getSessionId();
+        await fetch('/api/trial-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+      }
+      
+      // Update local state
+      setTrialStatus(prev => ({
+        ...prev,
+        gamesPlayed: prev.gamesPlayed + 1,
+        gamesRemaining: Math.max(0, prev.gamesRemaining - 1),
+        isTrialActive: prev.gamesPlayed < 2,
+        requiresWallet: false, // Never require wallet connection
+        canJoinPrizePool: true // Always allow prize pool participation
+      }));
+    } catch (error) {
+      console.error('Error incrementing trial game:', error);
+      // Still update local state even if database update fails
+      setTrialStatus(prev => ({
+        ...prev,
+        gamesPlayed: prev.gamesPlayed + 1,
+        gamesRemaining: Math.max(0, prev.gamesRemaining - 1),
+        isTrialActive: prev.gamesPlayed < 2,
+        requiresWallet: false,
+        canJoinPrizePool: true
+      }));
     }
-    setTrialStatus(prev => ({
-      ...prev,
-      gamesPlayed: prev.gamesPlayed + 1,
-      gamesRemaining: Math.max(0, prev.gamesRemaining - 1),
-      isTrialActive: prev.gamesPlayed < 2,
-      requiresWallet: false, // Never require wallet connection
-      canJoinPrizePool: true // Always allow prize pool participation
-    }));
   };
 
   return { trialStatus, isLoading, incrementTrialGame };

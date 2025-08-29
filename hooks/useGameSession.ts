@@ -96,7 +96,7 @@ export const useGameSession = (): UseGameSessionReturn => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [session, timeRemaining]);
+  }, [session]); // Removed timeRemaining from dependencies to prevent infinite loop
 
   // Initial fetch
   useEffect(() => {
