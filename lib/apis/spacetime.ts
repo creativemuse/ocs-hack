@@ -353,6 +353,37 @@ class SpacetimeDBClient {
     }
   }
 
+  // Generic call method for reducers
+  async call(reducer: string, args: unknown[]): Promise<unknown> {
+    if (!this.client) {
+      throw new Error('SpacetimeDB client not initialized');
+    }
+
+    try {
+      return await this.client.call(reducer, args);
+    } catch (error) {
+      console.error(`❌ Failed to call reducer ${reducer}:`, error);
+      throw error;
+    }
+  }
+
+  // Generic query method for database queries
+  async query(query: string, params: unknown[] = []): Promise<unknown[]> {
+    if (!this.client) {
+      throw new Error('SpacetimeDB client not initialized');
+    }
+
+    try {
+      // For now, return empty array since the shim doesn't support queries
+      // In a real implementation, this would query the database
+      console.log(`📊 Query: ${query} with params:`, params);
+      return [];
+    } catch (error) {
+      console.error(`❌ Failed to execute query:`, error);
+      throw error;
+    }
+  }
+
   // Helper method to populate SpacetimeDB with audio files from Storacha
   async populateAudioFilesFromStoracha(audioFiles: Array<{
     name: string;

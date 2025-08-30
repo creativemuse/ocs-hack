@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { DbConnectionBuilder } from '@clockworklabs/spacetimedb-sdk';
-
-const SPACETIME_URL = process.env.SPACETIME_URL || 'ws://localhost:3000';
-const SPACETIME_DB = process.env.SPACETIME_DB || 'beat-me';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export async function POST(req: NextRequest) {
   try {
@@ -14,18 +11,18 @@ export async function POST(req: NextRequest) {
     }
 
     // Initialize SpacetimeDB connection
-    const connection = await DbConnectionBuilder.connect(SPACETIME_URL, SPACETIME_DB);
+    await spacetimeClient.initialize();
     
     switch (action) {
       case 'create_guest':
-        await connection.call('create_guest_player', [
+        await spacetimeClient.call('create_guest_player', [
           guestData.guest_id,
           guestData.name
         ]);
         break;
 
       case 'update_guest':
-        await connection.call('update_guest_player', [
+        await spacetimeClient.call('update_guest_player', [
           guestData.guest_id,
           guestData.games_played,
           guestData.total_score,
@@ -35,7 +32,7 @@ export async function POST(req: NextRequest) {
         break;
 
       case 'record_game':
-        await connection.call('record_guest_game', [
+        await spacetimeClient.call('record_guest_game', [
           guestData.session_id,
           guestData.guest_id,
           guestData.score,
@@ -69,11 +66,11 @@ export async function GET(req: NextRequest) {
     }
 
     // Initialize SpacetimeDB connection
-    const connection = await DbConnectionBuilder.connect(SPACETIME_URL, SPACETIME_DB);
+    await spacetimeClient.initialize();
     
     // Query guest player data
-    const guestPlayers = await connection.query('SELECT * FROM guest_players WHERE guest_id = ?', [guestId]);
-    const guestGames = await connection.query('SELECT * FROM guest_game_sessions WHERE guest_id = ? ORDER BY started_at DESC LIMIT 10', [guestId]);
+    const guestPlayers = await spacetimeClient.query('SELECT * FROM guest_players WHERE guest_id = ?', [guestId]);
+    const guestGames = await spacetimeClient.query('SELECT * FROM guest_game_sessions WHERE guest_id = ? ORDER BY started_at DESC LIMIT 10', [guestId]);
 
     return NextResponse.json({
       guest: guestPlayers[0] || null,

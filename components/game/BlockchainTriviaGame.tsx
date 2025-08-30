@@ -133,40 +133,11 @@ export default function BlockchainTriviaGame({
     }
   }, [walletAddress, trialSessionId, startRound]);
 
-  // Handle answer submission
-  const handleAnswerSubmit = useCallback(async (answer: number) => {
-    const currentQ = gameState.questions[gameState.currentQuestion];
-    if (!currentQ) return;
-
-    const isCorrect = answer === currentQ.correctAnswer;
-    const points = isCorrect ? ScoringSystem.calculatePoints(
-      gameState.timeRemaining,
-      currentQ.difficulty,
-      gameState.currentQuestion + 1
-    ) : 0;
-
-    const newScore = gameState.score + points;
-    const newAnswers = [...gameState.answers, answer];
-
-    setGameState(prev => ({
-      ...prev,
-      score: newScore,
-      answers: newAnswers,
-      currentQuestion: prev.currentQuestion + 1,
-      timeRemaining: prev.questions[prev.currentQuestion + 1]?.timeLimit || 15,
-    }));
-
-    // Check if round is complete
-    if (gameState.currentQuestion + 1 >= gameState.questions.length) {
-      await handleRoundComplete(newScore);
-    }
-  }, [gameState, handleRoundComplete]);
-
   // Handle round completion
   const handleRoundComplete = useCallback(async (finalScore: number) => {
     setGameState(prev => ({
       ...prev,
-      gameStatus: 'round-complete',
+      gameStatus: 'completed',
       score: finalScore,
     }));
 
@@ -184,6 +155,43 @@ export default function BlockchainTriviaGame({
       setError('Failed to submit score to blockchain');
     }
   }, [walletAddress, trialSessionId, submitScore, submitTrialScore]);
+
+  // Handle answer submission
+  const handleAnswerSubmit = useCallback(async (answer: number) => {
+    const currentQ = gameState.questions[gameState.currentQuestion];
+    if (!currentQ) return;
+
+    const isCorrect = answer === currentQ.correctAnswer;
+    const points = isCorrect ? ScoringSystem.calculateQuestionScore(
+      true,
+      15 - gameState.timeRemaining, // timeSpent
+      15, // timeLimit
+      currentQ.difficulty,
+      0 // currentStreak - could be calculated from previous answers
+    ) : 0;
+
+    const newScore = gameState.score + points;
+    const newAnswers = [...gameState.answers, {
+      questionId: currentQ.id,
+      selectedAnswer: answer,
+      isCorrect,
+      timeSpent: 15 - gameState.timeRemaining,
+      pointsEarned: points
+    }];
+
+    setGameState(prev => ({
+      ...prev,
+      score: newScore,
+      answers: newAnswers,
+      currentQuestion: prev.currentQuestion + 1,
+      timeRemaining: prev.questions[prev.currentQuestion + 1]?.timeLimit || 15,
+    }));
+
+    // Check if round is complete
+    if (gameState.currentQuestion + 1 >= gameState.questions.length) {
+      await handleRoundComplete(newScore);
+    }
+  }, [gameState, handleRoundComplete]);
 
   // Handle game entry
   const handleGameEntry = useCallback((sessionId?: string) => {
@@ -251,28 +259,26 @@ export default function BlockchainTriviaGame({
 
       {/* Game Stats */}
       <GameStats
-        currentRound={gameState.currentRound}
-        totalRounds={gameState.totalRounds}
-        score={gameState.score}
-        questionsAnswered={gameState.currentQuestion}
         totalQuestions={gameState.questions.length}
-        timeRemaining={gameState.timeRemaining}
-        isTrialPlayer={gameState.isTrialPlayer}
+        correctAnswers={gameState.answers.filter(a => a.isCorrect).length}
+        accuracy={gameState.answers.length > 0 ? (gameState.answers.filter(a => a.isCorrect).length / gameState.answers.length) * 100 : 0}
+        averageTime={gameState.answers.length > 0 ? gameState.answers.reduce((sum, a) => sum + a.timeSpent, 0) / gameState.answers.length : 0}
+        totalScore={gameState.score}
+        maxScore={gameState.questions.length * 100}
       />
 
       {/* Current Question */}
       {gameState.gameStatus === 'playing' && gameState.questions[gameState.currentQuestion] && (
         <TriviaQuestion
           question={gameState.questions[gameState.currentQuestion]}
-          onAnswerSubmit={handleAnswerSubmit}
-          timeRemaining={gameState.timeRemaining}
+          onAnswer={handleAnswerSubmit}
           questionNumber={gameState.currentQuestion + 1}
           totalQuestions={gameState.questions.length}
         />
       )}
 
       {/* Round Complete */}
-      {gameState.gameStatus === 'round-complete' && (
+              {gameState.gameStatus === 'completed' && (
         <Card className="bg-gradient-to-br from-green-500/10 to-emerald-500/10 border-green-500/20">
           <CardHeader>
             <CardTitle className="text-green-400">Round Complete!</CardTitle>
@@ -286,9 +292,9 @@ export default function BlockchainTriviaGame({
                 Your score has been submitted to the blockchain!
               </p>
               
-              {gameState.currentRound < gameState.totalRounds ? (
+              {gameState.currentRound && gameState.totalRounds && gameState.currentRound < gameState.totalRounds ? (
                 <Button
-                  onClick={() => startRound(gameState.currentRound + 1)}
+                  onClick={() => startRound((gameState.currentRound || 0) + 1)}
                   disabled={isLoading}
                   className="bg-green-600 hover:bg-green-500 text-white"
                 >
