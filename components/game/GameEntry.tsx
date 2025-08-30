@@ -11,7 +11,7 @@ import GamePayment from './GamePayment';
 import { Gamepad2, Crown, Coins, Play } from 'lucide-react';
 
 interface GameEntryProps {
-  onGameStart: () => void;
+  onGameStart: (options: { isTrial: boolean }) => void;
   className?: string;
 }
 
@@ -25,7 +25,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
     if (trialStatus.isTrialActive) {
       // Trial player - start game immediately
       await incrementTrialGame();
-      onGameStart();
+      onGameStart({ isTrial: true });
     } else {
       // Paid player - show payment flow
       setShowPayment(true);
@@ -35,7 +35,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
   const handlePaymentSuccess = () => {
     setError(null);
     setShowPayment(false);
-    onGameStart();
+    onGameStart({ isTrial: false });
   };
 
   const handlePaymentError = (errorMessage: string) => {
@@ -65,8 +65,8 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
     return (
       <div className={`space-y-4 ${className}`}>
         <GamePayment
-          onPaymentSuccess={handlePaymentSuccess}
-          onPaymentError={handlePaymentError}
+          onPaymentComplete={handlePaymentSuccess}
+          onBack={handleBackToEntry}
         />
         {error && (
           <Card className="bg-red-900/20 border-red-500/30">
@@ -101,7 +101,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
             ) : (
               <>
                 <Crown className="h-5 w-5 text-yellow-400" />
-                Start Premium Game
+                Start Normal Game
               </>
             )}
           </CardTitle>
@@ -136,7 +136,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
                 className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
               >
                 <Play className="h-4 w-4 mr-2" />
-                Start Premium Game
+                Start Normal Game
               </Button>
             </>
           )}

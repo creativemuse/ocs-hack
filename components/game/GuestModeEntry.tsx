@@ -16,7 +16,6 @@ interface GuestModeEntryProps {
 }
 
 export default function GuestModeEntry({ onGuestStart, onWalletConnect, className = '' }: GuestModeEntryProps) {
-  const { address } = useAccount();
   const [guestName, setGuestName] = useState('');
   const [showGuestForm, setShowGuestForm] = useState(false);
 
@@ -74,6 +73,18 @@ export default function GuestModeEntry({ onGuestStart, onWalletConnect, classNam
                 <p className="text-xs text-gray-400">{feature.description}</p>
               </div>
             ))}
+          </div>
+
+          {/* Trial Limitation Notice */}
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-3 mt-4">
+            <div className="text-xs text-amber-300">
+              <p className="font-medium mb-1">⚠️ Trial Player Limitations:</p>
+              <ul className="space-y-1 text-amber-200/80">
+                <li>• Trial players cannot win prizes from the prize pool</li>
+                <li>• Trial games help you learn before playing for real money</li>
+                <li>• Connect wallet after trial to compete for prizes</li>
+              </ul>
+            </div>
           </div>
 
           {!showGuestForm ? (
@@ -139,19 +150,13 @@ export default function GuestModeEntry({ onGuestStart, onWalletConnect, classNam
                 1 USDC
               </Badge>
             </div>
-            {/* <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-300">Prize Pool:</span>
-              <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                Up to 100 USDC
-              </Badge>
-            </div> */}
           </div>
           
           <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
             <div className="text-xs text-yellow-300">
               <p className="font-medium mb-1">Premium Benefits:</p>
               <ul className="space-y-1 text-yellow-200/80">
-                <li>• Win USDC prizes</li>
+                <li>• Win USDC rewards</li>
                 <li>• Leaderboard ranking</li>
                 <li>• Exclusive achievements</li>
                 <li>• Early access to new features</li>
@@ -164,7 +169,7 @@ export default function GuestModeEntry({ onGuestStart, onWalletConnect, classNam
             className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
           >
             <Wallet className="h-4 w-4 mr-2" />
-            Connect Wallet & Play for Prizes
+            Play for Rewards
           </Button>
         </CardContent>
       </Card>

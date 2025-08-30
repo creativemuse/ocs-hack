@@ -30,7 +30,7 @@ export default function TrialStatusDisplay({ walletAddress, className = '' }: Tr
   const isTrialActive = trialStatus.isTrialActive;
   const gamesPlayed = trialStatus.gamesPlayed;
   const gamesRemaining = trialStatus.gamesRemaining;
-  const totalTrialGames = 3;
+  const totalTrialGames = 1;
   const progressPercentage = (gamesPlayed / totalTrialGames) * 100;
 
   return (
@@ -66,8 +66,11 @@ export default function TrialStatusDisplay({ walletAddress, className = '' }: Tr
                 indicatorClassName="bg-gradient-to-r from-green-500 to-emerald-500"
               />
             </div>
-            <div className="text-xs text-gray-400 text-center">
-              After {totalTrialGames} free plays, you'll need to pay 1 USDC per game
+            <div className="text-xs text-gray-400 text-center space-y-2">
+              <div>After {totalTrialGames} free plays, you'll need to pay 1 USDC per game</div>
+              <div className="text-amber-400 font-medium">
+                ⚠️ Trial players cannot win prizes from the prize pool
+              </div>
             </div>
           </>
         ) : (

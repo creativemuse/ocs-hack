@@ -324,7 +324,7 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
                   🎮 Free Trial: {trialStatus.gamesRemaining} games remaining
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Game {trialStatus.gamesPlayed + 1} of 3
+                  Game {trialStatus.gamesPlayed + 1} of 1
                 </p>
               </div>
             )}

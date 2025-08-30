@@ -11,6 +11,11 @@ export class ScoringSystem {
     expert: 1.0,
   };
 
+  // Trial players cannot participate in prize pools
+  static isEligibleForPrizePool(playerType: 'trial' | 'paid'): boolean {
+    return playerType === 'paid';
+  }
+
   static calculateQuestionScore(
     isCorrect: boolean,
     timeSpent: number,

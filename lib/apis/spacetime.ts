@@ -33,6 +33,7 @@ export interface AudioFile {
 export interface GameSession {
   session_id: string;
   player_identity: string;
+  player_type: 'paid' | 'trial'; // Added player type tracking
   score: number;
   questions_answered: number;
   correct_answers: number;
@@ -46,7 +47,9 @@ export interface ActiveGameSession {
   session_id: string;
   status: 'waiting' | 'active' | 'completed';
   player_count: number;
-  prize_pool: number;
+  paid_player_count: number; // Only paid players contribute to prize pool
+  trial_player_count: number; // Trial players for tracking only
+  prize_pool: number; // Only accumulates from paid player entry fees
   entry_fee: number;
   start_time: number;
   created_at: number;
@@ -54,6 +57,7 @@ export interface ActiveGameSession {
 
 export interface PlayerStats {
   player_identity: string;
+  player_type: 'paid' | 'trial'; // Added player type tracking
   total_games: number;
   total_score: number;
   best_score: number;
@@ -66,6 +70,7 @@ export interface PlayerStats {
 export interface QuestionAttempt {
   session_id: string;
   player_identity: string;
+  player_type: 'paid' | 'trial'; // Added player type tracking
   audio_file_id: string;
   selected_answer: number;
   correct_answer: number;
@@ -77,6 +82,7 @@ export interface QuestionAttempt {
 class SpacetimeDBClient {
   private client: SpacetimeDBShim | null = null;
   private isConnected = false;
+  private mockSession: ActiveGameSession | null = null;
 
   async initialize(): Promise<void> {
     if (this.client && this.isConnected) return;
@@ -97,6 +103,7 @@ class SpacetimeDBClient {
       console.log('✅ Connected to SpacetimeDB successfully');
       console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
       console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
+      console.log('⚠️ Trial players are excluded from prize pool distributions');
       
     } catch (error) {
       console.error('❌ Failed to connect to SpacetimeDB:', error);
@@ -140,7 +147,8 @@ class SpacetimeDBClient {
   async startGameSession(
     sessionId: string,
     difficulty: string,
-    gameMode: string
+    gameMode: string,
+    playerType: 'paid' | 'trial' = 'trial' // Default to trial
   ): Promise<void> {
     if (!this.client) {
       throw new Error('SpacetimeDB client not initialized');
@@ -150,10 +158,11 @@ class SpacetimeDBClient {
       await this.client.call('start_game_session', [
         sessionId,
         difficulty,
-        gameMode
+        gameMode,
+        playerType
       ]);
       
-      console.log(`🎮 Started game session: ${sessionId}`);
+      console.log(`🎮 Started game session: ${sessionId} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to start game session:', error);
       throw error;
@@ -165,7 +174,8 @@ class SpacetimeDBClient {
     audioFileName: string,
     selectedAnswer: number,
     correctAnswer: number,
-    timeTaken: number
+    timeTaken: number,
+    playerType: 'paid' | 'trial' = 'trial' // Default to trial
   ): Promise<void> {
     if (!this.client) {
       throw new Error('SpacetimeDB client not initialized');
@@ -177,10 +187,11 @@ class SpacetimeDBClient {
         audioFileName,
         selectedAnswer,
         correctAnswer,
-        timeTaken
+        timeTaken,
+        playerType
       ]);
       
-      console.log(`📝 Recorded question attempt: ${audioFileName}`);
+      console.log(`📝 Recorded question attempt: ${audioFileName} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to record question attempt:', error);
       throw error;
@@ -244,6 +255,20 @@ class SpacetimeDBClient {
     }
   }
 
+  async getTrialLeaderboard(limit: number): Promise<PlayerStats[]> {
+    if (!this.client) {
+      throw new Error('SpacetimeDB client not initialized');
+    }
+
+    try {
+      const result = await this.client.call('get_trial_leaderboard', [limit]);
+      return result as PlayerStats[];
+    } catch (error) {
+      console.error('❌ Failed to get trial leaderboard:', error);
+      throw error;
+    }
+  }
+
   async getActiveGameSession(): Promise<ActiveGameSession | null> {
     if (!this.client) {
       throw new Error('SpacetimeDB client not initialized');
@@ -251,34 +276,70 @@ class SpacetimeDBClient {
 
     try {
       await this.client.call('get_active_game_session', []);
-      // Note: SpacetimeDB reducers don't return data directly
-      // We'll need to implement a subscription-based approach or use a different pattern
-      // For now, return a mock session
-      return {
-        session_id: 'mock-session',
-        status: 'waiting',
-        player_count: 0,
-        prize_pool: 100,
-        entry_fee: 1,
-        start_time: Date.now(),
-        created_at: Date.now(),
-      };
+      
+      // Initialize mock session if it doesn't exist
+      if (!this.mockSession) {
+        this.mockSession = {
+          session_id: 'mock-session',
+          status: 'waiting',
+          player_count: 0,
+          paid_player_count: 0,
+          trial_player_count: 0,
+          prize_pool: 0, // Start with 0 USDC - only accumulates from paid player entry fees
+          entry_fee: 1,
+          start_time: Date.now(),
+          created_at: Date.now(),
+        };
+      }
+      
+      return this.mockSession;
     } catch (error) {
       console.error('❌ Failed to get active game session:', error);
       throw error;
     }
   }
 
-  async joinActiveGameSession(): Promise<void> {
+  async joinActiveGameSession(playerType: 'paid' | 'trial' = 'trial'): Promise<void> {
     if (!this.client) {
       throw new Error('SpacetimeDB client not initialized');
     }
 
     try {
-      await this.client.call('join_active_game_session', []);
-      console.log('✅ Joined active game session');
+      await this.client.call('join_active_game_session', [playerType]);
+      
+      // Update mock session when player joins
+      if (this.mockSession) {
+        const isFirst = this.mockSession.player_count === 0;
+        const now = Date.now();
+        
+        this.mockSession = {
+          ...this.mockSession,
+          player_count: this.mockSession.player_count + 1,
+          paid_player_count: playerType === 'paid' ? this.mockSession.paid_player_count + 1 : this.mockSession.paid_player_count,
+          trial_player_count: playerType === 'trial' ? this.mockSession.trial_player_count + 1 : this.mockSession.trial_player_count,
+          prize_pool: playerType === 'paid' ? this.mockSession.prize_pool + this.mockSession.entry_fee : this.mockSession.prize_pool,
+          status: isFirst ? 'active' : this.mockSession.status,
+          start_time: isFirst ? now : this.mockSession.start_time,
+        };
+      }
+      
+      console.log(`✅ Joined active game session (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to join active game session:', error);
+      throw error;
+    }
+  }
+
+  async updatePlayerType(newType: 'paid' | 'trial'): Promise<void> {
+    if (!this.client) {
+      throw new Error('SpacetimeDB client not initialized');
+    }
+
+    try {
+      await this.client.call('update_player_type', [newType]);
+      console.log(`🔄 Updated player type to: ${newType}`);
+    } catch (error) {
+      console.error('❌ Failed to update player type:', error);
       throw error;
     }
   }

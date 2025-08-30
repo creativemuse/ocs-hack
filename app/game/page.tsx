@@ -15,9 +15,11 @@ import type { TriviaQuestion } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
+import { useGameSession } from '@/hooks/useGameSession';
 
 export default function Game() {
   const router = useRouter();
+  const { leaveGame } = useGameSession();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -127,8 +129,26 @@ export default function Game() {
     }
   }, [timeRemaining, isAnswered, isLoading, currentQuestion]);
 
-  const handleLeaveRoom = () => {
-    router.push('/');
+  // Cleanup effect - leave game session when component unmounts
+  useEffect(() => {
+    return () => {
+      // Leave the game session when component unmounts
+      leaveGame().catch((error: any) => {
+        console.error('Error leaving game session on unmount:', error);
+      });
+    };
+  }, [leaveGame]);
+
+  const handleLeaveRoom = async () => {
+    try {
+      // Leave the game session before navigating
+      await leaveGame();
+    } catch (error) {
+      console.error('Error leaving game session:', error);
+    } finally {
+      // Navigate back to home regardless of leave success
+      router.push('/');
+    }
   };
 
   const handleAudioError = () => {
@@ -462,9 +482,28 @@ export default function Game() {
               </div>
             </div>
           )}
+
+          {/* Stats Section - positioned below audio player with original styling */}
+          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[300px] translate-x-[-50%]" data-node-id="3:465">
+            <p className="leading-[normal] whitespace-pre">YOUR POINTS THIS ROUND: {score} USDC</p>
+          </div>
           
-          {/* Answer Options */}
-          <div className="absolute content-stretch grid grid-cols-2 gap-2 items-start justify-start left-6 top-[400px] w-[345px]" data-node-id="3:442">
+          <div className="absolute left-[75.5px] top-[320px] translate-x-[-50%]">
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic text-[#ffffff] text-[12px] text-center text-nowrap">
+              <p className="leading-[normal] whitespace-pre"></p>
+            </div>
+            <div className="mt-1">
+              <PlayerCount showLabel={false} />
+            </div>
+          </div>
+          
+          {/* Active Players */}
+          <div className="absolute left-36 top-[318px]">
+            <ActivePlayers maxPlayers={16} />
+          </div>
+          
+          {/* Answer Options - positioned at the bottom with original styling */}
+          <div className="absolute content-stretch grid grid-cols-2 gap-2 items-start justify-start left-6 bottom-4 w-[345px]" data-node-id="3:442">
             {currentQuestion?.options.map((option, index) => (
               <div 
                 key={index}
@@ -512,9 +551,9 @@ export default function Game() {
             </h1>
           </div>
           
-          {/* Next Question Button - shown after answering */}
+          {/* Next Question Button - positioned above answer options when visible */}
           {isAnswered && (
-            <div className="absolute left-6 top-[630px] w-[345px]">
+            <div className="absolute bottom-32 left-6 right-6">
               <button
                 onClick={handleNextQuestion}
                 className="w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-4 rounded-lg transition-colors"
@@ -523,25 +562,6 @@ export default function Game() {
               </button>
             </div>
           )}
-          
-          {/* Rewards Section */}
-          <div className="absolute font-['Audiowide:Regular',_sans-serif] leading-[0] left-[159px] not-italic text-[#ffffff] text-[12px] text-center text-nowrap top-[730px] translate-x-[-50%]" data-node-id="3:465">
-            <p className="leading-[normal] whitespace-pre">YOUR POINTS THIS ROUND: {score} USDC</p>
-          </div>
-          
-          <div className="absolute left-[75.5px] top-[700px] translate-x-[-50%]">
-            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic text-[#ffffff] text-[12px] text-center text-nowrap">
-              <p className="leading-[normal] whitespace-pre">IN THIS ROUND</p>
-            </div>
-            <div className="mt-1">
-              <PlayerCount showLabel={false} />
-            </div>
-          </div>
-          
-          {/* Active Players */}
-          <div className="absolute left-36 top-[698px]">
-            <ActivePlayers maxPlayers={16} />
-          </div>
         </div>
       </div>
     </div>

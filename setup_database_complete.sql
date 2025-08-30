@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS players (
   games_played INTEGER DEFAULT 0,
   best_score INTEGER DEFAULT 0,
   total_earnings DECIMAL(10,2) DEFAULT 0,
-  trial_games_remaining INTEGER DEFAULT 3,
+  trial_games_remaining INTEGER DEFAULT 1,
   trial_completed BOOLEAN DEFAULT FALSE,
   wallet_connected BOOLEAN DEFAULT FALSE,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
