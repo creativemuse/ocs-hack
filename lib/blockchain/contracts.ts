@@ -11,7 +11,7 @@ const USDC_CONTRACT_ADDRESS = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
 const TRIVIA_CONTRACT_ADDRESS = '0xc3538A59829DdB43D791B0dFA4242FEcC463402C';
 
 // Contract ABI for trivia battle functionality (updated to match deployed contract)
-const TRIVIA_ABI = [
+export const TRIVIA_ABI = [
   {
     type: 'function',
     name: 'joinBattle',

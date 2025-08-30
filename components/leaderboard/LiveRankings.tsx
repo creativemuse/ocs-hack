@@ -164,18 +164,16 @@ export default function LiveRankings({
                           <div className="text-sm text-gray-500 flex items-center gap-2">
                             <span>{entry.gamesPlayed} games played</span>
                             {/* Show player type indicator */}
-                            {entry.playerType && (
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${
-                                  entry.playerType === 'paid'
-                                    ? 'bg-green-50 text-green-700 border-green-200'
-                                    : 'bg-amber-50 text-amber-700 border-amber-200'
-                                }`}
-                              >
-                                {entry.playerType === 'paid' ? '💰 Paid' : '🎮 Trial'}
-                              </Badge>
-                            )}
+                            <Badge
+                              variant="outline"
+                              className={`text-xs ${
+                                !entry.isTrialPlayer
+                                  ? 'bg-green-50 text-green-700 border-green-200'
+                                  : 'bg-amber-50 text-amber-700 border-amber-200'
+                              }`}
+                            >
+                              {!entry.isTrialPlayer ? '💰 Paid' : '🎮 Trial'}
+                            </Badge>
                           </div>
                         </div>
                       </div>
