@@ -34,6 +34,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
     <OnchainKitProvider
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       chain={base}
+      projectId="5b09d242-5390-4db3-866f-bfc2ce575821"
       config={{
         appearance: {
           mode: "auto",

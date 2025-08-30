@@ -93,6 +93,7 @@ export interface PrizePool {
   };
   contractAddress: string;
   isEqualOpportunity: boolean; // New field to indicate equal opportunity for trial players
+  // No maximum limit - prize pool scales with number of participants
 }
 
 export interface PlayerStats {

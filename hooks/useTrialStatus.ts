@@ -14,7 +14,7 @@ interface TrialStatus {
 export const useTrialStatus = (walletAddress?: string) => {
   const [trialStatus, setTrialStatus] = useState<TrialStatus>({
     gamesPlayed: 0,
-    gamesRemaining: 3,
+    gamesRemaining: 1,
     isTrialActive: true,
     requiresWallet: false,
     canJoinPrizePool: true // Trial players can always join prize pools
@@ -30,7 +30,7 @@ export const useTrialStatus = (walletAddress?: string) => {
           if (response.ok) {
             const data = await response.json();
             setTrialStatus({
-              gamesPlayed: 3 - data.trialGamesRemaining,
+              gamesPlayed: 1 - data.trialGamesRemaining,
               gamesRemaining: data.trialGamesRemaining,
               isTrialActive: data.trialGamesRemaining > 0,
               requiresWallet: false, // Wallet users never require wallet connection
@@ -45,8 +45,8 @@ export const useTrialStatus = (walletAddress?: string) => {
             const data = await response.json();
             setTrialStatus({
               gamesPlayed: data.gamesPlayed,
-              gamesRemaining: Math.max(0, 3 - data.gamesPlayed),
-              isTrialActive: data.gamesPlayed < 3,
+              gamesRemaining: Math.max(0, 1 - data.gamesPlayed),
+                              isTrialActive: data.gamesPlayed < 1,
               requiresWallet: false, // Trial players can still play, just with limited games
               canJoinPrizePool: true // Trial players can always join prize pools
             });
@@ -59,8 +59,8 @@ export const useTrialStatus = (walletAddress?: string) => {
           const gamesPlayed = SessionManager.getTrialGamesPlayed();
           setTrialStatus({
             gamesPlayed,
-            gamesRemaining: Math.max(0, 3 - gamesPlayed),
-            isTrialActive: gamesPlayed < 3,
+            gamesRemaining: Math.max(0, 1 - gamesPlayed),
+                          isTrialActive: gamesPlayed < 1,
             requiresWallet: false, // Trial players can still play
             canJoinPrizePool: true // Trial players can always join prize pools
           });
@@ -73,18 +73,56 @@ export const useTrialStatus = (walletAddress?: string) => {
     checkTrialStatus();
   }, [walletAddress]);
 
-  const incrementTrialGame = () => {
-    if (!walletAddress) {
-      SessionManager.incrementTrialGames();
+  const incrementTrialGame = async () => {
+    try {
+      if (walletAddress) {
+        // Update wallet player trial games in database
+        await fetch('/api/trial-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ walletAddress })
+        });
+      } else {
+        // Update anonymous session
+        SessionManager.incrementTrialGames();
+        const sessionId = SessionManager.getSessionId();
+        await fetch('/api/trial-status', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ sessionId })
+        });
+      }
+      
+      // Update local state
+      setTrialStatus(prev => {
+        const updatedGamesPlayed = prev.gamesPlayed + 1;
+        const updatedGamesRemaining = Math.max(0, prev.gamesRemaining - 1);
+        return {
+          ...prev,
+          gamesPlayed: updatedGamesPlayed,
+          gamesRemaining: updatedGamesRemaining,
+          // Trial is active only if there are remaining free plays
+          isTrialActive: updatedGamesRemaining > 0,
+          requiresWallet: false, // Never require wallet connection
+          canJoinPrizePool: true // Always allow prize pool participation
+        };
+      });
+    } catch (error) {
+      console.error('Error incrementing trial game:', error);
+      // Still update local state even if database update fails
+      setTrialStatus(prev => {
+        const updatedGamesPlayed = prev.gamesPlayed + 1;
+        const updatedGamesRemaining = Math.max(0, prev.gamesRemaining - 1);
+        return {
+          ...prev,
+          gamesPlayed: updatedGamesPlayed,
+          gamesRemaining: updatedGamesRemaining,
+          isTrialActive: updatedGamesRemaining > 0,
+          requiresWallet: false,
+          canJoinPrizePool: true
+        };
+      });
     }
-    setTrialStatus(prev => ({
-      ...prev,
-      gamesPlayed: prev.gamesPlayed + 1,
-      gamesRemaining: Math.max(0, prev.gamesRemaining - 1),
-      isTrialActive: prev.gamesPlayed < 2,
-      requiresWallet: false, // Never require wallet connection
-      canJoinPrizePool: true // Always allow prize pool participation
-    }));
   };
 
   return { trialStatus, isLoading, incrementTrialGame };

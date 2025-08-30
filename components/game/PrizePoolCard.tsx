@@ -50,7 +50,8 @@ export default function PrizePoolCard({
     return `${amount.toFixed(2)} USDC`;
   };
 
-  const participationRate = Math.min(prizePool.participants / 100, 1) * 100; // Assume max 100 players
+  // No maximum limit - show current participation level
+  const participationRate = Math.min(prizePool.participants / 10, 1) * 100; // Show progress based on 10+ players
 
   const canJoinPrizePool = isConnected && timeRemaining === 0;
   const isTrialPlayer = prizePool.entryFee === 0;
@@ -126,8 +127,8 @@ export default function PrizePoolCard({
         {/* Progress Bar */}
         <div>
           <div className="flex justify-between text-sm text-gray-300 mb-1">
-            <span>Battle Filling Up</span>
-            <span>{participationRate.toFixed(0)}%</span>
+            <span>Battle Activity</span>
+            <span>{prizePool.participants} players</span>
           </div>
           <Progress 
             value={participationRate} 
