@@ -206,7 +206,7 @@ export default function BlockchainGameEntry({
               <div className="flex gap-2">
                 {usdcAllowance < entryFee && (
                   <Button
-                    onClick={approveUSDC}
+                    onClick={() => approveUSDC()}
                     disabled={isLoading || isCheckingBalance}
                     variant="outline"
                     className="flex-1 border-purple-500/30 text-purple-300 hover:bg-purple-500/20"

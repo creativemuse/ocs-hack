@@ -93,8 +93,8 @@ export async function POST(req: NextRequest) {
     console.log('Legacy CDP API Key present:', !!cdpApiKey);
     console.log('Legacy CDP API Secret present:', !!cdpApiSecret);
 
-    let jwt: string;
-    let authMethod: string;
+    let jwt: string | undefined;
+    let authMethod: string | undefined;
 
     // Try new RSA format first
     if (cdpApiKeyName && cdpApiPrivateKey && cdpProjectId) {
