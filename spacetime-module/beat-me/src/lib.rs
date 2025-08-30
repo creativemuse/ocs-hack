@@ -19,6 +19,7 @@ pub struct AudioFile {
 pub struct GameSession {
     pub session_id: String,
     pub player_identity: Identity,
+    pub player_type: String, // "paid" or "trial"
     pub score: u32,
     pub questions_answered: u32,
     pub correct_answers: u32,
@@ -34,7 +35,9 @@ pub struct ActiveGameSession {
     pub session_id: String,
     pub status: String, // "waiting", "active", "completed"
     pub player_count: u32,
-    pub prize_pool: f64,
+    pub paid_player_count: u32, // Only paid players contribute to prize pool
+    pub trial_player_count: u32, // Trial players for tracking only
+    pub prize_pool: f64, // Only accumulates from paid player entry fees
     pub entry_fee: f64,
     pub start_time: Timestamp,
     pub created_at: Timestamp,
@@ -44,6 +47,7 @@ pub struct ActiveGameSession {
 #[spacetimedb::table(name = player_stats)]
 pub struct PlayerStats {
     pub player_identity: Identity,
+    pub player_type: String, // "paid" or "trial"
     pub total_games: u32,
     pub total_score: u32,
     pub best_score: u32,
@@ -58,6 +62,7 @@ pub struct PlayerStats {
 pub struct GuestPlayer {
     pub guest_id: String,
     pub name: String,
+    pub player_type: String, // Always "trial" for guest players
     pub games_played: u32,
     pub total_score: u32,
     pub best_score: u32,
@@ -71,6 +76,7 @@ pub struct GuestPlayer {
 pub struct GuestGameSession {
     pub session_id: String,
     pub guest_id: String,
+    pub player_type: String, // Always "trial" for guest players
     pub score: u32,
     pub questions_answered: u32,
     pub correct_answers: u32,
@@ -84,6 +90,7 @@ pub struct GuestGameSession {
 pub struct QuestionAttempt {
     pub session_id: String,
     pub player_identity: Identity,
+    pub player_type: String, // "paid" or "trial"
     pub audio_file_id: String,
     pub selected_answer: u32,
     pub correct_answer: u32,
@@ -95,6 +102,7 @@ pub struct QuestionAttempt {
 #[spacetimedb::reducer(init)]
 pub fn init(_ctx: &ReducerContext) {
     log::info!("🎵 Beat Me Audio Game Module initialized!");
+    log::info!("⚠️ Trial players are excluded from prize pool distributions");
 }
 
 #[spacetimedb::reducer(client_connected)]
@@ -107,6 +115,7 @@ pub fn identity_connected(ctx: &ReducerContext) {
     if existing_stats.is_none() {
         ctx.db.player_stats().insert(PlayerStats {
             player_identity: identity,
+            player_type: "trial".to_string(), // Default to trial until they pay
             total_games: 0,
             total_score: 0,
             best_score: 0,
@@ -115,7 +124,7 @@ pub fn identity_connected(ctx: &ReducerContext) {
             total_correct_answers: 0,
             last_played: ctx.timestamp,
         });
-        log::info!("📊 Initialized stats for new player: {:?}", identity);
+        log::info!("📊 Initialized stats for new player: {:?} (trial)", identity);
     }
 }
 
@@ -136,6 +145,7 @@ pub fn create_guest_player(ctx: &ReducerContext, guest_id: String, name: String)
         ctx.db.guest_players().insert(GuestPlayer {
             guest_id: guest_id.clone(),
             name,
+            player_type: "trial".to_string(), // Guest players are always trial
             games_played: 0,
             total_score: 0,
             best_score: 0,
@@ -143,7 +153,7 @@ pub fn create_guest_player(ctx: &ReducerContext, guest_id: String, name: String)
             created_at: ctx.timestamp,
             last_played: ctx.timestamp,
         });
-        log::info!("✅ Guest player created: {}", guest_id);
+        log::info!("✅ Guest player created: {} (trial)", guest_id);
     } else {
         log::info!("⚠️ Guest player already exists: {}", guest_id);
     }
@@ -159,6 +169,7 @@ pub fn update_guest_player(ctx: &ReducerContext, guest_id: String, games_played:
         ctx.db.guest_players().insert(GuestPlayer {
             guest_id: guest_id.clone(),
             name: guest.name.clone(),
+            player_type: "trial".to_string(), // Guest players remain trial
             games_played,
             total_score,
             best_score,
@@ -166,7 +177,7 @@ pub fn update_guest_player(ctx: &ReducerContext, guest_id: String, games_played:
             created_at: guest.created_at,
             last_played: ctx.timestamp,
         });
-        log::info!("✅ Guest player updated: {}", guest_id);
+        log::info!("✅ Guest player updated: {} (trial)", guest_id);
     } else {
         log::warn!("❌ Guest player not found for update: {}", guest_id);
     }
@@ -179,6 +190,7 @@ pub fn record_guest_game(ctx: &ReducerContext, session_id: String, guest_id: Str
     ctx.db.guest_game_sessions().insert(GuestGameSession {
         session_id,
         guest_id,
+        player_type: "trial".to_string(), // Guest games are always trial
         score,
         questions_answered,
         correct_answers,
@@ -187,7 +199,7 @@ pub fn record_guest_game(ctx: &ReducerContext, session_id: String, guest_id: Str
         game_data,
     });
     
-    log::info!("✅ Guest game recorded: {}", session_id);
+    log::info!("✅ Guest game recorded: {} (trial)", session_id);
 }
 
 // Add audio file to the database
@@ -235,12 +247,14 @@ pub fn start_game_session(
     session_id: String,
     difficulty: String,
     game_mode: String,
+    player_type: String, // "paid" or "trial"
 ) {
     let identity = ctx.sender;
     
     ctx.db.game_sessions().insert(GameSession {
         session_id: session_id.clone(),
         player_identity: identity,
+        player_type: player_type.clone(),
         score: 0,
         questions_answered: 0,
         correct_answers: 0,
@@ -250,7 +264,7 @@ pub fn start_game_session(
         game_mode,
     });
     
-    log::info!("🎮 Started game session: {} for player {:?}", session_id, identity);
+    log::info!("🎮 Started game session: {} for player {:?} ({})", session_id, identity, player_type);
 }
 
 // Record a question attempt
@@ -262,6 +276,7 @@ pub fn record_question_attempt(
     selected_answer: u32,
     correct_answer: u32,
     time_taken: f64,
+    player_type: String, // "paid" or "trial"
 ) {
     let identity = ctx.sender;
     let is_correct = selected_answer == correct_answer;
@@ -269,6 +284,7 @@ pub fn record_question_attempt(
     ctx.db.question_attempts().insert(QuestionAttempt {
         session_id: session_id.clone(),
         player_identity: identity,
+        player_type: player_type.clone(),
         audio_file_id: audio_file_name.clone(),
         selected_answer,
         correct_answer,
@@ -287,6 +303,7 @@ pub fn record_question_attempt(
         let session_data = GameSession {
             session_id: session.session_id.clone(),
             player_identity: session.player_identity,
+            player_type: session.player_type.clone(),
             score: new_score,
             questions_answered: new_questions,
             correct_answers: new_correct,
@@ -301,7 +318,7 @@ pub fn record_question_attempt(
         ctx.db.game_sessions().insert(session_data);
     }
     
-    log::info!("📝 Recorded question attempt: {} (correct: {})", audio_file_name, is_correct);
+    log::info!("📝 Recorded question attempt: {} (correct: {}, type: {})", audio_file_name, is_correct, player_type);
 }
 
 // End a game session
@@ -313,11 +330,13 @@ pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
         let session_score = session.score;
         let session_questions = session.questions_answered;
         let session_correct = session.correct_answers;
+        let player_type = session.player_type.clone();
         
         // Clone session data before deleting
         let session_data = GameSession {
             session_id: session.session_id.clone(),
             player_identity: session.player_identity,
+            player_type: session.player_type.clone(),
             score: session.score,
             questions_answered: session.questions_answered,
             correct_answers: session.correct_answers,
@@ -343,6 +362,7 @@ pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
             ctx.db.player_stats().delete(stats);
             ctx.db.player_stats().insert(PlayerStats {
                 player_identity: identity,
+                player_type: player_type.clone(),
                 total_games: new_total_games,
                 total_score: new_total_score,
                 best_score: new_best_score,
@@ -353,7 +373,7 @@ pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
             });
         }
         
-        log::info!("🏁 Ended game session: {} (score: {})", session_id, session_score);
+        log::info!("🏁 Ended game session: {} (score: {}, type: {})", session_id, session_score, player_type);
     }
 }
 
@@ -377,22 +397,40 @@ pub fn get_random_audio_files(ctx: &ReducerContext, count: u32) {
 pub fn get_player_stats(ctx: &ReducerContext) {
     let identity = ctx.sender;
     if let Some(stats) = ctx.db.player_stats().iter().find(|stats| stats.player_identity == identity) {
-        log::info!("📊 Player stats for {:?}: {} games, {} total score, {} best score", 
-                  identity, stats.total_games, stats.total_score, stats.best_score);
+        log::info!("📊 Player stats for {:?}: {} games, {} total score, {} best score, type: {}", 
+                  identity, stats.total_games, stats.total_score, stats.best_score, stats.player_type);
     } else {
         log::info!("📊 No stats found for player {:?}", identity);
     }
 }
 
-// Get leaderboard (simplified - just log the request)
+// Get leaderboard (ONLY paid players eligible for prizes)
 #[spacetimedb::reducer]
 pub fn get_leaderboard(ctx: &ReducerContext, limit: u32) {
-    let mut stats: Vec<_> = ctx.db.player_stats().iter().collect();
-    stats.sort_by(|a, b| b.best_score.cmp(&a.best_score));
+    // Filter to only paid players for prize-eligible leaderboard
+    let mut paid_stats: Vec<_> = ctx.db.player_stats().iter()
+        .filter(|stat| stat.player_type == "paid")
+        .collect();
+    paid_stats.sort_by(|a, b| b.best_score.cmp(&a.best_score));
     
-    log::info!("🏆 Leaderboard request (top {}):", limit);
-    for (i, stat) in stats.iter().take(limit as usize).enumerate() {
-        log::info!("  {}. Player {:?}: {} best score", i + 1, stat.player_identity, stat.best_score);
+    log::info!("🏆 Leaderboard request (top {} paid players only):", limit);
+    for (i, stat) in paid_stats.iter().take(limit as usize).enumerate() {
+        log::info!("  {}. Player {:?}: {} best score (paid)", i + 1, stat.player_identity, stat.best_score);
+    }
+}
+
+// Get trial player leaderboard (for display purposes only, no prizes)
+#[spacetimedb::reducer]
+pub fn get_trial_leaderboard(ctx: &ReducerContext, limit: u32) {
+    // Filter to only trial players
+    let mut trial_stats: Vec<_> = ctx.db.player_stats().iter()
+        .filter(|stat| stat.player_type == "trial")
+        .collect();
+    trial_stats.sort_by(|a, b| b.best_score.cmp(&a.best_score));
+    
+    log::info!("🏆 Trial leaderboard request (top {} trial players, no prizes):", limit);
+    for (i, stat) in trial_stats.iter().take(limit as usize).enumerate() {
+        log::info!("  {}. Player {:?}: {} best score (trial)", i + 1, stat.player_identity, stat.best_score);
     }
 }
 
@@ -407,8 +445,8 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
         .max_by_key(|s| s.created_at);
     
     if let Some(session) = active_session {
-        log::info!("🎮 Active game session found: {} (status: {}, players: {})", 
-                  session.session_id, session.status, session.player_count);
+        log::info!("🎮 Active game session found: {} (status: {}, paid: {}, trial: {})", 
+                  session.session_id, session.status, session.paid_player_count, session.trial_player_count);
     } else {
         log::info!("🎮 No active game session found, creating new one");
         // Create a new waiting session
@@ -417,7 +455,9 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
             session_id: new_session_id.clone(),
             status: "waiting".to_string(),
             player_count: 0,
-            prize_pool: 100.0,
+            paid_player_count: 0,
+            trial_player_count: 0,
+            prize_pool: 0.0, // Start with 0 - only accumulates from paid player entry fees
             entry_fee: 1.0,
             start_time: ctx.timestamp,
             created_at: ctx.timestamp,
@@ -428,7 +468,7 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
 
 // Join active game session
 #[spacetimedb::reducer]
-pub fn join_active_game_session(ctx: &ReducerContext) {
+pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
     let identity = ctx.sender;
     
     // Find the most recent active session
@@ -442,9 +482,21 @@ pub fn join_active_game_session(ctx: &ReducerContext) {
         let new_start_time = if is_first_player { ctx.timestamp } else { session.start_time };
         let session_id_clone = session.session_id.clone();
         let previous_player_count = session.player_count;
+        let previous_paid_count = session.paid_player_count;
+        let previous_trial_count = session.trial_player_count;
         let session_created_at = session.created_at;
-        let prize_pool = session.prize_pool;
         let entry_fee = session.entry_fee;
+        
+        // Update counts based on player type
+        let new_paid_count = if player_type == "paid" { previous_paid_count + 1 } else { previous_paid_count };
+        let new_trial_count = if player_type == "trial" { previous_trial_count + 1 } else { previous_trial_count };
+        
+        // Only paid players contribute to prize pool
+        let new_prize_pool = if player_type == "paid" { 
+            session.prize_pool + entry_fee 
+        } else { 
+            session.prize_pool 
+        };
         
         // Update the session
         ctx.db.active_game_sessions().delete(session);
@@ -452,19 +504,48 @@ pub fn join_active_game_session(ctx: &ReducerContext) {
             session_id: session_id_clone.clone(),
             status: new_status,
             player_count: previous_player_count + 1,
-            prize_pool,
+            paid_player_count: new_paid_count,
+            trial_player_count: new_trial_count,
+            prize_pool: new_prize_pool,
             entry_fee,
             start_time: new_start_time,
             created_at: session_created_at,
         });
         
         if is_first_player {
-            log::info!("🎮 First player joined session: {} (starting countdown)", session_id_clone);
+            log::info!("🎮 First player joined session: {} (starting countdown, type: {})", session_id_clone, player_type);
         } else {
-            log::info!("🎮 Player joined session: {} (total players: {})", 
-                      session_id_clone, previous_player_count + 1);
+            log::info!("🎮 Player joined session: {} (total: {}, paid: {}, trial: {}, type: {})", 
+                      session_id_clone, previous_player_count + 1, new_paid_count, new_trial_count, player_type);
         }
     } else {
         log::warn!("⚠️ No active session found to join");
+    }
+}
+
+// Update player type (trial to paid)
+#[spacetimedb::reducer]
+pub fn update_player_type(ctx: &ReducerContext, new_type: String) {
+    let identity = ctx.sender;
+    
+    if let Some(stats) = ctx.db.player_stats().iter().find(|s| s.player_identity == identity) {
+        let updated_stats = PlayerStats {
+            player_identity: identity,
+            player_type: new_type.clone(),
+            total_games: stats.total_games,
+            total_score: stats.total_score,
+            best_score: stats.best_score,
+            average_score: stats.average_score,
+            total_questions_answered: stats.total_questions_answered,
+            total_correct_answers: stats.total_correct_answers,
+            last_played: stats.last_played,
+        };
+        
+        ctx.db.player_stats().delete(stats);
+        ctx.db.player_stats().insert(updated_stats);
+        
+        log::info!("🔄 Updated player type for {:?}: {}", identity, new_type);
+    } else {
+        log::warn!("❌ No stats found for player {:?}", identity);
     }
 }

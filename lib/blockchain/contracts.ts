@@ -2,15 +2,15 @@
 export const ENTRY_FEE_USDC = '1000000'; // 1 USDC
 export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 
-// USDC contract address on Base Sepolia (mock address for demo)
-// TODO: Replace with actual USDC contract address when ready for production
-const USDC_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000002';
+// USDC contract address on Base Sepolia
+const USDC_CONTRACT_ADDRESS = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
 
-// Trivia Battle smart contract address (mock address for demo)
-// TODO: Replace with actual deployed contract address when ready for production
-const TRIVIA_CONTRACT_ADDRESS = '0x0000000000000000000000000000000000000001';
+// Trivia Battle smart contract address (deployed on Base Sepolia)
+// Updated with trial player restrictions - trial players excluded from prize pool
+// Compiled with Solidity 0.8.25 (no compiler warnings)
+const TRIVIA_CONTRACT_ADDRESS = '0xc3538A59829DdB43D791B0dFA4242FEcC463402C';
 
-// Contract ABI for trivia battle functionality
+// Contract ABI for trivia battle functionality (updated to match deployed contract)
 const TRIVIA_ABI = [
   {
     type: 'function',
@@ -22,45 +22,96 @@ const TRIVIA_ABI = [
   {
     type: 'function',
     name: 'joinTrialBattle',
-    inputs: [],
+    inputs: [{ name: 'sessionId', type: 'string' }],
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
     name: 'submitScore',
+    inputs: [{ name: 'score', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'submitTrialScore',
     inputs: [
-      { name: 'gameId', type: 'bytes32' },
-      { name: 'score', type: 'uint256' },
-      { name: 'answers', type: 'bytes32[]' },
+      { name: 'sessionId', type: 'string' },
+      { name: 'score', type: 'uint256' }
     ],
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
-    name: 'distributePrizes',
-    inputs: [{ name: 'gameId', type: 'bytes32' }],
+    name: 'startSession',
+    inputs: [{ name: 'duration', type: 'uint256' }],
     outputs: [],
     stateMutability: 'nonpayable',
   },
   {
     type: 'function',
-    name: 'getPrizePool',
+    name: 'distributePrizes',
     inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
+    outputs: [],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'getSessionInfo',
+    inputs: [],
+    outputs: [
+      { name: 'startTime', type: 'uint256' },
+      { name: 'endTime', type: 'uint256' },
+      { name: 'prizePool', type: 'uint256' },
+      { name: 'paidPlayerCount', type: 'uint256' },
+      { name: 'trialPlayerCount', type: 'uint256' },
+      { name: 'isActive', type: 'bool' },
+      { name: 'prizesDistributed', type: 'bool' }
+    ],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    name: 'getPlayerCount',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
+    name: 'getPlayerScore',
+    inputs: [{ name: 'player', type: 'address' }],
+    outputs: [
+      { name: 'score', type: 'uint256' },
+      { name: 'hasSubmitted', type: 'bool' },
+      { name: 'submissionTime', type: 'uint256' }
+    ],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    name: 'getTrialPlayerCount',
+    name: 'getTrialPlayerScore',
+    inputs: [{ name: 'sessionId', type: 'string' }],
+    outputs: [
+      { name: 'score', type: 'uint256' },
+      { name: 'hasSubmitted', type: 'bool' },
+      { name: 'submissionTime', type: 'uint256' }
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'currentSession',
+    inputs: [],
+    outputs: [
+      { name: 'startTime', type: 'uint256' },
+      { name: 'endTime', type: 'uint256' },
+      { name: 'prizePool', type: 'uint256' },
+      { name: 'paidPlayerCount', type: 'uint256' },
+      { name: 'trialPlayerCount', type: 'uint256' },
+      { name: 'isActive', type: 'bool' },
+      { name: 'prizesDistributed', type: 'bool' }
+    ],
+    stateMutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'ENTRY_FEE',
     inputs: [],
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
@@ -77,8 +128,7 @@ const TRIVIA_ABI = [
     type: 'event',
     name: 'TrialPlayerJoined',
     inputs: [
-      { name: 'player', type: 'address', indexed: true },
-      { name: 'sessionId', type: 'string', indexed: false },
+      { name: 'sessionId', type: 'string', indexed: true },
     ],
   },
   {
@@ -86,17 +136,34 @@ const TRIVIA_ABI = [
     name: 'ScoreSubmitted',
     inputs: [
       { name: 'player', type: 'address', indexed: true },
-      { name: 'gameId', type: 'bytes32', indexed: true },
       { name: 'score', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'TrialScoreSubmitted',
+    inputs: [
+      { name: 'sessionId', type: 'string', indexed: true },
+      { name: 'score', type: 'uint256', indexed: false },
+      { name: 'timestamp', type: 'uint256', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'SessionStarted',
+    inputs: [
+      { name: 'startTime', type: 'uint256', indexed: false },
+      { name: 'duration', type: 'uint256', indexed: false },
     ],
   },
   {
     type: 'event',
     name: 'PrizesDistributed',
     inputs: [
-      { name: 'gameId', type: 'bytes32', indexed: true },
-      { name: 'totalPool', type: 'uint256', indexed: false },
+      { name: 'sessionId', type: 'uint256', indexed: false },
       { name: 'winners', type: 'address[]', indexed: false },
+      { name: 'amounts', type: 'uint256[]', indexed: false },
     ],
   },
 ] as const;

@@ -5,13 +5,27 @@ export async function GET(req: NextRequest) {
     supabase: {
       url: !!process.env.SUPABASE_URL,
       anonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-      serviceKey: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
     },
     onchainkit: {
       apiKey: !!process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY,
+      serverApiKey: !!process.env.ONCHAINKIT_API_KEY,
     },
-    nodeEnv: process.env.NODE_ENV,
-    timestamp: new Date().toISOString(),
+    cdp: {
+      // New CDP API credentials
+      apiKeyName: !!process.env.CDP_API_KEY_NAME,
+      apiPrivateKey: !!process.env.CDP_API_KEY_PRIVATE_KEY,
+      projectId: !!process.env.CDP_PROJECT_ID,
+      // Legacy CDP credentials (for backward compatibility)
+      apiKey: !!process.env.CDP_API_KEY,
+      apiSecret: !!process.env.CDP_API_SECRET,
+    },
+    iron: {
+      password: !!process.env.IRON_PASSWORD,
+    },
+    assets: {
+      baseUrl: process.env.NEXT_PUBLIC_ASSET_BASE_URL || 'Not set',
+      serverBaseUrl: process.env.ASSET_BASE_URL || 'Not set',
+    },
   };
 
   return NextResponse.json(envCheck);

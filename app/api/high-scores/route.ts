@@ -7,6 +7,7 @@ interface HighScore {
   timestamp: number;
   isGuest: boolean;
   guestId?: string;
+  playerType: 'trial' | 'paid';
 }
 
 // In-memory storage for high scores (in production, this would be in a database)
@@ -38,7 +39,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { playerName, score, isGuest = false, guestId } = body;
+    const { playerName, score, isGuest = false, guestId, playerType = 'paid' } = body;
 
     if (!playerName || typeof score !== 'number') {
       return NextResponse.json(
@@ -53,7 +54,8 @@ export async function POST(req: NextRequest) {
       score,
       timestamp: Date.now(),
       isGuest,
-      guestId
+      guestId,
+      playerType: isGuest ? 'trial' : 'paid'
     };
 
     // Add to high scores

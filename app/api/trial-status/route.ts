@@ -21,9 +21,9 @@ export async function GET(req: NextRequest) {
           walletConnected: playerStatus.wallet_connected
         });
       } else {
-        // New wallet player - give them 3 trial games
+        // New wallet player - give them 1 trial game
         return NextResponse.json({
-          trialGamesRemaining: 3,
+          trialGamesRemaining: 1,
           trialCompleted: false,
           walletConnected: true
         });
@@ -66,8 +66,9 @@ export async function POST(req: NextRequest) {
       await SupabaseDatabase.decrementTrialGames(walletAddress);
       return NextResponse.json({ success: true });
     } else if (sessionId) {
-      // Update anonymous session games played
-      await SupabaseDatabase.updateAnonymousSession(sessionId, 0); // Increment games played
+      // Ensure anonymous session exists, then increment games played
+      await SupabaseDatabase.getOrCreateAnonymousSession(sessionId);
+      await SupabaseDatabase.updateAnonymousSession(sessionId, 0);
       return NextResponse.json({ success: true });
     }
 

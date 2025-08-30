@@ -47,6 +47,19 @@ interface GameSession {
   created_at: string;
 }
 
+interface GameEntryRow {
+  id: string;
+  session_id: string;
+  wallet_address: string | null;
+  anon_id: string | null;
+  is_trial: boolean;
+  status: 'verified' | 'consumed' | 'pending';
+  paid_tx_hash: string | null;
+  verified_at: string;
+  consumed_at: string | null;
+  created_at: string;
+}
+
 interface TriviaQuestion {
   id: string;
   type: string;
@@ -157,7 +170,7 @@ export const SupabaseDatabase = {
       .upsert({ 
         wallet_address: walletAddress, 
         username: username || `Player_${walletAddress.slice(-6)}`,
-        trial_games_remaining: 3,
+        trial_games_remaining: 1,
         trial_completed: false,
         wallet_connected: true
       })
@@ -252,6 +265,72 @@ export const SupabaseDatabase = {
     return data;
   },
 
+  // Entry gating
+  async upsertGameEntry(params: {
+    sessionId: string;
+    isTrial: boolean;
+    walletAddress?: string;
+    anonId?: string;
+    paidTxHash?: string;
+  }): Promise<GameEntryRow | null> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+
+    if (!params.walletAddress && !params.anonId) {
+      throw new Error('walletAddress or anonId required');
+    }
+
+    const identity = params.walletAddress ?? params.anonId!;
+    
+    // Because our unique index uses an expression (coalesce), PostgREST upsert
+    // cannot target it by column list. Use insert-and-select fallback.
+    try {
+      const { data, error } = await client
+        .from('game_entries')
+        .insert({
+          session_id: params.sessionId,
+          wallet_address: params.walletAddress || null,
+          anon_id: params.anonId || null,
+          is_trial: params.isTrial,
+          status: 'verified',
+          paid_tx_hash: params.paidTxHash || null,
+          verified_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+      if (error) throw error;
+      return data as unknown as GameEntryRow;
+    } catch (e: any) {
+      // If unique violation, fetch existing verified row and return it
+      if (e?.code === '23505') {
+        const existing = await this.getVerifiedEntry({ sessionId: params.sessionId, walletAddress: params.walletAddress, anonId: params.anonId });
+        if (existing) return existing;
+      }
+      throw e;
+    }
+  },
+
+  async markEntryConsumed(entryId: string): Promise<void> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    const { error } = await client
+      .from('game_entries')
+      .update({ status: 'consumed', consumed_at: new Date().toISOString() })
+      .eq('id', entryId);
+    if (error) throw error;
+  },
+
+  async getVerifiedEntry(params: { sessionId: string; walletAddress?: string; anonId?: string; }): Promise<GameEntryRow | null> {
+    const client = getServerClient();
+    if (!client) throw new Error('Supabase not configured');
+    const query = client.from('game_entries').select('*').eq('session_id', params.sessionId).eq('status', 'verified');
+    if (params.walletAddress) query.eq('wallet_address', params.walletAddress);
+    if (params.anonId) query.eq('anon_id', params.anonId);
+    const { data, error } = await query.single();
+    if (error && (error as any).code !== 'PGRST116') throw error;
+    return data as unknown as GameEntryRow | null;
+  },
+
   async decrementTrialGames(walletAddress: string): Promise<void> {
     const client = getServerClient();
     if (!client) throw new Error('Supabase not configured');
@@ -263,9 +342,15 @@ export const SupabaseDatabase = {
       .eq('wallet_address', walletAddress)
       .single();
       
-    if (fetchError) throw fetchError;
+    if (fetchError && (fetchError as any).code !== 'PGRST116') throw fetchError;
     
-    const newTrialGames = Math.max(0, (current?.trial_games_remaining || 0) - 1);
+    // If player doesn't exist yet, create with 1 trial and then decrement
+    if (!current) {
+      const created = await this.createPlayer(walletAddress);
+      if (!created) throw new Error('Failed to create player for trial tracking');
+    }
+    
+    const newTrialGames = Math.max(0, ((current?.trial_games_remaining ?? 1)) - 1);
     const trialCompleted = newTrialGames === 0;
     
     const { error } = await client
