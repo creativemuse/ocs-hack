@@ -96,12 +96,12 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
             {trialStatus.isTrialActive ? (
               <>
                 <Gamepad2 className="h-5 w-5 text-green-400" />
-                Free Game
+                Free Mode
               </>
             ) : (
               <>
                 <Crown className="h-5 w-5 text-yellow-400" />
-                Normal Game
+                Normal Mode
               </>
             )}
           </CardTitle>
