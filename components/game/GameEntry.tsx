@@ -96,12 +96,12 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
             {trialStatus.isTrialActive ? (
               <>
                 <Gamepad2 className="h-5 w-5 text-green-400" />
-                Start Free Game
+                Free Game
               </>
             ) : (
               <>
                 <Crown className="h-5 w-5 text-yellow-400" />
-                Start Normal Game
+                Normal Game
               </>
             )}
           </CardTitle>
@@ -125,7 +125,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
           ) : (
             <>
               <div className="text-sm text-gray-300 text-center">
-                You've used all free plays. Ready to compete for prizes?
+                 Ready to compete for rewards?
               </div>
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
@@ -133,7 +133,8 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
               </div>
               <Button
                 onClick={handleStartGame}
-                className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
+                className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg"
+                style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
               >
                 <Play className="h-4 w-4 mr-2" />
                 Start Normal Game

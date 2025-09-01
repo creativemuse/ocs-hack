@@ -75,12 +75,8 @@ export default function TrialStatusDisplay({ walletAddress, className = '' }: Tr
           </>
         ) : (
           <div className="space-y-2">
-            <div className="flex items-center justify-center gap-2 text-sm">
-              <Coins className="h-4 w-4 text-yellow-400" />
-              <span className="text-gray-300">Entry Fee: 1 USDC</span>
-            </div>
             <div className="text-xs text-gray-400 text-center">
-              You've used all free plays. Connect your wallet to play for prizes!
+              You've used all of your free plays.
             </div>
           </div>
         )}
