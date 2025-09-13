@@ -1,18 +1,46 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { generateJwt } from '@coinbase/cdp-sdk/auth';
 
-// Function to generate JWT for CDP API authentication using RSA-SHA256
+// Function to generate JWT for CDP API authentication using Ed25519 (EdDSA)
+async function generateEd25519JWT(apiKeyName: string, privateKey: string): Promise<string> {
+  try {
+    // Use the CDP SDK to generate JWT with Ed25519
+    const token = await generateJwt({
+      apiKeyId: apiKeyName,
+      apiKeySecret: privateKey,
+      requestMethod: 'POST',
+      requestHost: 'api.developer.coinbase.com',
+      requestPath: '/onramp/v1/token',
+      expiresIn: 120 // 2 minutes expiration as per Coinbase docs
+    });
+    
+    return token;
+  } catch (error) {
+    console.error('Error generating Ed25519 JWT:', error);
+    throw new Error(`Ed25519 JWT generation failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+  }
+}
+
+// Function to generate JWT for CDP API authentication using RSA-SHA256 (fallback)
 function generateRS256JWT(apiKeyName: string, privateKey: string): string {
   try {
     const header = {
       alg: 'RS256',
-      typ: 'JWT'
+      typ: 'JWT',
+      kid: apiKeyName
     };
 
+    const now = Math.floor(Date.now() / 1000);
+    const uri = `POST api.developer.coinbase.com/onramp/v1/token`;
+    
     const payload = {
-      iss: apiKeyName,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
+      sub: apiKeyName,
+      iss: 'cdp',
+      aud: ['cdp_service'],
+      nbf: now,
+      exp: now + 120, // 2 minutes expiration
+      uri: uri
     };
 
     const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
@@ -45,13 +73,20 @@ function generateHS256JWT(apiKey: string, apiSecret: string): string {
   try {
     const header = {
       alg: 'HS256',
-      typ: 'JWT'
+      typ: 'JWT',
+      kid: apiKey
     };
 
+    const now = Math.floor(Date.now() / 1000);
+    const uri = `POST api.developer.coinbase.com/onramp/v1/token`;
+    
     const payload = {
-      iss: apiKey,
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 3600, // 1 hour expiration
+      sub: apiKey,
+      iss: 'cdp',
+      aud: ['cdp_service'],
+      nbf: now,
+      exp: now + 120, // 2 minutes expiration
+      uri: uri
     };
 
     const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
@@ -96,8 +131,19 @@ export async function POST(req: NextRequest) {
     let jwt: string | undefined;
     let authMethod: string | undefined;
 
-    // Try new RSA format first
+    // Try Ed25519 first (preferred method)
     if (cdpApiKeyName && cdpApiPrivateKey && cdpProjectId) {
+      try {
+        jwt = await generateEd25519JWT(cdpApiKeyName, cdpApiPrivateKey);
+        authMethod = 'EdDSA';
+        console.log('Using Ed25519 JWT authentication');
+      } catch (error) {
+        console.warn('Ed25519 JWT generation failed, trying RS256:', error);
+      }
+    }
+
+    // Try RSA format as fallback
+    if (!jwt && cdpApiKeyName && cdpApiPrivateKey && cdpProjectId) {
       try {
         jwt = generateRS256JWT(cdpApiKeyName, cdpApiPrivateKey);
         authMethod = 'RS256';
