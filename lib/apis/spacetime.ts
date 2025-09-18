@@ -1,9 +1,10 @@
 // Configuration
 const SPACETIME_CONFIG = {
-  host: process.env.SPACETIME_HOST || 'http://127.0.0.1:3001',
-  port: process.env.SPACETIME_PORT || '3001',
-  database: process.env.SPACETIME_DATABASE || 'c200906d16dca1be5a1fa5a11aa0475d4ac644e399a9b5c01971e1d219131578',
+  host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
+  port: process.env.SPACETIME_PORT || '443',
+  database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.SPACETIME_MODULE || 'beat-me',
+  identity: process.env.SPACETIME_IDENTITY || 'c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b',
 };
 
 // Types matching the Rust module
@@ -152,9 +153,18 @@ class SpacetimeDBClient {
 
     try {
       console.log('🚀 Initializing SpacetimeDB client...');
+      console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
+      console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
       
       // Test connection by pinging the server
-      const response = await fetch(`${SPACETIME_CONFIG.host}/v1/ping`);
+      const headers: Record<string, string> = {};
+      if (SPACETIME_CONFIG.identity) {
+        headers['Authorization'] = `Bearer ${SPACETIME_CONFIG.identity}`;
+      }
+      
+      const response = await fetch(`${SPACETIME_CONFIG.host}/v1/ping`, {
+        headers
+      });
       if (!response.ok) {
         console.warn(`⚠️ SpacetimeDB server not available (${response.status}) - using fallback mode`);
         this.isConnected = false;
@@ -185,11 +195,18 @@ class SpacetimeDBClient {
       return;
     }
 
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+    };
+
+    // Add identity header if available
+    if (SPACETIME_CONFIG.identity) {
+      headers['Authorization'] = `Bearer ${SPACETIME_CONFIG.identity}`;
+    }
+
     const response = await fetch(`${SPACETIME_CONFIG.host}/v1/database/${SPACETIME_CONFIG.database}/call/${reducerName}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+      headers,
       body: JSON.stringify(args)
     });
 
@@ -703,8 +720,11 @@ class SpacetimeDBClient {
 // Export singleton instance
 export const spacetimeClient = new SpacetimeDBClient();
 
-// Initialize on module load
-if (typeof window === 'undefined') {
-  // Server-side initialization
-  spacetimeClient.initialize().catch(console.error);
+// Initialize on module load (only in production runtime, not during build)
+// Skip initialization during build time to prevent connection errors
+if (typeof window === 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PHASE) {
+  // Server-side initialization - only in production runtime, not during build
+  spacetimeClient.initialize().catch((error) => {
+    console.warn('⚠️ SpacetimeDB initialization failed during startup:', error.message);
+  });
 }

@@ -90,5 +90,8 @@
     "tsx": "^4.7.0",
     "typescript": "^5"
   },
+  "overrides": {
+    "use-sync-external-store": "^1.2.2"
+  },
   "type": "module"
 }
