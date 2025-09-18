@@ -1,4 +1,5 @@
 import lighthouse from '@lighthouse-web3/sdk';
+import { LIGHTHOUSE_FILES } from '../lighthouse-files';
 
 type AudioFile = {
   name: string;
@@ -27,20 +28,11 @@ const parseArtistAndTitle = (filename: string): { artistName: string; songTitle:
 // In a production app, you'd store this in a database
 let FILE_MANIFEST: Record<string, AudioFile> = {};
 
-// Try to load manifest from generated file
-try {
-  // Load only at runtime on the server to avoid bundler resolution errors
-  if (typeof window === 'undefined') {
-    const manifestPath = process.cwd() + '/lib/lighthouse-files';
-    // eslint-disable-next-line @typescript-eslint/no-var-requires
-    const mod = require(manifestPath);
-    const LIGHTHOUSE_FILES = mod?.LIGHTHOUSE_FILES as Record<string, AudioFile> | undefined;
-    if (LIGHTHOUSE_FILES && typeof LIGHTHOUSE_FILES === 'object') {
-      FILE_MANIFEST = LIGHTHOUSE_FILES;
-      console.log(`📝 Loaded ${Object.keys(FILE_MANIFEST).length} files from lighthouse-files.ts`);
-    }
-  }
-} catch (error) {
+// Load manifest from imported file
+if (LIGHTHOUSE_FILES && typeof LIGHTHOUSE_FILES === 'object') {
+  FILE_MANIFEST = LIGHTHOUSE_FILES;
+  console.log(`📝 Loaded ${Object.keys(FILE_MANIFEST).length} files from lighthouse-files.ts`);
+} else {
   console.log('ℹ️ No lighthouse-files.ts found, using empty manifest');
 }
 
@@ -295,15 +287,12 @@ class LighthouseStorage {
   // Method to refresh manifest from lighthouse-files.ts
   async refreshManifest(): Promise<void> {
     try {
-      // Clear require cache to get fresh data
+      // Reload the manifest from the imported file
       if (typeof window !== 'undefined') return;
-      const manifestPath = process.cwd() + '/lib/lighthouse-files';
-      delete require.cache[require.resolve(manifestPath)];
-      const { LIGHTHOUSE_FILES } = require(manifestPath);
-      if (LIGHTHOUSE_FILES && typeof LIGHTHOUSE_FILES === 'object') {
-        FILE_MANIFEST = LIGHTHOUSE_FILES;
-        console.log(`🔄 Refreshed manifest with ${Object.keys(FILE_MANIFEST).length} files`);
-      }
+      
+      // Since we're using static imports, we can't refresh at runtime
+      // This method is kept for API compatibility but doesn't actually refresh
+      console.log(`ℹ️ Manifest refresh not supported with static imports. Current manifest has ${Object.keys(FILE_MANIFEST).length} files`);
     } catch (error) {
       console.log('ℹ️ Could not refresh manifest from lighthouse-files.ts');
     }
