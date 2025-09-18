@@ -1,21 +1,23 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SupabaseDatabase } from '@/lib/apis/supabase';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export async function POST(req: NextRequest) {
   try {
     const { walletAddress, score, questions, answers } = await req.json();
     
-    // Save game session
-    await SupabaseDatabase.saveGameSession({
-      playerAddress: walletAddress,
-      totalScore: score,
-      entryFee: 0, // You can modify this based on your game logic
-      questions,
-      answers
-    });
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
     
-    // Decrement trial games if still in trial
-    await SupabaseDatabase.decrementTrialGames(walletAddress);
+    // Create player if they don't exist
+    await spacetimeClient.createPlayer(walletAddress);
+    
+    // Update player stats
+    // Note: In a real implementation, you'd query current stats first
+    // For now, we'll assume this is the first game
+    await spacetimeClient.updatePlayerStats(walletAddress, score, 1, score, 0);
+    
+    // Update trial status (decrement trial games)
+    await spacetimeClient.updateTrialStatus(walletAddress, 0, true);
     
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SupabaseStorage } from '@/lib/apis/supabase';
+import { spacetimeClient } from '@/lib/apis/spacetime';
+import { lighthouseStorage } from '@/lib/apis/lighthouse';
 import type { DifficultyLevel } from '@/types/game';
 
 type Mode = 'name-that-tune' | 'artist-match';
@@ -103,36 +104,20 @@ export async function GET(req: NextRequest) {
 
     const prefix = folder;
 
-    console.log(`🎵 Fetching questions from Supabase: bucket=${bucket}, folder=${folder}, mode=${mode}, count=${count}`);
+    console.log(`🎵 Fetching questions from SpaceTimeDB: bucket=${bucket}, folder=${folder}, mode=${mode}, count=${count}`);
+
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
 
     let files: Array<{ name: string; path: string; artistName: string; songTitle: string }> = [];
     let source = 'local';
 
-    // Check Supabase configuration first
-    if (SupabaseStorage.isConfigured()) {
-      try {
-        files = await SupabaseStorage.listAudioFiles(bucket, prefix);
-        if (files.length === 0) {
-          console.log(`📁 Supabase bucket ${bucket}/${folder} is empty, falling back to local files`);
-          files = getLocalAudioFiles();
-          source = 'local';
-          console.log(`📁 Found ${files.length} local audio files`);
-        } else {
-          console.log(`📁 Found ${files.length} audio files in Supabase ${bucket}/${folder}`);
-          source = 'supabase';
-        }
-      } catch (supabaseError) {
-        console.warn('⚠️ Supabase storage failed, falling back to local files:', supabaseError);
-        files = getLocalAudioFiles();
-        source = 'local';
-        console.log(`📁 Found ${files.length} local audio files`);
-      }
-    } else {
-      console.log('ℹ️ Supabase not configured, using local files');
-      files = getLocalAudioFiles();
-      source = 'local';
-      console.log(`📁 Found ${files.length} local audio files`);
-    }
+    // Note: In a real implementation, you'd query SpaceTimeDB for audio files
+    // For now, we'll use local files
+    console.log('ℹ️ SpaceTimeDB audio files integration pending, using local files');
+    files = getLocalAudioFiles();
+    source = 'local';
+    console.log(`📁 Found ${files.length} local audio files`);
 
     if (files.length < choices) {
       return NextResponse.json({ 
@@ -161,7 +146,8 @@ export async function GET(req: NextRequest) {
 
       let audioUrl: string;
       if (source === 'supabase') {
-        audioUrl = await SupabaseStorage.createSignedUrl(bucket, correct.path, 300);
+        // Use Lighthouse storage instead of Supabase
+        audioUrl = await lighthouseStorage.createSignedUrl(correct.path, 300);
       } else {
         // Use local file path
         audioUrl = correct.path;

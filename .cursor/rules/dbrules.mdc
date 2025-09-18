@@ -1,5 +1,5 @@
 ---
-description: supabase database tables
+description: Supabase database tables
 alwaysApply: false
 ---
 ###players Table

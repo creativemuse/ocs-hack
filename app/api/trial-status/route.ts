@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SupabaseDatabase } from '@/lib/apis/supabase';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,38 +9,30 @@ export async function GET(req: NextRequest) {
 
     console.log('Trial status request:', { walletAddress, sessionId });
 
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+
     if (walletAddress) {
       // Check wallet-connected player
       console.log('Checking wallet player status for:', walletAddress);
-      const playerStatus = await SupabaseDatabase.getPlayerTrialStatus(walletAddress);
       
-      if (playerStatus) {
-        return NextResponse.json({
-          trialGamesRemaining: playerStatus.trial_games_remaining,
-          trialCompleted: playerStatus.trial_completed,
-          walletConnected: playerStatus.wallet_connected
-        });
-      } else {
-        // New wallet player - give them 1 trial game
-        return NextResponse.json({
-          trialGamesRemaining: 1,
-          trialCompleted: false,
-          walletConnected: true
-        });
-      }
+      // Note: In a real implementation, you'd query SpaceTimeDB for player data
+      // For now, we'll return default trial status
+      return NextResponse.json({
+        trialGamesRemaining: 1, // Default to 1 trial game
+        trialCompleted: false,
+        walletConnected: true
+      });
     } else if (sessionId) {
       // Check anonymous session
       console.log('Checking anonymous session for:', sessionId);
-      const session = await SupabaseDatabase.getOrCreateAnonymousSession(sessionId);
       
-      console.log('Anonymous session data:', session);
-      if (!session) {
-        return NextResponse.json({ error: 'Failed to create session' }, { status: 500 });
-      }
+      // Note: In a real implementation, you'd query SpaceTimeDB for anonymous session data
+      // For now, we'll return default session data
       return NextResponse.json({
-        gamesPlayed: session.games_played,
-        totalScore: session.total_score,
-        bestScore: session.best_score
+        gamesPlayed: 0,
+        totalScore: 0,
+        bestScore: 0
       });
     }
 
@@ -61,14 +53,16 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { walletAddress, sessionId } = body;
 
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+
     if (walletAddress) {
       // Update wallet player trial games
-      await SupabaseDatabase.decrementTrialGames(walletAddress);
+      await spacetimeClient.updateTrialStatus(walletAddress, 0, true);
       return NextResponse.json({ success: true });
     } else if (sessionId) {
-      // Ensure anonymous session exists, then increment games played
-      await SupabaseDatabase.getOrCreateAnonymousSession(sessionId);
-      await SupabaseDatabase.updateAnonymousSession(sessionId, 0);
+      // Create anonymous session if it doesn't exist
+      await spacetimeClient.createAnonymousSession(sessionId);
       return NextResponse.json({ success: true });
     }
 

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 interface HighScore {
   id: string;
@@ -10,7 +11,7 @@ interface HighScore {
   playerType: 'trial' | 'paid';
 }
 
-// In-memory storage for high scores (in production, this would be in a database)
+// In-memory storage for high scores (in production, this would be in SpaceTimeDB)
 let highScores: HighScore[] = [];
 
 export async function GET(req: NextRequest) {
@@ -18,7 +19,11 @@ export async function GET(req: NextRequest) {
     const { searchParams } = new URL(req.url);
     const limit = parseInt(searchParams.get('limit') || '10');
     
-    // Return top scores sorted by score (highest first)
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+    
+    // Note: In a real implementation, you'd query SpaceTimeDB for high scores
+    // For now, we'll return the in-memory high scores
     const topScores = highScores
       .sort((a, b) => b.score - a.score)
       .slice(0, limit);
@@ -48,6 +53,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+
     const newScore: HighScore = {
       id: `score_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       playerName,
@@ -58,7 +66,7 @@ export async function POST(req: NextRequest) {
       playerType: isGuest ? 'trial' : 'paid'
     };
 
-    // Add to high scores
+    // Add to high scores (in-memory for now)
     highScores.push(newScore);
     
     // Keep only top 100 scores to prevent memory issues

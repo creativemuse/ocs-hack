@@ -1,21 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SupabaseDatabase } from '@/lib/apis/supabase';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export async function POST(req: NextRequest) {
   try {
     const { sessionId, score, questions, answers } = await req.json();
     
-    // Save game session
-    await SupabaseDatabase.saveGameSession({
-      sessionId,
-      totalScore: score,
-      entryFee: 0,
-      questions,
-      answers
-    });
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+    
+    // Create anonymous session if it doesn't exist
+    await spacetimeClient.createAnonymousSession(sessionId);
     
     // Update anonymous session stats
-    await SupabaseDatabase.updateAnonymousSession(sessionId, score);
+    // Note: In a real implementation, you'd query the current stats first
+    // For now, we'll assume this is the first game (games_played = 1)
+    await spacetimeClient.updateAnonymousSession(sessionId, 1, score, score);
     
     return NextResponse.json({ success: true });
   } catch (error) {

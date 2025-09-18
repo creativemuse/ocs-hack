@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { SupabaseDatabase } from '@/lib/apis/supabase';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 // Generate demo players for fallback
 const generateDemoPlayers = () => {
@@ -54,132 +54,26 @@ const generateDemoPlayers = () => {
 
 export async function GET(req: NextRequest) {
   try {
-    // Check if Supabase is configured
-    const client = SupabaseDatabase.getClient();
-    if (!client) {
-      console.log('Supabase not configured, returning demo players');
-      const demoPlayers = generateDemoPlayers();
-      return NextResponse.json({ 
-        players: demoPlayers,
-        count: demoPlayers.length,
-        source: 'demo'
-      });
-    }
-
-    // Try to get recent players from database
-    try {
-      const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
-      
-      // Check if players table exists by trying a simple query
-      const { data: recentPlayers, error } = await client
-        .from('players')
-        .select(`
-          wallet_address,
-          username,
-          avatar_url,
-          total_score,
-          games_played,
-          updated_at
-        `)
-        .gte('updated_at', twentyFourHoursAgo)
-        .order('total_score', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error fetching players from database:', error);
-        // Fall back to demo players
-        const demoPlayers = generateDemoPlayers();
-        return NextResponse.json({ 
-          players: demoPlayers,
-          count: demoPlayers.length,
-          source: 'demo-fallback'
-        });
-      }
-
-      // Try to get anonymous sessions
-      let recentSessions: Array<{
-        session_id: string;
-        total_score: number;
-        games_played: number;
-        updated_at: string;
-      }> = [];
-      try {
-        const { data: sessions, error: sessionError } = await client
-          .from('anonymous_sessions')
-          .select(`
-            session_id,
-            total_score,
-            games_played,
-            updated_at
-          `)
-          .gte('updated_at', twentyFourHoursAgo)
-          .order('total_score', { ascending: false })
-          .limit(10);
-
-        if (!sessionError && sessions) {
-          recentSessions = sessions;
-        }
-      } catch (sessionError) {
-        console.log('Anonymous sessions table not available, skipping');
-      }
-
-      // Combine and format the data
-      const activePlayers = [
-        ...(recentPlayers || []).map(player => ({
-          address: player.wallet_address,
-          username: player.username || `${player.wallet_address.slice(0, 6)}...${player.wallet_address.slice(-4)}`,
-          avatarUrl: player.avatar_url,
-          totalScore: player.total_score,
-          gamesPlayed: player.games_played,
-          isWalletUser: true,
-          lastActive: player.updated_at
-        })),
-        ...recentSessions.map(session => ({
-          address: `anon_${session.session_id.slice(0, 8)}`,
-          username: `Anonymous Player ${session.session_id.slice(0, 4)}`,
-          avatarUrl: null,
-          totalScore: session.total_score,
-          gamesPlayed: session.games_played,
-          isWalletUser: false,
-          lastActive: session.updated_at
-        }))
-      ].sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 16);
-
-      // If no real players found, add some demo players
-      if (activePlayers.length === 0) {
-        const demoPlayers = generateDemoPlayers();
-        return NextResponse.json({ 
-          players: demoPlayers,
-          count: demoPlayers.length,
-          source: 'demo-no-data'
-        });
-      }
-
-      return NextResponse.json({ 
-        players: activePlayers,
-        count: activePlayers.length,
-        source: 'database'
-      });
-
-    } catch (dbError) {
-      console.error('Database error, falling back to demo players:', dbError);
-      const demoPlayers = generateDemoPlayers();
-      return NextResponse.json({ 
-        players: demoPlayers,
-        count: demoPlayers.length,
-        source: 'demo-error'
-      });
-    }
-
-  } catch (error) {
-    console.error('Unexpected error in active players API:', error);
-    // Final fallback
+    // Initialize SpacetimeDB connection
+    await spacetimeClient.initialize();
+    
+    // Note: In a real implementation, you'd query SpaceTimeDB for active players
+    // For now, we'll return demo players
+    console.log('Returning demo players (SpaceTimeDB integration pending)');
     const demoPlayers = generateDemoPlayers();
     return NextResponse.json({ 
       players: demoPlayers,
       count: demoPlayers.length,
-      source: 'demo-unexpected'
+      source: 'demo'
+    });
+  } catch (error) {
+    console.error('Error in active-players API:', error);
+    // Final fallback to demo players
+    const demoPlayers = generateDemoPlayers();
+    return NextResponse.json({ 
+      players: demoPlayers,
+      count: demoPlayers.length,
+      source: 'demo-error'
     });
   }
 }

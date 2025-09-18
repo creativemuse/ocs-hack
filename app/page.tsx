@@ -524,8 +524,6 @@ export default function Home() {
 
           {/* Current Round Stats and Players */}
           <div className="text-center">
-            <div className="text-white text-sm mb-2 font-semibold uppercase tracking-wide">IN THIS ROUND</div>
-            <div className="text-white text-2xl font-bold mb-2">{session?.paid_player_count || 0}</div>
             
             {/* Current Paid Players Avatars */}
             <div className="mb-4 flex justify-center">
