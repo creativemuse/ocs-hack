@@ -25,6 +25,12 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     // Entry fee in USDC (1 USDC = 1,000,000 wei for 6 decimals)
     uint256 public constant ENTRY_FEE = 1_000_000; // 1 USDC
     
+    // Platform fee in basis points (2.5% = 250 basis points)
+    uint256 public constant PLATFORM_FEE_BPS = 250; // 2.5%
+    
+    // Platform fee recipient address
+    address public platformFeeRecipient;
+    
     // Game session structure
     struct GameSession {
         uint256 startTime;
@@ -56,7 +62,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     GameSession public currentSession;
     
     // Events
-    event PlayerJoined(address indexed player, uint256 entryFee);
+    event PlayerJoined(address indexed player, uint256 entryFee, uint256 platformFee);
     event TrialPlayerJoined(string indexed sessionId);
     event ScoreSubmitted(address indexed player, uint256 score, uint256 timestamp);
     event TrialScoreSubmitted(string indexed sessionId, uint256 score, uint256 timestamp);
@@ -67,6 +73,8 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     );
     event SessionStarted(uint256 startTime, uint256 duration);
     event SessionEnded(uint256 endTime);
+    event PlatformFeeCollected(uint256 amount, address indexed recipient);
+    event PlatformFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
     
     // Modifiers
     modifier onlyActiveSession() {
@@ -81,8 +89,9 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         _;
     }
     
-    constructor(address _usdcToken) Ownable(msg.sender) {
+    constructor(address _usdcToken, address _platformFeeRecipient) Ownable(msg.sender) {
         usdcToken = IERC20(_usdcToken);
+        platformFeeRecipient = _platformFeeRecipient;
     }
     
     /**
@@ -107,9 +116,14 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     /**
      * @dev Join battle as a paid player (requires 1 USDC entry fee)
      * Only paid players are eligible for prize pool distributions
+     * Platform fee of 2.5% is deducted from entry fee
      */
     function joinBattle() external nonReentrant onlyActiveSession {
         require(currentSession.playerScores[msg.sender].score == 0, "Already joined");
+        
+        // Calculate platform fee (2.5% of entry fee)
+        uint256 platformFee = (ENTRY_FEE * PLATFORM_FEE_BPS) / 10000;
+        uint256 prizePoolContribution = ENTRY_FEE - platformFee;
         
         // Transfer USDC entry fee
         require(
@@ -117,8 +131,17 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             "USDC transfer failed"
         );
         
-        // Add to prize pool
-        currentSession.prizePool += ENTRY_FEE;
+        // Transfer platform fee to recipient
+        if (platformFee > 0 && platformFeeRecipient != address(0)) {
+            require(
+                usdcToken.transfer(platformFeeRecipient, platformFee),
+                "Platform fee transfer failed"
+            );
+            emit PlatformFeeCollected(platformFee, platformFeeRecipient);
+        }
+        
+        // Add remaining amount to prize pool
+        currentSession.prizePool += prizePoolContribution;
         currentSession.paidPlayerCount++;
         currentSession.paidPlayers.push(msg.sender);
         
@@ -129,7 +152,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             submissionTime: 0
         });
         
-        emit PlayerJoined(msg.sender, ENTRY_FEE);
+        emit PlayerJoined(msg.sender, ENTRY_FEE, platformFee);
     }
     
     /**
@@ -313,6 +336,17 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     ) {
         TrialPlayerScore memory trialScore = currentSession.trialPlayerScores[sessionId];
         return (trialScore.score, trialScore.hasSubmitted, trialScore.submissionTime);
+    }
+    
+    /**
+     * @dev Update platform fee recipient address (only owner)
+     * @param _newRecipient New platform fee recipient address
+     */
+    function updatePlatformFeeRecipient(address _newRecipient) external onlyOwner {
+        require(_newRecipient != address(0), "Invalid recipient address");
+        address oldRecipient = platformFeeRecipient;
+        platformFeeRecipient = _newRecipient;
+        emit PlatformFeeRecipientUpdated(oldRecipient, _newRecipient);
     }
     
     /**

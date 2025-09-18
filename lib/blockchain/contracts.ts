@@ -2,13 +2,13 @@
 export const ENTRY_FEE_USDC = '1000000'; // 1 USDC
 export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 
-// USDC contract address on Base Sepolia
-const USDC_CONTRACT_ADDRESS = '0x036cbd53842c5426634e7929541ec2318f3dcf7e';
+// USDC contract address on Base Mainnet
+const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
-// Trivia Battle smart contract address (deployed on Base Sepolia)
-// Updated with trial player restrictions - trial players excluded from prize pool
+// Trivia Battle smart contract address (deployed on Base Mainnet)
+// Updated with 2.5% platform fee and trial player restrictions
 // Compiled with Solidity 0.8.25 (no compiler warnings)
-const TRIVIA_CONTRACT_ADDRESS = '0xc3538A59829DdB43D791B0dFA4242FEcC463402C';
+const TRIVIA_CONTRACT_ADDRESS = '0xd8183AA7cf350a1c4E1a247C12b4C5315BEa9D7A';
 
 // Contract ABI for trivia battle functionality (updated to match deployed contract)
 export const TRIVIA_ABI = [
@@ -122,6 +122,7 @@ export const TRIVIA_ABI = [
     inputs: [
       { name: 'player', type: 'address', indexed: true },
       { name: 'entryFee', type: 'uint256', indexed: false },
+      { name: 'platformFee', type: 'uint256', indexed: false },
     ],
   },
   {
@@ -164,6 +165,22 @@ export const TRIVIA_ABI = [
       { name: 'sessionId', type: 'uint256', indexed: false },
       { name: 'winners', type: 'address[]', indexed: false },
       { name: 'amounts', type: 'uint256[]', indexed: false },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'PlatformFeeCollected',
+    inputs: [
+      { name: 'amount', type: 'uint256', indexed: false },
+      { name: 'recipient', type: 'address', indexed: true },
+    ],
+  },
+  {
+    type: 'event',
+    name: 'PlatformFeeRecipientUpdated',
+    inputs: [
+      { name: 'oldRecipient', type: 'address', indexed: true },
+      { name: 'newRecipient', type: 'address', indexed: true },
     ],
   },
 ] as const;
