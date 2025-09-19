@@ -17,10 +17,15 @@ import { ASSETS } from '@/lib/config/assets';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
 import { useGameSession } from '@/hooks/useGameSession';
+import { useSocialShare } from '@/hooks/useSocialShare';
+import ComposeCastButton from '@/components/social/ComposeCastButton';
+import SocialProfileViewer from '@/components/social/SocialProfileViewer';
+import type { ActivePlayer } from '@/hooks/useActivePlayers';
 
 export default function Game() {
   const router = useRouter();
   const { leaveGame } = useGameSession();
+  const { shareGameAchievement } = useSocialShare();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -44,6 +49,8 @@ export default function Game() {
   const [pendingGuestSync, setPendingGuestSync] = useState<{score: number, gameData: any} | null>(null);
   const timerTriggeredRef = useRef(false);
   const [highScores, setHighScores] = useState<Array<{score: number}>>([]);
+  const [selectedPlayer, setSelectedPlayer] = useState<ActivePlayer | null>(null);
+  const [showPlayerProfile, setShowPlayerProfile] = useState(false);
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -140,11 +147,11 @@ export default function Game() {
     loadRandomQuestion();
   }, [loadRandomQuestion]);
 
-  // Timer effect - removed automatic answer selection
+  // Timer effect - handle time up state
   useEffect(() => {
     if (isAnswered || isLoading || !currentQuestion) return;
 
-    // Only update timer display, don't auto-select answer
+    // Mark timer as triggered when time runs out
     if (timeRemaining <= 0 && !timerTriggeredRef.current) {
       timerTriggeredRef.current = true;
       // Don't automatically answer - let user choose or time out naturally
@@ -224,13 +231,40 @@ export default function Game() {
   };
 
   const handleNextQuestion = () => {
-    // Advance question/round counters and reset per-round state if needed
+    // Check if this was a perfect round (all questions correct)
+    const isPerfectRound = score === questionsPerRound * 10; // Assuming 10 points per question
+    
+    // Share achievement if it's a round win or perfect round
     if (questionNumberInRound >= questionsPerRound) {
       if (currentRound < totalRounds) {
+        // Round completed - share round win
+        shareGameAchievement(
+          isPerfectRound ? 'perfect-round' : 'round-win',
+          score,
+          {
+            round: currentRound,
+            totalRounds,
+            playerCount: 0, // This would come from active players count
+            playerName: isGuestMode ? guestName : undefined
+          }
+        );
+        
         setCurrentRound(prev => prev + 1);
         setQuestionNumberInRound(1);
         setScore(0);
       } else {
+        // Game completed - share game completion
+        shareGameAchievement(
+          'game-complete',
+          totalScore,
+          {
+            round: currentRound,
+            totalRounds,
+            playerCount: 0, // This would come from active players count
+            playerName: isGuestMode ? guestName : undefined
+          }
+        );
+        
         setGameCompleted(true);
         return;
       }
@@ -254,16 +288,7 @@ export default function Game() {
     });
   }, []);
 
-  // Ensure countdown reaches 0 after exactly 10 seconds, regardless of audio file length
-  useEffect(() => {
-    if (!currentQuestion || isAnswered) return;
-    
-    const timer = setTimeout(() => {
-      setTimeRemaining(0);
-    }, 10000); // 10 seconds
-
-    return () => clearTimeout(timer);
-  }, [currentQuestion, isAnswered]);
+  // Remove conflicting timer - let audio timer handle countdown
 
   const handleGameStart = () => {
     setGameStarted(true);
@@ -393,6 +418,34 @@ export default function Game() {
             />
           </div>
           
+          {/* Social Sharing Section */}
+          <div className="mb-6">
+            <div className="text-center mb-4">
+              <h3 className="text-lg font-semibold text-white mb-2">Share Your Achievement!</h3>
+              <p className="text-sm text-gray-400">Let others know about your BEAT ME victory</p>
+            </div>
+            
+            <div className="flex gap-3 justify-center flex-wrap">
+              <ComposeCastButton
+                achievementType="game-complete"
+                score={totalScore}
+                round={currentRound}
+                totalRounds={totalRounds}
+                className="flex-1 min-w-[200px]"
+                onShare={() => console.log('Game completion shared!')}
+              />
+              
+              {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && (
+                <ComposeCastButton
+                  achievementType="high-score"
+                  score={totalScore}
+                  className="flex-1 min-w-[200px]"
+                  onShare={() => console.log('High score shared!')}
+                />
+              )}
+            </div>
+          </div>
+
           <div className="flex gap-3 justify-center flex-wrap">
             <button
               onClick={() => {
@@ -536,9 +589,16 @@ export default function Game() {
             </div>
           </div>
           
-          {/* Active Players */}
+          {/* Active Players with Social Graph */}
           <div className="absolute left-36 top-[318px]">
-            <ActivePlayers maxPlayers={16} />
+            <ActivePlayers 
+              maxPlayers={16} 
+              showSocialFeatures={true}
+              onPlayerClick={(player) => {
+                setSelectedPlayer(player);
+                setShowPlayerProfile(true);
+              }}
+            />
           </div>
           
           {/* CDP Live Activity Monitor */}
@@ -608,6 +668,16 @@ export default function Game() {
           )}
         </div>
       </div>
+      
+      {/* Social Profile Viewer Modal */}
+      <SocialProfileViewer
+        player={selectedPlayer}
+        isOpen={showPlayerProfile}
+        onClose={() => {
+          setShowPlayerProfile(false);
+          setSelectedPlayer(null);
+        }}
+      />
     </div>
   );
 }
