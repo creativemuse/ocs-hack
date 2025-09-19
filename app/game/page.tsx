@@ -64,16 +64,37 @@ export default function Game() {
         choices: '4',
       });
 
-      const res = await fetch(`/api/lighthouse-questions?${params.toString()}`, { 
-        cache: 'no-store' 
-      });
-      
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to load question');
+      const endpoints = [
+        '/api/lighthouse-questions',
+        '/api/spacetime-questions'
+      ];
+      let lastError: Error | null = null;
+      let data: { questions: TriviaQuestion[] } | null = null;
+
+      for (const endpoint of endpoints) {
+        try {
+          const res = await fetch(`${endpoint}?${params.toString()}`, { cache: 'no-store' });
+          const contentType = res.headers.get('content-type') || '';
+          if (!res.ok) {
+            const message = contentType.includes('application/json')
+              ? (await res.json()).error || res.statusText
+              : await res.text();
+            throw new Error(message || 'Failed to load question');
+          }
+          if (!contentType.includes('application/json')) {
+            throw new Error('Invalid response format from questions API');
+          }
+          const parsed = await res.json();
+          data = parsed;
+          break;
+        } catch (err) {
+          lastError = err instanceof Error ? err : new Error('Failed to load question');
+        }
       }
 
-      const data: { questions: TriviaQuestion[] } = await res.json();
+      if (!data) {
+        throw lastError || new Error('Failed to load question');
+      }
 
       if (!data.questions?.length) {
         throw new Error('No questions available');
