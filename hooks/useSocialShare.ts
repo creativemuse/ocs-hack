@@ -123,11 +123,11 @@ export const useSocialShare = () => {
         title = `${playerName} Joined BEAT ME!`;
         break;
       case 'left-game':
-        shareText = `🎵 ${playerName} finished their BEAT ME session with ${score} USDC! Great game! 🎶`;
+        shareText = `🎵 ${playerName} finished their BEAT ME session with ${score}! Great game! 🎶`;
         title = `${playerName} Finished BEAT ME!`;
         break;
       case 'answered-question':
-        shareText = `🎵 ${playerName} is on question ${questionNumber}/${totalQuestions} in BEAT ME! Current score: ${score} USDC 🎶`;
+        shareText = `🎵 ${playerName} is on question ${questionNumber}/${totalQuestions} in BEAT ME! Current score: ${score} 🎶`;
         title = `${playerName} Playing BEAT ME!`;
         break;
     }
