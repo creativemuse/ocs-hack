@@ -40,16 +40,20 @@ export default function AudioPlayer({
   const [gatewayIndex, setGatewayIndex] = useState(0);
   const [useLocalFallback, setUseLocalFallback] = useState(false);
   const maxRetries = 3;
-  const maxGateways = 5;
+  const maxGateways = 9;
 
   // Function to try different IPFS gateways
   const tryDifferentGateway = (url: string): string => {
     const gateways = [
       "https://gateway.lighthouse.storage/ipfs",
-      "https://bafybeidv5zzk3w7323kkv35tezalkiynykggbayx4c73jsizapkcdasbna.ipfs.w3s.link",
-      "https://bafybeidv5zzk3w7323kkv35tezalkiynykggbayx4c73jsizapkcdasbna.ipfs.nftstorage.link",
       "https://ipfs.io/ipfs",
-      "https://dweb.link/ipfs"
+      "https://dweb.link/ipfs",
+      "https://storry.tv/ipfs",
+      "https://trustless-gateway.link/ipfs",
+      "https://4everland.io/ipfs",
+      "https://w3s.link/ipfs",
+      "https://nftstorage.link/ipfs",
+      "https://gateway.pinata.cloud/ipfs"
     ];
     
     // Extract CID from current URL - handle both filename and CID patterns
