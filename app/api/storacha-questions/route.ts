@@ -161,12 +161,8 @@ export async function GET(req: NextRequest) {
       const correctIndex = options.indexOf(correctText);
 
       let audioUrl: string;
-      if (source === 'storacha') {
-        audioUrl = await storachaStorage.createSignedUrl(correct.path, 300);
-      } else {
-        // Use local file path
-        audioUrl = correct.path;
-      }
+      // Always use local files for faster loading
+      audioUrl = correct.path;
 
       questions.push({
         id: `st_${Date.now()}_${i}`,

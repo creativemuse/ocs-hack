@@ -145,13 +145,8 @@ export async function GET(req: NextRequest) {
       const correctIndex = options.indexOf(correctText);
 
       let audioUrl: string;
-      if (source === 'supabase') {
-        // Use Lighthouse storage instead of Supabase
-        audioUrl = await lighthouseStorage.createSignedUrl(correct.path, 300);
-      } else {
-        // Use local file path
-        audioUrl = correct.path;
-      }
+      // Always use local files for faster loading
+      audioUrl = correct.path;
 
       questions.push({
         id: `sb_${Date.now()}_${i}`,

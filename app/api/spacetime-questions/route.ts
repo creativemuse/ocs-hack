@@ -148,15 +148,8 @@ export async function GET(req: NextRequest) {
       const correctIndex = options.indexOf(correctText);
 
       let audioUrl: string;
-      if (source === 'spacetime') {
-        // Use Storacha IPFS URLs with proper encoding
-        audioUrl = await storachaStorage.createSignedUrl(correct.path, 300);
-        // Fire-and-forget prewarm; don't block response
-        void prewarmUrl(audioUrl);
-      } else {
-        // Use local file path served by Next.js from /public/music
-        audioUrl = correct.path;
-      }
+      // Always use local files for faster loading
+      audioUrl = correct.path;
 
       questions.push({
         id: `sp_${Date.now()}_${i}`,

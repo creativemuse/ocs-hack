@@ -102,6 +102,16 @@ export default function AudioPlayer({
     setAutoplayBlocked(false);
     setIsMetadataLoaded(false);
 
+    // Try local fallback first for faster loading
+    const localUrl = getLocalFallbackUrl(audioUrl);
+    if (localUrl && localUrl !== audioUrl) {
+      console.log('🔊 Using local file for faster loading:', localUrl);
+      audio.src = localUrl;
+      setUseLocalFallback(true);
+    } else {
+      audio.src = audioUrl;
+    }
+
     // Ensure appropriate preload for quickest start
     audio.preload = 'auto';
     
