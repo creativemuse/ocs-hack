@@ -21,7 +21,7 @@ import GameTitle from '@/components/ui/GameTitle';
 
 export default function Home() {
   const router = useRouter();
-  const { session, timeRemaining, canJoin, isLoading, waitingForPaidPlayer, joinGame, leaveGame } = useGameSession();
+  const { session, timeRemaining, canJoin, isLoading, waitingForPaidPlayer, playerId, joinGame, leaveGame } = useGameSession();
   const [showGameEntry, setShowGameEntry] = useState(false);
   const [showGuestMode, setShowGuestMode] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -197,7 +197,7 @@ export default function Home() {
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
-    if (isAnswered || !currentQuestion) return;
+    if (isAnswered || !currentQuestion || gameTimeRemaining <= 0) return;
     
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
@@ -247,11 +247,28 @@ export default function Home() {
     loadRandomQuestion();
   };
 
-  const handleAudioTimeUpdate = (currentTime: number, duration: number) => {
+  const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
     setAudioCurrentTime(currentTime);
     const remaining = Math.max(0, Math.ceil(duration - currentTime));
-    setGameTimeRemaining(remaining);
-  };
+    // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
+    setGameTimeRemaining(prev => {
+      if (prev !== remaining) {
+        return remaining;
+      }
+      return prev;
+    });
+  }, []);
+
+  // Ensure countdown reaches 0 after exactly 10 seconds, regardless of audio file length
+  useEffect(() => {
+    if (!currentQuestion || isAnswered) return;
+    
+    const timer = setTimeout(() => {
+      setGameTimeRemaining(0);
+    }, 10000); // 10 seconds
+
+    return () => clearTimeout(timer);
+  }, [currentQuestion, isAnswered]);
 
   const handleAudioError = () => {
     console.log('Audio failed, trying different question...');
@@ -275,14 +292,14 @@ export default function Home() {
   // Cleanup effect - leave game session when component unmounts
   useEffect(() => {
     return () => {
-      // Leave the game session when component unmounts
-      if (session) {
+      // Only leave the game session if we actually joined it (have a playerId)
+      if (session && playerId) {
         leaveGame().catch(error => {
           console.error('Error leaving game session on unmount:', error);
         });
       }
     };
-  }, [session, leaveGame]);
+  }, [session, playerId, leaveGame]);
 
   // Determine what to display in the timer area
   const getTimerDisplay = () => {
@@ -462,20 +479,26 @@ export default function Home() {
           {/* Big Red Countdown Display */}
           {!isAnswered && (
             <div className="flex justify-center mb-6">
-              <div 
-                className={`text-6xl sm:text-7xl md:text-8xl font-bold font-mono drop-shadow-lg transition-all duration-300 ${
-                  gameTimeRemaining <= 5 && gameTimeRemaining > 0
-                    ? 'text-red-500 animate-pulse bg-black/20 rounded-full px-4 sm:px-8 py-2 sm:py-4'
-                    : 'text-red-400'
-                }`}
-                style={{
-                  textShadow: gameTimeRemaining <= 5 && gameTimeRemaining > 0
-                    ? '0 0 20px rgba(239, 68, 68, 0.8), 0 0 40px rgba(239, 68, 68, 0.4)'
-                    : '0 0 10px rgba(239, 68, 68, 0.5)'
-                }}
-              >
-                {Math.ceil(gameTimeRemaining)}
-              </div>
+              {gameTimeRemaining <= 0 ? (
+                <div className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono text-red-500 animate-pulse bg-black/20 rounded-full px-6 sm:px-8 py-4 sm:py-6">
+                  TIME'S UP
+                </div>
+              ) : (
+                <div 
+                  className={`text-6xl sm:text-7xl md:text-8xl font-bold font-mono drop-shadow-lg transition-all duration-300 ${
+                    gameTimeRemaining <= 5 && gameTimeRemaining > 0
+                      ? 'text-red-500 animate-pulse bg-black/20 rounded-full px-4 sm:px-8 py-2 sm:py-4'
+                      : 'text-red-400'
+                  }`}
+                  style={{
+                    textShadow: gameTimeRemaining <= 5 && gameTimeRemaining > 0
+                      ? '0 0 20px rgba(239, 68, 68, 0.8), 0 0 40px rgba(239, 68, 68, 0.4)'
+                      : '0 0 10px rgba(239, 68, 68, 0.5)'
+                  }}
+                >
+                  {Math.ceil(gameTimeRemaining)}
+                </div>
+              )}
             </div>
           )}
 

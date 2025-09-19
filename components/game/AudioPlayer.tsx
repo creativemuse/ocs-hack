@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { Volume2, VolumeX, Play, Pause, AlertCircle } from 'lucide-react';
@@ -27,6 +27,7 @@ export default function AudioPlayer({
   clipStartSeconds = 0,
 }: AudioPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const lastUpdateTimeRef = useRef<number>(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -39,6 +40,7 @@ export default function AudioPlayer({
   const [retryCount, setRetryCount] = useState(0);
   const [gatewayIndex, setGatewayIndex] = useState(0);
   const [useLocalFallback, setUseLocalFallback] = useState(false);
+  const [hasEnded, setHasEnded] = useState(false);
   const maxRetries = 3;
   const maxGateways = 9;
 
@@ -101,6 +103,8 @@ export default function AudioPlayer({
     setIsLoading(true);
     setAutoplayBlocked(false);
     setIsMetadataLoaded(false);
+    setHasEnded(false);
+    lastUpdateTimeRef.current = 0;
 
     // Try local fallback first for faster loading
     const localUrl = getLocalFallbackUrl(audioUrl);
@@ -127,13 +131,22 @@ export default function AudioPlayer({
     }
 
     const handleTimeUpdate = (): void => {
+      if (hasEnded) return; // Prevent updates after audio has ended
+      
       const t = Math.max(0, audio.currentTime - clipStartSeconds);
       setCurrentTime(t);
-      // Emit a stable duration equal to the configured clip length to keep external timers in sync
-      onTimeUpdate?.(t, clipDurationSeconds);
-      if (t >= clipDurationSeconds) {
+      
+      // Only call onTimeUpdate every 0.5 seconds to reduce re-render frequency
+      if (t - lastUpdateTimeRef.current >= 0.5) {
+        onTimeUpdate?.(t, clipDurationSeconds);
+        lastUpdateTimeRef.current = t;
+      }
+      
+      if (t >= clipDurationSeconds && !hasEnded) {
+        console.log('🔊 Audio clip ended, pausing playback');
         audio.pause();
         setIsPlaying(false);
+        setHasEnded(true);
         onEnded?.();
       }
     };
@@ -145,7 +158,9 @@ export default function AudioPlayer({
     };
 
     const handleEnded = (): void => {
+      console.log('🔊 Audio naturally ended');
       setIsPlaying(false);
+      setHasEnded(true);
       onEnded?.();
     };
 
@@ -278,6 +293,12 @@ export default function AudioPlayer({
     const tryAutoplay = async (): Promise<void> => {
       try {
         console.log('🔊 Attempting autoplay for:', audioUrl);
+        // Ensure audio starts from the correct position
+        if (hasEnded) {
+          audio.currentTime = clipStartSeconds;
+          setHasEnded(false);
+          setCurrentTime(0);
+        }
         await audio.play();
         console.log('🔊 Autoplay successful');
         setIsPlaying(true);
@@ -289,6 +310,12 @@ export default function AudioPlayer({
         const resumeOnGesture = async () => {
           try {
             console.log('🔊 User gesture detected, resuming playback');
+            // Ensure audio starts from the correct position
+            if (hasEnded) {
+              audio.currentTime = clipStartSeconds;
+              setHasEnded(false);
+              setCurrentTime(0);
+            }
             await audio.play();
             setIsPlaying(true);
             setAutoplayBlocked(false);
@@ -330,6 +357,13 @@ export default function AudioPlayer({
       audio.pause();
       setIsPlaying(false);
       return;
+    }
+
+    // If audio has ended, reset it to the beginning
+    if (hasEnded) {
+      audio.currentTime = clipStartSeconds;
+      setHasEnded(false);
+      setCurrentTime(0);
     }
 
     audio
@@ -454,7 +488,7 @@ export default function AudioPlayer({
             className="w-full hidden"
             disabled={isLoading || hasError}
           />
-          <div className="flex justify-between text-sm text-white mt-1 hidden">
+          <div className="justify-between text-sm text-white mt-1 hidden">
             <span>{formatTime(currentTime)}</span>
             <span>{formatTime(duration)}</span>
           </div>

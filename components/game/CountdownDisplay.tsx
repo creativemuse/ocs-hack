@@ -22,9 +22,15 @@ export default function CountdownDisplay({
     }
   }, [timeRemaining]);
 
-  // Don't show countdown if no time remaining
+  // Show "TIME'S UP" when time runs out
   if (timeRemaining <= 0) {
-    return null;
+    return (
+      <div className={`flex justify-center items-center ${className}`}>
+        <div className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono text-red-500 animate-pulse bg-black/20 rounded-full px-6 sm:px-8 py-4 sm:py-6">
+          TIME'S UP
+        </div>
+      </div>
+    );
   }
 
   return (

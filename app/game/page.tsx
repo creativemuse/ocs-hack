@@ -140,14 +140,14 @@ export default function Game() {
     loadRandomQuestion();
   }, [loadRandomQuestion]);
 
-  // Timer effect - now synced with audio player
+  // Timer effect - removed automatic answer selection
   useEffect(() => {
     if (isAnswered || isLoading || !currentQuestion) return;
 
-    // When time runs out, mark as answered (but only once)
-    if (timeRemaining <= 0 && !isAnswered && !timerTriggeredRef.current) {
+    // Only update timer display, don't auto-select answer
+    if (timeRemaining <= 0 && !timerTriggeredRef.current) {
       timerTriggeredRef.current = true;
-      setIsAnswered(true);
+      // Don't automatically answer - let user choose or time out naturally
     }
   }, [timeRemaining, isAnswered, isLoading, currentQuestion]);
 
@@ -191,7 +191,7 @@ export default function Game() {
   };
 
   const handleAnswerSelect = (answerIndex: number) => {
-    if (isAnswered || !currentQuestion) return;
+    if (isAnswered || !currentQuestion || timeRemaining <= 0) return;
     
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
@@ -241,12 +241,29 @@ export default function Game() {
     loadRandomQuestion();
   };
 
-  const handleAudioTimeUpdate = (currentTime: number, duration: number) => {
+  const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
     setAudioCurrentTime(currentTime);
     // Sync countdown with audio time: show remaining time based on audio progress
     const remaining = Math.max(0, Math.ceil(duration - currentTime));
-    setTimeRemaining(remaining);
-  };
+    // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
+    setTimeRemaining(prev => {
+      if (prev !== remaining) {
+        return remaining;
+      }
+      return prev;
+    });
+  }, []);
+
+  // Ensure countdown reaches 0 after exactly 10 seconds, regardless of audio file length
+  useEffect(() => {
+    if (!currentQuestion || isAnswered) return;
+    
+    const timer = setTimeout(() => {
+      setTimeRemaining(0);
+    }, 10000); // 10 seconds
+
+    return () => clearTimeout(timer);
+  }, [currentQuestion, isAnswered]);
 
   const handleGameStart = () => {
     setGameStarted(true);
