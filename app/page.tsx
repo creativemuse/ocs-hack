@@ -166,7 +166,7 @@ export default function Home() {
       setShowPayment(false);
       setGameStarted(false);
       setIsGuestMode(false);
-      setIsTrialGame(false);
+      // Don't reset isTrialGame here - let the trial completion logic handle it
       setGameCompleted(false);
       setScore(0);
       setTotalScore(0);
