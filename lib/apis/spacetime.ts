@@ -2,9 +2,9 @@
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
   port: process.env.SPACETIME_PORT || '443',
-  database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
+  database: process.env.SPACETIME_DATABASE || 'c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b',
   module: process.env.SPACETIME_MODULE || 'beat-me',
-  identity: process.env.SPACETIME_IDENTITY || 'c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b',
+  identity: process.env.SPACETIME_IDENTITY || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
 };
 
 // Types matching the Rust module

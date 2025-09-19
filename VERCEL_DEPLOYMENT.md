@@ -29,6 +29,15 @@ CDP_API_KEY=your_cdp_api_key
 CDP_API_SECRET=your_cdp_api_secret
 ```
 
+### Required for SpacetimeDB:
+```
+SPACETIME_HOST=https://maincloud.spacetimedb.com
+SPACETIME_DATABASE=c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b
+SPACETIME_IDENTITY=c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a
+SPACETIME_MODULE=beat-me
+SPACETIME_PORT=443
+```
+
 ### Optional Variables (for asset configuration):
 ```
 NEXT_PUBLIC_ASSET_BASE_URL=
