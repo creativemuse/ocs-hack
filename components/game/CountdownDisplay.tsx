@@ -49,7 +49,7 @@ export default function CountdownDisplay({
             : '0 0 10px rgba(239, 68, 68, 0.5)'
         }}
       >
-        {Math.ceil(timeRemaining)}
+        {Math.max(0, Math.floor(timeRemaining))}
       </div>
     </div>
   );

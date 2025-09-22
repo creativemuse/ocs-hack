@@ -249,7 +249,11 @@ export default function Home() {
 
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
     setAudioCurrentTime(currentTime);
-    const remaining = Math.max(0, Math.ceil(duration - currentTime));
+    // Calculate remaining time based on audio progress, but cap at 10 seconds
+    const audioRemaining = Math.max(0, Math.ceil(duration - currentTime));
+    const maxTime = 10; // 10 second limit
+    const remaining = Math.min(audioRemaining, maxTime);
+    
     // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
     setGameTimeRemaining(prev => {
       if (prev !== remaining) {
@@ -259,15 +263,22 @@ export default function Home() {
     });
   }, []);
 
-  // Ensure countdown reaches 0 after exactly 10 seconds, regardless of audio file length
+  // Add a safety timer that only triggers if audio doesn't update properly
   useEffect(() => {
     if (!currentQuestion || isAnswered) return;
     
-    const timer = setTimeout(() => {
-      setGameTimeRemaining(0);
-    }, 10000); // 10 seconds
+    // Safety timer - only trigger if audio hasn't updated for too long
+    const safetyTimer = setTimeout(() => {
+      setGameTimeRemaining(prev => {
+        // Only force to 0 if we're still at the initial value (audio didn't update)
+        if (prev === 10) {
+          return 0;
+        }
+        return prev;
+      });
+    }, 11000); // 11 seconds - gives audio time to update
 
-    return () => clearTimeout(timer);
+    return () => clearTimeout(safetyTimer);
   }, [currentQuestion, isAnswered]);
 
   const handleAudioError = () => {
