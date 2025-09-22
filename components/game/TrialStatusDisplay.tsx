@@ -17,10 +17,16 @@ export default function TrialStatusDisplay({ walletAddress, className = '' }: Tr
   if (isLoading) {
     return (
       <Card className={`bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30 ${className}`}>
-        <CardContent className="p-4">
+        <CardHeader className="pb-3">
           <div className="animate-pulse">
-            <div className="h-4 bg-purple-500/20 rounded w-3/4 mb-2"></div>
+            <div className="h-6 bg-purple-500/20 rounded w-1/3"></div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="animate-pulse space-y-2">
+            <div className="h-4 bg-purple-500/20 rounded w-3/4"></div>
             <div className="h-3 bg-blue-500/20 rounded w-1/2"></div>
+            <div className="h-2 bg-gray-500/20 rounded w-full"></div>
           </div>
         </CardContent>
       </Card>

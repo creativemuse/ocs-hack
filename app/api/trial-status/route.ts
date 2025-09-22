@@ -13,27 +13,90 @@ export async function GET(req: NextRequest) {
     await spacetimeClient.initialize();
 
     if (walletAddress) {
-      // Check wallet-connected player
+      // Check wallet-connected player trial status from SpaceTimeDB
       console.log('Checking wallet player status for:', walletAddress);
       
-      // Note: In a real implementation, you'd query SpaceTimeDB for player data
-      // For now, we'll return default trial status
-      return NextResponse.json({
-        trialGamesRemaining: 1, // Default to 1 trial game
-        trialCompleted: false,
-        walletConnected: true
-      });
+      try {
+        // Query SpaceTimeDB for player data
+        const playerData = await spacetimeClient.query(
+          'SELECT * FROM players WHERE wallet_address = ?',
+          [walletAddress]
+        );
+
+        if (playerData && playerData.length > 0) {
+          const player = playerData[0] as any;
+          return NextResponse.json({
+            trialGamesRemaining: player.trial_games_remaining || 0,
+            trialCompleted: player.trial_completed || false,
+            walletConnected: true,
+            gamesPlayed: player.games_played || 0,
+            totalScore: player.total_score || 0,
+            bestScore: player.best_score || 0
+          });
+        } else {
+          // Player doesn't exist yet, return default trial status
+          return NextResponse.json({
+            trialGamesRemaining: 1,
+            trialCompleted: false,
+            walletConnected: true,
+            gamesPlayed: 0,
+            totalScore: 0,
+            bestScore: 0
+          });
+        }
+      } catch (queryError) {
+        console.warn('SpaceTimeDB query failed, using fallback:', queryError);
+        // Fallback to default trial status if SpaceTimeDB query fails
+        return NextResponse.json({
+          trialGamesRemaining: 1,
+          trialCompleted: false,
+          walletConnected: true,
+          gamesPlayed: 0,
+          totalScore: 0,
+          bestScore: 0
+        });
+      }
     } else if (sessionId) {
-      // Check anonymous session
+      // Check anonymous session trial status from SpaceTimeDB
       console.log('Checking anonymous session for:', sessionId);
       
-      // Note: In a real implementation, you'd query SpaceTimeDB for anonymous session data
-      // For now, we'll return default session data
-      return NextResponse.json({
-        gamesPlayed: 0,
-        totalScore: 0,
-        bestScore: 0
-      });
+      try {
+        // Query SpaceTimeDB for anonymous session data
+        const sessionData = await spacetimeClient.query(
+          'SELECT * FROM anonymous_sessions WHERE session_id = ?',
+          [sessionId]
+        );
+
+        if (sessionData && sessionData.length > 0) {
+          const session = sessionData[0] as any;
+          return NextResponse.json({
+            gamesPlayed: session.games_played || 0,
+            totalScore: session.total_score || 0,
+            bestScore: session.best_score || 0,
+            trialGamesRemaining: Math.max(0, 1 - (session.games_played || 0)),
+            trialCompleted: (session.games_played || 0) >= 1
+          });
+        } else {
+          // Session doesn't exist yet, return default trial status
+          return NextResponse.json({
+            gamesPlayed: 0,
+            totalScore: 0,
+            bestScore: 0,
+            trialGamesRemaining: 1,
+            trialCompleted: false
+          });
+        }
+      } catch (queryError) {
+        console.warn('SpaceTimeDB query failed, using fallback:', queryError);
+        // Fallback to default trial status if SpaceTimeDB query fails
+        return NextResponse.json({
+          gamesPlayed: 0,
+          totalScore: 0,
+          bestScore: 0,
+          trialGamesRemaining: 1,
+          trialCompleted: false
+        });
+      }
     }
 
     return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
