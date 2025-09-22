@@ -489,7 +489,7 @@ export default function Home() {
           {/* Game Title */}
           <div className="text-center mb-6">
             <div className="text-white text-xl font-bold font-audiowide">
-              <h1>NAME THAT BEAT...</h1>
+              <h1>NAME THAT TUNE...</h1>
             </div>
           </div>
 
