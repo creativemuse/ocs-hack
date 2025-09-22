@@ -21,6 +21,7 @@ interface UseGameSessionReturn {
   error: string | null;
   waitingForPaidPlayer: boolean;
   playerId: string | null;
+  entryToken: string | null;
   joinGame: (isPaidPlayer?: boolean) => Promise<void>;
   leaveGame: () => Promise<void>;
   refetch: () => Promise<void>;
@@ -34,6 +35,7 @@ export const useGameSession = (): UseGameSessionReturn => {
   const [error, setError] = useState<string | null>(null);
   const [waitingForPaidPlayer, setWaitingForPaidPlayer] = useState(false);
   const [playerId, setPlayerId] = useState<string | null>(null);
+  const [entryToken, setEntryToken] = useState<string | null>(null);
   const { address } = useAccount();
 
   const fetchSession = useCallback(async () => {
@@ -113,6 +115,7 @@ export const useGameSession = (): UseGameSessionReturn => {
       const data = await response.json();
       setSession(data.session);
       setTimeRemaining(data.timeRemaining);
+      setEntryToken(token); // Store the JWT token for trial status checking
       // Fix: Allow joining when there are no paid players, regardless of time remaining
       setCanJoin(data.session.paid_player_count === 0 || data.timeRemaining > 0);
       setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
@@ -211,6 +214,7 @@ export const useGameSession = (): UseGameSessionReturn => {
     error,
     waitingForPaidPlayer,
     playerId,
+    entryToken,
     joinGame,
     leaveGame,
     refetch: fetchSession,

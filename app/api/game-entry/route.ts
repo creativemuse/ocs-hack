@@ -80,6 +80,8 @@ export async function POST(req: NextRequest) {
       sessionId,
       identity: { walletAddress, anonId },
       isTrial,
+      playerType: isTrial ? 'trial' : 'paid',
+      paidTxHash: paidTxHash,
       exp: Math.floor(Date.now() / 1000) + 10 * 60,
     });
 

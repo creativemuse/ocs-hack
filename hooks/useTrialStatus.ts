@@ -9,9 +9,10 @@ interface TrialStatus {
   isTrialActive: boolean;
   requiresWallet: boolean;
   canJoinPrizePool: boolean; // New field to allow trial players in prize pools
+  playerType?: 'trial' | 'paid';
 }
 
-export const useTrialStatus = (walletAddress?: string) => {
+export const useTrialStatus = (walletAddress?: string, entryToken?: string) => {
   const [trialStatus, setTrialStatus] = useState<TrialStatus>({
     gamesPlayed: 0,
     gamesRemaining: 1,
@@ -24,7 +25,23 @@ export const useTrialStatus = (walletAddress?: string) => {
   useEffect(() => {
     const checkTrialStatus = async () => {
       try {
-        if (walletAddress) {
+        // If we have an entry token, use JWT-based checking (preferred)
+        if (entryToken) {
+          const response = await fetch(`/api/trial-status?token=${encodeURIComponent(entryToken)}`);
+          if (response.ok) {
+            const data = await response.json();
+            setTrialStatus({
+              gamesPlayed: data.gamesPlayed || 0,
+              gamesRemaining: data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0)),
+              isTrialActive: (data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0))) > 0,
+              requiresWallet: data.playerType === 'paid',
+              canJoinPrizePool: data.playerType === 'paid', // Only paid players can join prize pools
+              playerType: data.playerType
+            });
+          } else {
+            console.warn('JWT-based trial status check failed, falling back to legacy method');
+          }
+        } else if (walletAddress) {
           // Check wallet-connected player trial status
           const response = await fetch(`/api/trial-status?wallet=${walletAddress}`);
           if (response.ok) {
@@ -104,7 +121,7 @@ export const useTrialStatus = (walletAddress?: string) => {
     };
 
     checkTrialStatus();
-  }, [walletAddress]);
+  }, [walletAddress, entryToken]);
 
   const incrementTrialGame = async () => {
     try {

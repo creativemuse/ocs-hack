@@ -21,7 +21,7 @@ import GameTitle from '@/components/ui/GameTitle';
 
 export default function Home() {
   const router = useRouter();
-  const { session, timeRemaining, canJoin, isLoading, waitingForPaidPlayer, playerId, joinGame, leaveGame } = useGameSession();
+  const { session, timeRemaining, canJoin, isLoading, waitingForPaidPlayer, playerId, entryToken, joinGame, leaveGame } = useGameSession();
   const [showGameEntry, setShowGameEntry] = useState(false);
   const [showGuestMode, setShowGuestMode] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
@@ -51,7 +51,7 @@ export default function Home() {
 
   // Add trial status hook
   const { address } = useAccount();
-  const { trialStatus, incrementTrialGame } = useTrialStatus(address);
+  const { trialStatus, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -390,7 +390,7 @@ export default function Home() {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <GameEntry onGameStart={handleGameStart} />
+          <GameEntry onGameStart={handleGameStart} entryToken={entryToken} />
         </div>
       </div>
     );

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { getActiveSession as memGet, joinActiveSession as memJoin, leaveActiveSession as memLeave, getTimeRemainingSeconds as memTime } from './state';
-import { verifyEntryToken } from '@/lib/utils/jwt';
+import { verifyEntryToken, getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
 
 interface GameSession {
   session_id: string;
@@ -103,16 +103,34 @@ export async function POST(req: NextRequest) {
         console.warn('⚠️ SpacetimeDB initialization failed, using memory fallback');
       }
 
-      // Verify JWT entry token
-      const payload = token ? verifyEntryToken(token) : null;
-      if (!payload || payload.entryId !== entryId) {
-        return NextResponse.json({ error: 'Invalid or expired entry token' }, { status: 401 });
+      // Verify JWT entry token and extract player information
+      if (!token) {
+        return NextResponse.json({ error: 'Entry token required' }, { status: 401 });
       }
 
-      // Memory fallback
-      const s = memJoin(isPaidPlayer, playerId);
+      const validation = validatePlayerAccess(token);
+      if (!validation.isValid) {
+        return NextResponse.json({ 
+          error: validation.error || 'Invalid or expired entry token' 
+        }, { status: 401 });
+      }
+
+      const playerInfo = validation.playerInfo!;
+      
+      // Verify entry ID matches
+      if (playerInfo.entryId !== entryId) {
+        return NextResponse.json({ error: 'Entry ID mismatch' }, { status: 401 });
+      }
+
+      // Override isPaidPlayer based on JWT token
+      const actualIsPaidPlayer = playerInfo.playerType === 'paid';
+      
+      console.log(`🎯 Player ${playerInfo.playerType} joining with ${playerInfo.walletAddress || playerInfo.anonId}`);
+
+      // Memory fallback - use actual player type from JWT
+      const s = memJoin(actualIsPaidPlayer, playerId);
       const timeRemaining = memTime(s);
-      const isFirstPaidPlayer = isPaidPlayer && s.paid_player_count === 1 && s.status === 'active';
+      const isFirstPaidPlayer = actualIsPaidPlayer && s.paid_player_count === 1 && s.status === 'active';
       const waitingForPaidPlayer = s.paid_player_count === 0;
       
       return NextResponse.json({ 

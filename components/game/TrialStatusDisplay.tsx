@@ -8,11 +8,12 @@ import { Gamepad2, Crown, Coins } from 'lucide-react';
 
 interface TrialStatusDisplayProps {
   walletAddress?: string;
+  entryToken?: string | null;
   className?: string;
 }
 
-export default function TrialStatusDisplay({ walletAddress, className = '' }: TrialStatusDisplayProps) {
-  const { trialStatus, isLoading } = useTrialStatus(walletAddress);
+export default function TrialStatusDisplay({ walletAddress, entryToken, className = '' }: TrialStatusDisplayProps) {
+  const { trialStatus, isLoading } = useTrialStatus(walletAddress, entryToken || undefined);
 
   if (isLoading) {
     return (

@@ -12,12 +12,13 @@ import { Gamepad2, Crown, Coins, Play } from 'lucide-react';
 
 interface GameEntryProps {
   onGameStart: (options: { isTrial: boolean }) => void;
+  entryToken?: string | null;
   className?: string;
 }
 
-export default function GameEntry({ onGameStart, className = '' }: GameEntryProps) {
+export default function GameEntry({ onGameStart, entryToken, className = '' }: GameEntryProps) {
   const { address } = useAccount();
-  const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address);
+  const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
   const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -98,7 +99,7 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
 
   return (
     <div className={`space-y-4 ${className}`}>
-      <TrialStatusDisplay walletAddress={address} />
+      <TrialStatusDisplay walletAddress={address} entryToken={entryToken} />
       
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">

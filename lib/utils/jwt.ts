@@ -19,6 +19,8 @@ export type EntryTokenPayload = {
   sessionId: string;
   identity: { walletAddress?: string; anonId?: string };
   isTrial: boolean;
+  playerType: 'trial' | 'paid';
+  paidTxHash?: string; // Transaction hash for paid players
   exp: number; // seconds since epoch
 };
 
@@ -45,6 +47,62 @@ export function verifyEntryToken(token: string): EntryTokenPayload | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Helper function to get player information from JWT token
+ */
+export function getPlayerInfoFromToken(token: string): {
+  isTrial: boolean;
+  playerType: 'trial' | 'paid';
+  walletAddress?: string;
+  anonId?: string;
+  sessionId: string;
+  entryId: string;
+} | null {
+  const payload = verifyEntryToken(token);
+  if (!payload) return null;
+
+  return {
+    isTrial: payload.isTrial,
+    playerType: payload.playerType || (payload.isTrial ? 'trial' : 'paid'),
+    walletAddress: payload.identity.walletAddress,
+    anonId: payload.identity.anonId,
+    sessionId: payload.sessionId,
+    entryId: payload.entryId,
+  };
+}
+
+/**
+ * Helper function to validate player access based on JWT token
+ */
+export function validatePlayerAccess(token: string, requiredPlayerType?: 'trial' | 'paid'): {
+  isValid: boolean;
+  playerInfo: ReturnType<typeof getPlayerInfoFromToken>;
+  error?: string;
+} {
+  const playerInfo = getPlayerInfoFromToken(token);
+  
+  if (!playerInfo) {
+    return {
+      isValid: false,
+      playerInfo: null,
+      error: 'Invalid or expired token'
+    };
+  }
+
+  if (requiredPlayerType && playerInfo.playerType !== requiredPlayerType) {
+    return {
+      isValid: false,
+      playerInfo,
+      error: `Access denied: ${requiredPlayerType} player required, but token is for ${playerInfo.playerType} player`
+    };
+  }
+
+  return {
+    isValid: true,
+    playerInfo
+  };
 }
 
 
