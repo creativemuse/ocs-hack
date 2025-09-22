@@ -260,7 +260,7 @@ export default function Home() {
     // Debug logging for song-specific timing issues
     if (currentQuestion && Math.abs(remaining - roundedRemaining) > 0.1) {
       console.log('🎵 Timing debug:', {
-        song: currentQuestion.title || 'Unknown',
+        song: currentQuestion.metadata.songTitle || 'Unknown',
         currentTime: currentTime.toFixed(2),
         duration: duration.toFixed(2),
         audioRemaining: audioRemaining.toFixed(2),
