@@ -21,6 +21,7 @@ export type EntryTokenPayload = {
   isTrial: boolean;
   playerType: 'trial' | 'paid';
   paidTxHash?: string; // Transaction hash for paid players
+  spacetimeIdentity?: string; // SpacetimeDB identity
   exp: number; // seconds since epoch
 };
 

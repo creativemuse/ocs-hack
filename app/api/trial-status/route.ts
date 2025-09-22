@@ -4,6 +4,7 @@ import { TRIVIA_CONTRACT_ADDRESS, TRIVIA_ABI } from '@/lib/blockchain/contracts'
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
+import { getPlayerIdentity, getPlayerBySession } from '@/lib/spacetime/identity';
 
 // Create public client for contract calls
 const publicClient = createPublicClient({
@@ -25,6 +26,15 @@ async function checkTrialSessionUsed(sessionId: string): Promise<boolean> {
     return result[1]; // hasSubmitted field
   } catch (error) {
     console.warn('Failed to check trial session in contract:', error);
+    
+    // If it's a function execution error (no data returned), 
+    // it likely means the session hasn't been used yet
+    if (error instanceof Error && error.message.includes('returned no data')) {
+      console.log(`Session ${sessionId} not found in contract - treating as unused`);
+      return false;
+    }
+    
+    // For other errors, also treat as unused to be safe
     return false;
   }
 }

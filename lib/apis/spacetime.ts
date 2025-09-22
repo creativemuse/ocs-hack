@@ -2,9 +2,10 @@
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
   port: process.env.SPACETIME_PORT || '443',
-  database: process.env.SPACETIME_DATABASE || 'c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b',
+  database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.SPACETIME_MODULE || 'beat-me',
-  identity: process.env.SPACETIME_IDENTITY || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
+  // Remove hardcoded identity - we'll generate tokens dynamically
+  token: process.env.SPACETIME_TOKEN || null,
 };
 
 // Types matching the Rust module
@@ -140,6 +141,8 @@ export interface Admin {
 class SpacetimeDBClient {
   private isConnected = false;
   private mockSession: ActiveGameSession | null = null;
+  private serverToken: string | null = null;
+  private playerTokens: Map<string, string> = new Map();
 
   async initialize(): Promise<void> {
     if (this.isConnected) return;
@@ -156,19 +159,32 @@ class SpacetimeDBClient {
       console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
       console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
       
-      // Test connection by pinging the server
-      const headers: Record<string, string> = {};
-      if (SPACETIME_CONFIG.identity) {
-        headers['Authorization'] = `Bearer ${SPACETIME_CONFIG.identity}`;
-      }
-      
-      const response = await fetch(`${SPACETIME_CONFIG.host}/v1/ping`, {
-        headers
-      });
-      if (!response.ok) {
-        console.warn(`⚠️ SpacetimeDB server not available (${response.status}) - using fallback mode`);
+      // First, try to ping without auth to check connectivity
+      const pingResponse = await fetch(`${SPACETIME_CONFIG.host}/v1/ping`);
+      if (!pingResponse.ok) {
+        console.warn(`⚠️ SpacetimeDB server not available (${pingResponse.status}) - using fallback mode`);
         this.isConnected = false;
         return;
+      }
+      
+      // If we have a server token, use it; otherwise generate a new identity
+      if (SPACETIME_CONFIG.token) {
+        this.serverToken = SPACETIME_CONFIG.token;
+      } else {
+        // Generate a server identity for this instance
+        const identityResponse = await fetch(`${SPACETIME_CONFIG.host}/v1/identity`, {
+          method: 'POST'
+        });
+        
+        if (!identityResponse.ok) {
+          console.warn('⚠️ Failed to generate SpacetimeDB identity - using fallback mode');
+          this.isConnected = false;
+          return;
+        }
+        
+        const { identity, token } = await identityResponse.json();
+        this.serverToken = token;
+        console.log(`🔑 Generated server identity: ${identity}`);
       }
       
       this.isConnected = true;
@@ -188,8 +204,51 @@ class SpacetimeDBClient {
     return this.isConnected;
   }
 
+  // Create a new player identity
+  async createPlayerIdentity(): Promise<{ identity: string; token: string } | null> {
+    if (!this.isConnected) {
+      console.log('⚠️ SpacetimeDB not connected - cannot create player identity');
+      return null;
+    }
+
+    try {
+      const response = await fetch(`${SPACETIME_CONFIG.host}/v1/identity`, {
+        method: 'POST'
+      });
+
+      if (!response.ok) {
+        console.warn('Failed to create player identity');
+        return null;
+      }
+
+      const { identity, token } = await response.json();
+      this.playerTokens.set(identity, token);
+      return { identity, token };
+    } catch (error) {
+      console.error('Error creating player identity:', error);
+      return null;
+    }
+  }
+
+  // Store player identity mapping
+  async storePlayerIdentity(identity: string, playerType: 'trial' | 'paid', walletAddress?: string): Promise<void> {
+    await this.callReducer('store_player_identity', [identity, playerType, walletAddress || null], identity);
+  }
+
+  // Get player identity info
+  async getPlayerIdentity(identity: string): Promise<Player | null> {
+    // This would be implemented as a query in SpacetimeDB
+    // For now, return null as we're in fallback mode
+    return null;
+  }
+
+  // Update player to paid status
+  async updatePlayerToPaid(identity: string, walletAddress: string): Promise<void> {
+    await this.callReducer('update_player_to_paid', [identity, walletAddress], identity);
+  }
+
   // Helper method for making SpaceTimeDB HTTP calls
-  private async callReducer(reducerName: string, args: any[] = []): Promise<void> {
+  private async callReducer(reducerName: string, args: any[] = [], playerIdentity?: string): Promise<void> {
     if (!this.isConnected) {
       console.log(`⚠️ SpacetimeDB not connected - skipping ${reducerName} call`);
       return;
@@ -199,9 +258,10 @@ class SpacetimeDBClient {
       'Content-Type': 'application/json',
     };
 
-    // Add identity header if available
-    if (SPACETIME_CONFIG.identity) {
-      headers['Authorization'] = `Bearer ${SPACETIME_CONFIG.identity}`;
+    // Use player token if provided, otherwise use server token
+    const token = playerIdentity ? this.playerTokens.get(playerIdentity) : this.serverToken;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
     }
 
     const response = await fetch(`${SPACETIME_CONFIG.host}/v1/database/${SPACETIME_CONFIG.database}/call/${reducerName}`, {
