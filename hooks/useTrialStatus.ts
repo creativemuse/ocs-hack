@@ -30,11 +30,20 @@ export const useTrialStatus = (walletAddress?: string) => {
           if (response.ok) {
             const data = await response.json();
             setTrialStatus({
-              gamesPlayed: 1 - data.trialGamesRemaining,
+              gamesPlayed: data.gamesPlayed || (1 - data.trialGamesRemaining),
               gamesRemaining: data.trialGamesRemaining,
               isTrialActive: data.trialGamesRemaining > 0,
               requiresWallet: false, // Wallet users never require wallet connection
               canJoinPrizePool: true // Wallet users can always join prize pools
+            });
+          } else {
+            // If API fails, fall back to default trial status for wallet users
+            setTrialStatus({
+              gamesPlayed: 0,
+              gamesRemaining: 1,
+              isTrialActive: true,
+              requiresWallet: false,
+              canJoinPrizePool: true
             });
           }
         } else {
@@ -44,10 +53,25 @@ export const useTrialStatus = (walletAddress?: string) => {
           if (response.ok) {
             const data = await response.json();
             setTrialStatus({
-              gamesPlayed: data.gamesPlayed,
-              gamesRemaining: Math.max(0, 1 - data.gamesPlayed),
-                              isTrialActive: data.gamesPlayed < 1,
+              gamesPlayed: data.gamesPlayed || 0,
+              gamesRemaining: data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0)),
+              isTrialActive: (data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0))) > 0,
               requiresWallet: false, // Trial players can still play, just with limited games
+              canJoinPrizePool: true // Trial players can always join prize pools
+            });
+            
+            // Sync local state with server data if available
+            if (data.gamesPlayed !== undefined) {
+              SessionManager.syncWithServerData(data.gamesPlayed);
+            }
+          } else {
+            // Fallback to local storage for anonymous users if API fails
+            const gamesPlayed = SessionManager.getTrialGamesPlayed();
+            setTrialStatus({
+              gamesPlayed,
+              gamesRemaining: Math.max(0, 1 - gamesPlayed),
+              isTrialActive: gamesPlayed < 1,
+              requiresWallet: false, // Trial players can still play
               canJoinPrizePool: true // Trial players can always join prize pools
             });
           }
@@ -60,9 +84,18 @@ export const useTrialStatus = (walletAddress?: string) => {
           setTrialStatus({
             gamesPlayed,
             gamesRemaining: Math.max(0, 1 - gamesPlayed),
-                          isTrialActive: gamesPlayed < 1,
+            isTrialActive: gamesPlayed < 1,
             requiresWallet: false, // Trial players can still play
             canJoinPrizePool: true // Trial players can always join prize pools
+          });
+        } else {
+          // For wallet users, provide default trial status
+          setTrialStatus({
+            gamesPlayed: 0,
+            gamesRemaining: 1,
+            isTrialActive: true,
+            requiresWallet: false,
+            canJoinPrizePool: true
           });
         }
       } finally {
@@ -76,24 +109,32 @@ export const useTrialStatus = (walletAddress?: string) => {
   const incrementTrialGame = async () => {
     try {
       if (walletAddress) {
-        // Update wallet player trial games in database
-        await fetch('/api/trial-status', {
+        // Update wallet player trial games in SpaceTimeDB
+        const response = await fetch('/api/trial-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ walletAddress })
         });
+        
+        if (!response.ok) {
+          console.warn('Failed to update trial status in SpaceTimeDB, continuing with local update');
+        }
       } else {
-        // Update anonymous session
-        SessionManager.incrementTrialGames();
+        // Update anonymous session in SpaceTimeDB
         const sessionId = SessionManager.getSessionId();
-        await fetch('/api/trial-status', {
+        SessionManager.incrementTrialGames(); // Update local storage first
+        const response = await fetch('/api/trial-status', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ sessionId })
         });
+        
+        if (!response.ok) {
+          console.warn('Failed to update trial status in SpaceTimeDB, continuing with local update');
+        }
       }
       
-      // Update local state
+      // Update local state optimistically
       setTrialStatus(prev => {
         const updatedGamesPlayed = prev.gamesPlayed + 1;
         const updatedGamesRemaining = Math.max(0, prev.gamesRemaining - 1);

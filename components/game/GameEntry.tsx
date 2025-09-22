@@ -49,15 +49,25 @@ export default function GameEntry({ onGameStart, className = '' }: GameEntryProp
 
   if (trialLoading) {
     return (
-      <Card className={`bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30 ${className}`}>
-        <CardContent className="p-6">
-          <div className="animate-pulse space-y-4">
-            <div className="h-6 bg-purple-500/20 rounded w-1/2"></div>
-            <div className="h-4 bg-blue-500/20 rounded w-3/4"></div>
-            <div className="h-10 bg-gray-500/20 rounded"></div>
-          </div>
-        </CardContent>
-      </Card>
+      <div className={`space-y-4 ${className}`}>
+        <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
+          <CardContent className="p-4">
+            <div className="animate-pulse space-y-3">
+              <div className="h-4 bg-purple-500/20 rounded w-3/4"></div>
+              <div className="h-3 bg-blue-500/20 rounded w-1/2"></div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
+          <CardContent className="p-6">
+            <div className="animate-pulse space-y-4">
+              <div className="h-6 bg-purple-500/20 rounded w-1/2"></div>
+              <div className="h-4 bg-blue-500/20 rounded w-3/4"></div>
+              <div className="h-10 bg-gray-500/20 rounded"></div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
     );
   }
 
