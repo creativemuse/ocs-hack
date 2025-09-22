@@ -250,18 +250,33 @@ export default function Home() {
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
     setAudioCurrentTime(currentTime);
     // Calculate remaining time based on audio progress, but cap at 10 seconds
-    const audioRemaining = Math.max(0, Math.ceil(duration - currentTime));
+    const audioRemaining = Math.max(0, duration - currentTime);
     const maxTime = 10; // 10 second limit
     const remaining = Math.min(audioRemaining, maxTime);
     
+    // Round to nearest 0.1 seconds for smoother display
+    const roundedRemaining = Math.round(remaining * 10) / 10;
+    
+    // Debug logging for song-specific timing issues
+    if (currentQuestion && Math.abs(remaining - roundedRemaining) > 0.1) {
+      console.log('🎵 Timing debug:', {
+        song: currentQuestion.title || 'Unknown',
+        currentTime: currentTime.toFixed(2),
+        duration: duration.toFixed(2),
+        audioRemaining: audioRemaining.toFixed(2),
+        roundedRemaining: roundedRemaining.toFixed(2),
+        remaining: remaining.toFixed(2)
+      });
+    }
+    
     // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
     setGameTimeRemaining(prev => {
-      if (prev !== remaining) {
-        return remaining;
+      if (Math.abs(prev - roundedRemaining) >= 0.1) {
+        return roundedRemaining;
       }
       return prev;
     });
-  }, []);
+  }, [currentQuestion]);
 
   // Add a safety timer that only triggers if audio doesn't update properly
   useEffect(() => {

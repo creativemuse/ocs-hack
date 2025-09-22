@@ -136,8 +136,8 @@ export default function AudioPlayer({
       const t = Math.max(0, audio.currentTime - clipStartSeconds);
       setCurrentTime(t);
       
-      // Only call onTimeUpdate every 0.5 seconds to reduce re-render frequency
-      if (t - lastUpdateTimeRef.current >= 0.5) {
+      // Call onTimeUpdate more frequently for smoother countdown (every 0.1 seconds)
+      if (t - lastUpdateTimeRef.current >= 0.1) {
         onTimeUpdate?.(t, clipDurationSeconds);
         lastUpdateTimeRef.current = t;
       }
@@ -147,6 +147,8 @@ export default function AudioPlayer({
         audio.pause();
         setIsPlaying(false);
         setHasEnded(true);
+        // Immediately notify that time is up
+        onTimeUpdate?.(clipDurationSeconds, clipDurationSeconds);
         onEnded?.();
       }
     };
