@@ -18,6 +18,9 @@ import { ScoringSystem } from '@/lib/game/scoring';
 import { useAccount } from 'wagmi';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import GameTitle from '@/components/ui/GameTitle';
+import { Trophy } from 'lucide-react';
+import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
+import { Avatar, Name, Identity, Address, EthBalance } from '@coinbase/onchainkit/identity';
 
 export default function Home() {
   const router = useRouter();
@@ -48,7 +51,6 @@ export default function Home() {
   const [gameCompleted, setGameCompleted] = useState(false);
   const [audioError, setAudioError] = useState(false);
   const timerTriggeredRef = useRef(false);
-
   // Add trial status hook
   const { address } = useAccount();
   const { trialStatus, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
@@ -230,9 +232,11 @@ export default function Home() {
         // Game completed - update trial status if this was a trial game
         if (isTrialGame) {
           try {
+            console.log('🎯 Trial game completed, updating trial status...');
             await incrementTrialGame();
             // Update local state to reflect trial has been used
             setIsTrialGame(false);
+            console.log('✅ Trial status updated, new status:', trialStatus);
           } catch (error) {
             console.error('Error updating trial status:', error);
           }
@@ -385,14 +389,60 @@ export default function Home() {
     );
   }
 
+  // Show trial completion screen if user has used all free games
+  if (trialStatus.requiresWallet) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-lg border-0 p-8 text-center">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
+              <Trophy className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">
+              Trial Games Complete!
+            </h1>
+            <p className="text-gray-600 text-lg mb-4">
+              You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+            </p>
+            {/* OnchainKit Wallet Component */}
+            <div className="flex justify-center">
+              <Wallet>
+                <ConnectWallet 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
+                  disconnectedLabel="Connect Wallet to Continue"
+                >
+                  <Avatar className="h-6 w-6" />
+                  <Name />
+                </ConnectWallet>
+                <WalletDropdown>
+                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                    <Avatar />
+                    <Name />
+                    <Address className="text-gray-400" />
+                    <EthBalance />
+                  </Identity>
+                  <WalletDropdownFundLink />
+                  <WalletDropdownDisconnect />
+                </WalletDropdown>
+              </Wallet>
+            </div>
+            <p className="text-sm text-gray-500 mt-4">
+              Connect your wallet to continue playing and earn rewards!
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // Show game entry screen
   if (showGameEntry) {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <GameEntry onGameStart={handleGameStart} entryToken={entryToken} />
-        </div>
+      <div className="w-full max-w-[390px] md:max-w-[428px]">
+        <GameEntry onGameStart={handleGameStart} entryToken={entryToken} />
       </div>
+    </div>
     );
   }
 
@@ -447,6 +497,39 @@ export default function Home() {
                 </div>
               )}
 
+              {/* Trial Exhausted Notice */}
+              {trialStatus.requiresWallet && (
+                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
+                  <div className="text-purple-300 text-sm">
+                    <p className="font-medium mb-2">🎯 Trial Games Complete!</p>
+                    <p className="text-purple-200/80 mb-3">
+                      You've used all your free games. Connect your wallet to continue playing and earn rewards!
+                    </p>
+                    <div className="flex justify-center">
+                      <Wallet>
+                        <ConnectWallet 
+                          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-2 rounded-lg text-sm font-semibold"
+                          disconnectedLabel="Connect Wallet to Continue"
+                        >
+                          <Avatar className="h-4 w-4" />
+                          <Name />
+                        </ConnectWallet>
+                        <WalletDropdown>
+                          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                            <Avatar />
+                            <Name />
+                            <Address className="text-gray-400" />
+                            <EthBalance />
+                          </Identity>
+                          <WalletDropdownFundLink />
+                          <WalletDropdownDisconnect />
+                        </WalletDropdown>
+                      </Wallet>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Paid Player Success */}
               {!trialStatus.isTrialActive && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
@@ -485,6 +568,35 @@ export default function Home() {
               LEAVE GAME
             </button>
           </div>
+
+          {/* Wallet Connection Status for Paid Players */}
+          {address && !trialStatus.isTrialActive && (
+            <div className="flex justify-center mb-4">
+              <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2">
+                <div className="flex items-center gap-2 text-green-300 text-sm">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="font-medium">Wallet Connected</span>
+                  <span className="text-green-200/80">• Playing for real money</span>
+                </div>
+                <div className="text-green-200/60 text-xs mt-1 text-center">
+                  {address.slice(0, 6)}...{address.slice(-4)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Trial Player Status */}
+          {trialStatus.isTrialActive && (
+            <div className="flex justify-center mb-4">
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2">
+                <div className="flex items-center gap-2 text-amber-300 text-sm">
+                  <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                  <span className="font-medium">Trial Game</span>
+                  <span className="text-amber-200/80">• Practice mode</span>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Game Title */}
           <div className="text-center mb-6">
