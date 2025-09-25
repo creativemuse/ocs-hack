@@ -13,7 +13,12 @@ import { ScoringSystem } from '@/lib/game/scoring';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { SessionManager } from '@/lib/utils/sessionManager';
 
-export default function SupabaseTriviaGame({ className = '' }: { className?: string }) {
+interface SupabaseTriviaGameProps {
+  className?: string;
+  onWalletConnect?: () => void;
+}
+
+export default function SupabaseTriviaGame({ className = '', onWalletConnect }: SupabaseTriviaGameProps) {
   const [gameState, setGameState] = useState<GameState>({
     currentQuestion: 0,
     questions: [],
@@ -288,12 +293,22 @@ export default function SupabaseTriviaGame({ className = '' }: { className?: str
           </CardHeader>
           <CardContent className="text-center">
             <Button
-              onClick={() => {/* TODO: Trigger wallet connection */}}
+              onClick={() => {
+                if (onWalletConnect) {
+                  onWalletConnect();
+                } else {
+                  // Fallback: redirect to main page to trigger wallet connection
+                  window.location.href = '/';
+                }
+              }}
               size="lg"
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3"
             >
               Connect Wallet to Continue
             </Button>
+            <p className="text-sm text-gray-500 mt-4">
+              Connect your wallet to continue playing and earn rewards!
+            </p>
           </CardContent>
         </Card>
       </div>
