@@ -28,6 +28,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
+  const [fundingSuccess, setFundingSuccess] = useState(false);
 
   const handleStartGame = async () => {
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
@@ -78,6 +79,22 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       console.log('Session token (first 20 chars):', sessionToken.substring(0, 20) + '...');
       
       setFundingUrl(url);
+      
+      // Automatically open the funding URL in a popup after generating the session token
+      const popup = window.open(
+        url,
+        'coinbase-funding',
+        'width=500,height=700,scrollbars=yes,resizable=yes,noopener,noreferrer'
+      );
+      
+      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
+        console.warn('Popup blocked - opening in new tab instead');
+        window.open(url, '_blank', 'noopener,noreferrer');
+      } else {
+        // Show success feedback briefly
+        setFundingSuccess(true);
+        setTimeout(() => setFundingSuccess(false), 2000);
+      }
     } catch (err) {
       console.error('Failed to generate funding URL:', err);
     }
@@ -189,28 +206,28 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                         <Name />
                         <Address className="text-gray-400" />
                       </Identity>
-                      {fundingUrl ? (
-                        <WalletDropdownFundLink 
-                          text="Add Funds" 
-                          fundingUrl={fundingUrl}
-                          openIn="popup"
-                        />
-                      ) : (
-                        <button
-                          onClick={handleGenerateFundingUrl}
-                          disabled={sessionLoading}
-                          className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
-                        >
-                          {sessionLoading ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                              Generating session...
-                            </>
-                          ) : (
-                            'Add Funds'
-                          )}
-                        </button>
-                      )}
+                      <button
+                        onClick={handleGenerateFundingUrl}
+                        disabled={sessionLoading}
+                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
+                      >
+                        {sessionLoading ? (
+                          <>
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            Opening funding...
+                          </>
+                        ) : fundingSuccess ? (
+                          <>
+                            <div className="h-3 w-3 rounded-full bg-green-500"></div>
+                            Funding opened!
+                          </>
+                        ) : (
+                          <>
+                            <Coins className="h-3 w-3" />
+                            Add Funds
+                          </>
+                        )}
+                      </button>
                       {sessionError && (
                         <div className="px-3 py-2 text-xs text-red-400">
                           {sessionError}
