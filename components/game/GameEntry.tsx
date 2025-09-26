@@ -209,7 +209,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       <button
                         onClick={handleGenerateFundingUrl}
                         disabled={sessionLoading}
-                        className="w-full px-3 py-2 text-left text-sm hover:bg-gray-700 disabled:opacity-50 flex items-center gap-2"
+                        className="w-full px-3 py-2 text-left text-sm cursor-pointer hover:bg-gray-200 disabled:opacity-50 flex items-center gap-2"
                       >
                         {sessionLoading ? (
                           <>

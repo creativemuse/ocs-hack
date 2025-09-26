@@ -59,15 +59,12 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
       projectId={process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821"}
       config={{
         appearance: {
+          name: "BEAT ME",
           mode: "auto",
         },
         wallet: {
           display: "modal",
           preference: "all",
-        },
-        // Enable secure initialization with session tokens as required
-        onramp: {
-          enableSecureInitialization: true,
         },
       }}
     >
