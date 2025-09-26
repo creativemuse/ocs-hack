@@ -56,7 +56,7 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
     <OnchainKitProvider
       apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       chain={base}
-      projectId="5b09d242-5390-4db3-866f-bfc2ce575821"
+      projectId={process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821"}
       config={{
         appearance: {
           mode: "auto",
@@ -64,6 +64,10 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
         wallet: {
           display: "modal",
           preference: "all",
+        },
+        // Enable secure initialization with session tokens as required
+        onramp: {
+          enableSecureInitialization: true,
         },
       }}
     >

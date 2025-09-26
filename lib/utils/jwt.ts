@@ -38,14 +38,24 @@ export function signEntryToken(payload: EntryTokenPayload): string {
 export function verifyEntryToken(token: string): EntryTokenPayload | null {
   try {
     const [h, p, s] = token.split('.');
-    if (!h || !p || !s) return null;
+    if (!h || !p || !s) {
+      console.error('JWT token malformed - missing parts');
+      return null;
+    }
     const unsigned = `${h}.${p}`;
     const expected = base64url(crypto.createHmac('sha256', getSecret()).update(unsigned).digest());
-    if (expected !== s) return null;
+    if (expected !== s) {
+      console.error('JWT token signature verification failed');
+      return null;
+    }
     const payload = JSON.parse(Buffer.from(p, 'base64').toString()) as EntryTokenPayload;
-    if (typeof payload.exp !== 'number' || Date.now() / 1000 > payload.exp) return null;
+    if (typeof payload.exp !== 'number' || Date.now() / 1000 > payload.exp) {
+      console.error('JWT token expired', { exp: payload.exp, now: Date.now() / 1000 });
+      return null;
+    }
     return payload;
-  } catch {
+  } catch (error) {
+    console.error('JWT token verification error:', error);
     return null;
   }
 }

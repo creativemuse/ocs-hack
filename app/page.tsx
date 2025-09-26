@@ -21,6 +21,9 @@ import GameTitle from '@/components/ui/GameTitle';
 import { Trophy } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Identity, Address, EthBalance } from '@coinbase/onchainkit/identity';
+import { Switch } from '@/components/ui/switch';
+import { Label } from '@/components/ui/label';
+import { Card, CardContent } from '@/components/ui/card';
 
 export default function Home() {
   const router = useRouter();
@@ -28,6 +31,7 @@ export default function Home() {
   const [showGameEntry, setShowGameEntry] = useState(false);
   const [showGuestMode, setShowGuestMode] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
+  const [playerModeChoice, setPlayerModeChoice] = useState<'trial' | 'paid'>('trial');
   const [gameStarted, setGameStarted] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [isTrialGame, setIsTrialGame] = useState(false);
@@ -421,7 +425,9 @@ export default function Home() {
                     <Address className="text-gray-400" />
                     <EthBalance />
                   </Identity>
-                  <WalletDropdownFundLink />
+                  <WalletDropdownFundLink 
+                    className="text-white hover:text-white hover:bg-white/10"
+                  />
                   <WalletDropdownDisconnect />
                 </WalletDropdown>
               </Wallet>
@@ -435,14 +441,79 @@ export default function Home() {
     );
   }
 
-  // Show game entry screen
+  // Show game entry screen with player mode choice
   if (showGameEntry) {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-      <div className="w-full max-w-[390px] md:max-w-[428px]">
-        <GameEntry onGameStart={handleGameStart} entryToken={entryToken} />
+        <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
+          {/* Player Mode Choice Toggle */}
+          <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
+            <CardContent className="p-6">
+              <div className="text-center mb-4">
+                <h2 className="text-xl font-bold text-white mb-2">Choose Your Play Mode</h2>
+                <p className="text-gray-300 text-sm">Select how you'd like to play</p>
+              </div>
+              
+              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50 mb-6">
+                <div className="flex items-center space-x-3">
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'trial' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                    <span className="text-sm font-medium text-gray-300">Trial Mode</span>
+                  </div>
+                  <span className="text-gray-500">•</span>
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'paid' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                    <span className="text-sm font-medium text-gray-300">Paid Mode</span>
+                  </div>
+                </div>
+                
+                <div className="flex items-center space-x-3">
+                  <span className="text-sm text-gray-400">
+                    {playerModeChoice === 'trial' ? 'Trial Mode' : 'Paid Mode'}
+                  </span>
+                  <button
+                    onClick={() => {
+                      console.log('Toggle clicked');
+                      setPlayerModeChoice(playerModeChoice === 'trial' ? 'paid' : 'trial');
+                    }}
+                    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 cursor-pointer hover:opacity-80 ${
+                      playerModeChoice === 'paid' ? 'bg-green-500' : 'bg-gray-600'
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        playerModeChoice === 'paid' ? 'translate-x-6' : 'translate-x-1'
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Mode Description */}
+              <div className="text-center">
+                {playerModeChoice === 'trial' ? (
+                  <div className="text-green-400 text-sm">
+                    <p className="font-medium">🎮 Free Trial Available</p>
+                    <p className="text-xs text-gray-300 mt-1">Play 1 free game, then connect wallet to continue</p>
+                  </div>
+                ) : (
+                  <div className="text-blue-400 text-sm">
+                    <p className="font-medium">💰 Paid Player Mode</p>
+                    <p className="text-xs text-gray-300 mt-1">Connect wallet and pay to play (no free trial)</p>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Game Entry Component */}
+          <GameEntry 
+            onGameStart={handleGameStart} 
+            entryToken={entryToken}
+            playerModeChoice={playerModeChoice}
+          />
+        </div>
       </div>
-    </div>
     );
   }
 
@@ -521,7 +592,9 @@ export default function Home() {
                             <Address className="text-gray-400" />
                             <EthBalance />
                           </Identity>
-                          <WalletDropdownFundLink />
+                          <WalletDropdownFundLink 
+                            className="text-white hover:text-white hover:bg-white/10"
+                          />
                           <WalletDropdownDisconnect />
                         </WalletDropdown>
                       </Wallet>
@@ -726,7 +799,6 @@ export default function Home() {
 
   return (
     <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-8 overflow-x-hidden">
-      
       <div className="relative w-full max-w-[390px] md:max-w-[428px]" data-name="home" data-node-id="1:2">
         {/* Floating Avatars - positioned absolutely */}
         <div className="hidden">

@@ -105,11 +105,14 @@ export async function POST(req: NextRequest) {
 
       // Verify JWT entry token and extract player information
       if (!token) {
+        console.error('No entry token provided');
         return NextResponse.json({ error: 'Entry token required' }, { status: 401 });
       }
 
+      console.log('Validating entry token...');
       const validation = validatePlayerAccess(token);
       if (!validation.isValid) {
+        console.error('Token validation failed:', validation.error);
         return NextResponse.json({ 
           error: validation.error || 'Invalid or expired entry token' 
         }, { status: 401 });
