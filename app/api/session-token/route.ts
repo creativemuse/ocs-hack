@@ -167,6 +167,9 @@ export async function POST(req: NextRequest) {
         jwt = generateHS256JWT(cdpApiKey, cdpApiSecret);
         authMethod = 'HS256';
         console.log('Using HS256 JWT authentication (legacy)');
+        console.log('API Key (first 10 chars):', cdpApiKey.substring(0, 10) + '...');
+        console.log('API Secret (first 10 chars):', cdpApiSecret.substring(0, 10) + '...');
+        console.log('JWT (first 50 chars):', jwt.substring(0, 50) + '...');
       } catch (error) {
         console.error('HS256 JWT generation failed:', error);
       }
@@ -211,8 +214,24 @@ export async function POST(req: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Session token generation failed:', errorText);
+      console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Try to parse the error response as JSON
+      let errorMessage = `${response.status} ${response.statusText}`;
+      try {
+        const errorData = JSON.parse(errorText);
+        if (errorData.message) {
+          errorMessage = errorData.message;
+        } else if (errorData.error) {
+          errorMessage = errorData.error;
+        }
+      } catch {
+        // If it's not JSON, use the raw text
+        errorMessage = errorText || errorMessage;
+      }
+      
       return NextResponse.json(
-        { error: `Failed to generate session token: ${response.status} ${response.statusText}` },
+        { error: `Failed to generate session token: ${errorMessage}` },
         { status: response.status }
       );
     }
