@@ -69,6 +69,10 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     if (!address) return;
     
     try {
+      console.log('Generating funding URL for address:', address);
+      console.log('Address length:', address.length);
+      console.log('Address format valid:', /^0x[a-fA-F0-9]{40}$/.test(address));
+      
       const sessionToken = await getSessionToken(address);
       const url = generateFundingUrl({
         walletAddress: address,
@@ -97,6 +101,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       }
     } catch (err) {
       console.error('Failed to generate funding URL:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to generate funding URL: ${errorMessage}`);
     }
   };
 
@@ -231,6 +237,11 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       {sessionError && (
                         <div className="px-3 py-2 text-xs text-red-400">
                           {sessionError}
+                        </div>
+                      )}
+                      {error && (
+                        <div className="px-3 py-2 text-xs text-red-400">
+                          {error}
                         </div>
                       )}
                       <WalletDropdownDisconnect />

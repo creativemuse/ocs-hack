@@ -115,6 +115,14 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return NextResponse.json(
+        { error: 'Invalid wallet address format. Must be a valid Ethereum address (42 characters starting with 0x)' },
+        { status: 400 }
+      );
+    }
+
     // Check for CDP API credentials - try new format first, then legacy
     const cdpApiKeyName = process.env.CDP_API_KEY_NAME;
     const cdpApiPrivateKey = process.env.CDP_API_KEY_PRIVATE_KEY;
@@ -173,6 +181,8 @@ export async function POST(req: NextRequest) {
     }
 
     console.log('JWT generated successfully with', authMethod);
+    console.log('Wallet address received:', walletAddress);
+    console.log('Wallet address length:', walletAddress.length);
 
     // Generate a session token using the CDP API with JWT authentication
     const requestBody = {
