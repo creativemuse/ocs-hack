@@ -88,6 +88,8 @@ function generateHS256JWT(apiKey: string, apiSecret: string): string {
       exp: now + 120, // 2 minutes expiration
       uri: uri
     };
+    
+    console.log('HS256 JWT payload:', JSON.stringify(payload, null, 2));
 
     const encodedHeader = Buffer.from(JSON.stringify(header)).toString('base64url');
     const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
@@ -200,7 +202,14 @@ export async function POST(req: NextRequest) {
 
     console.log('Making CDP API request with body:', JSON.stringify(requestBody, null, 2));
 
-    const response = await fetch('https://api.developer.coinbase.com/onramp/v1/token', {
+    const apiUrl = 'https://api.developer.coinbase.com/onramp/v1/token';
+    console.log('Making request to:', apiUrl);
+    console.log('Request headers:', {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${jwt.substring(0, 50)}...`
+    });
+    
+    const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
