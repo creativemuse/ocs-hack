@@ -125,6 +125,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Extract client IP from the request
+    // Note: We should not trust X-Forwarded-For headers as they can be spoofed
+    // For production, you should extract the real client IP from your load balancer/proxy
+    const rawIp = req.ip;
+    const forwardedFor = req.headers.get('x-forwarded-for');
+    const realIp = req.headers.get('x-real-ip');
+    
+    console.log('Raw IP from req.ip:', rawIp);
+    console.log('X-Forwarded-For header:', forwardedFor);
+    console.log('X-Real-IP header:', realIp);
+    
+    // For development/testing, use a public IP
+    // In production, you should extract the real client IP from your infrastructure
+    const clientIp = process.env.NODE_ENV === 'production' 
+      ? (rawIp || forwardedFor?.split(',')[0]?.trim() || realIp || '8.8.8.8')
+      : '8.8.8.8'; // Always use public IP for development
+    
+    console.log('Final client IP being used:', clientIp);
+
     // Check for CDP API credentials - try new format first, then legacy
     const cdpApiKeyName = process.env.CDP_API_KEY_NAME;
     const cdpApiPrivateKey = process.env.CDP_API_KEY_PRIVATE_KEY;
@@ -197,7 +216,8 @@ export async function POST(req: NextRequest) {
           blockchains: ['base']
         }
       ],
-      assets: ['USDC']
+      assets: ['USDC'],
+      clientIp: clientIp
     };
 
     console.log('Making CDP API request with body:', JSON.stringify(requestBody, null, 2));
