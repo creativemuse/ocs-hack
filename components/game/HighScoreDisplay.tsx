@@ -1,8 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, Crown } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Gift, Coins, CheckCircle, Loader2 } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
+import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
+import { useTriviaContract } from '@/hooks/useTriviaContract';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { useAccount } from 'wagmi';
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -20,15 +25,47 @@ export default function HighScoreDisplay({
   className = '' 
 }: HighScoreDisplayProps) {
   const { highScores, getCurrentHighScore, getPlayerRank, submitScore } = useHighScores();
+  const { address, isConnected } = useAccount();
+  const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
+  const { claimWinnings, isClaiming, isSuccess, error: claimError, resetState } = useTriviaContract(true);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{
     isNewHighScore: boolean;
     rank: number;
   } | null>(null);
+  const [claimAttempted, setClaimAttempted] = useState(false);
 
   const currentHighScore = getCurrentHighScore();
   const playerRank = getPlayerRank(currentScore);
   const isHighestScore = currentScore >= currentHighScore;
+
+  // Reset contract state when component mounts
+  useEffect(() => {
+    resetState();
+  }, [resetState]);
+
+  // Handle successful claim
+  useEffect(() => {
+    if (isSuccess && claimAttempted) {
+      markAsClaimed();
+      setClaimAttempted(false);
+      refreshWinnings();
+    }
+  }, [isSuccess, claimAttempted, markAsClaimed, refreshWinnings]);
+
+  const handleClaimWinnings = async () => {
+    if (!address || !isConnected) {
+      return;
+    }
+
+    if (!winnings.hasWinnings || winnings.hasClaimed || !winnings.isPaidPlayer) {
+      return;
+    }
+
+    setClaimAttempted(true);
+    resetState();
+    await claimWinnings(winnings.winningAmount);
+  };
 
   // Auto-submit score when component mounts (for completed games)
   useEffect(() => {
@@ -118,6 +155,95 @@ export default function HighScoreDisplay({
                 </>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Claim Winnings Section - Only for connected paid players */}
+        {isConnected && !isGuest && (
+          <div className="mb-3">
+            {winnings.isPaidPlayer ? (
+              <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <Trophy className="h-4 w-4 text-yellow-600" />
+                    <span className="text-sm font-medium text-yellow-800">Prize Winnings</span>
+                  </div>
+                  <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
+                    <Crown className="h-3 w-3 mr-1" />
+                    Paid Player
+                  </Badge>
+                </div>
+                
+                {winnings.hasWinnings && !winnings.hasClaimed ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">Your Winnings:</span>
+                      <span className="text-lg font-bold text-green-600">
+                        {Number(winnings.winningAmount) / 1000000} USDC
+                      </span>
+                    </div>
+                    {winnings.rank && (
+                      <div className="text-xs text-gray-500">
+                        Prize Rank: #{winnings.rank}
+                      </div>
+                    )}
+                    <Button
+                      onClick={handleClaimWinnings}
+                      disabled={isClaiming || winnings.hasClaimed}
+                      size="sm"
+                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white"
+                    >
+                      {isClaiming ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                          Claiming Winnings...
+                        </>
+                      ) : (
+                        <>
+                          <Gift className="h-3 w-3 mr-2" />
+                          Claim Winnings (Gasless)
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                ) : winnings.hasClaimed ? (
+                  <div className="flex items-center gap-2 text-green-600">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
+                    </span>
+                  </div>
+                ) : (
+                  <div className="text-sm text-gray-600">
+                    No winnings to claim for this session
+                  </div>
+                )}
+
+                {/* Error Display */}
+                {claimError && (
+                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
+                    {claimError}
+                  </div>
+                )}
+
+                {/* Success Message */}
+                {isSuccess && (
+                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-600 text-xs">
+                    Winnings claimed successfully!
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-gray-600">
+                  <Coins className="h-4 w-4" />
+                  <span className="text-sm">Only paid players can claim winnings</span>
+                </div>
+                <div className="text-xs text-gray-500 mt-1">
+                  Trial players are not eligible for prize distribution
+                </div>
+              </div>
+            )}
           </div>
         )}
 

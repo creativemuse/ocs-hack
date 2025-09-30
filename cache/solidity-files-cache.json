@@ -2,8 +2,8 @@
   "_format": "hh-sol-cache-2",
   "files": {
     "/Users/gawainbracyii/Developer/ocs-alpha/contracts/TriviaBattle.sol": {
-      "lastModificationDate": 1758166845412,
-      "contentHash": "638ae40607827e65d2588ccece021434",
+      "lastModificationDate": 1759193391817,
+      "contentHash": "f79d2b1244ce1fd15ddb427308d04d28",
       "sourceName": "contracts/TriviaBattle.sol",
       "solcConfig": {
         "version": "0.8.25",

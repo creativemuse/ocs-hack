@@ -117,9 +117,20 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * @dev Join battle as a paid player (requires 1 USDC entry fee)
      * Only paid players are eligible for prize pool distributions
      * Platform fee of 2.5% is deducted from entry fee
+     * Automatically starts a session if none is active
      */
-    function joinBattle() external nonReentrant onlyActiveSession {
+    function joinBattle() external nonReentrant {
         require(currentSession.playerScores[msg.sender].score == 0, "Already joined");
+        
+        // If no active session, start one automatically
+        if (!currentSession.isActive) {
+            _startNewSession(300); // Default 5 minutes
+        }
+        
+        // Ensure session is still active (in case it ended between checks)
+        require(currentSession.isActive, "No active session");
+        require(block.timestamp >= currentSession.startTime, "Session not started");
+        require(block.timestamp <= currentSession.endTime, "Session ended");
         
         // Calculate platform fee (2.5% of entry fee)
         uint256 platformFee = (ENTRY_FEE * PLATFORM_FEE_BPS) / 10000;
@@ -158,11 +169,22 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     /**
      * @dev Join battle as a trial player (no entry fee required)
      * Trial players can participate but are NOT eligible for prize pool distributions
+     * Automatically starts a session if none is active
      * @param sessionId Unique session identifier for trial player
      */
-    function joinTrialBattle(string calldata sessionId) external onlyActiveSession {
+    function joinTrialBattle(string calldata sessionId) external {
         require(bytes(sessionId).length > 0, "Invalid session ID");
         require(currentSession.trialPlayerScores[sessionId].score == 0, "Session ID already used");
+        
+        // If no active session, start one automatically
+        if (!currentSession.isActive) {
+            _startNewSession(300); // Default 5 minutes
+        }
+        
+        // Ensure session is still active (in case it ended between checks)
+        require(currentSession.isActive, "No active session");
+        require(block.timestamp >= currentSession.startTime, "Session not started");
+        require(block.timestamp <= currentSession.endTime, "Session ended");
         
         currentSession.trialPlayerCount++;
         currentSession.trialPlayers.push(sessionId);
@@ -362,6 +384,25 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     struct ScoreEntry {
         address playerAddress;
         uint256 score;
+    }
+    
+    /**
+     * @dev Internal function to start a new session (can be called by anyone)
+     * @param duration Duration of the session in seconds
+     */
+    function _startNewSession(uint256 duration) internal {
+        require(!currentSession.isActive, "Session already active");
+        require(duration > 0, "Invalid duration");
+        
+        // Reset current session
+        delete currentSession;
+        
+        currentSession.startTime = block.timestamp;
+        currentSession.endTime = block.timestamp + duration;
+        currentSession.isActive = true;
+        currentSession.prizesDistributed = false;
+        
+        emit SessionStarted(currentSession.startTime, duration);
     }
     
     function _sortScores(ScoreEntry[] memory scores, uint256 length) internal pure {

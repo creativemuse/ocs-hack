@@ -5,10 +5,11 @@ export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 // USDC contract address on Base Mainnet
 const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
-// Trivia Battle smart contract address (deployed on Base Sepolia Testnet)
-// Updated with 2.5% platform fee and trial player restrictions
+// Trivia Battle smart contract address (deployed on Base Mainnet)
+// Updated with automatic session creation and 2.5% platform fee
 // Compiled with Solidity 0.8.25 (no compiler warnings)
-const TRIVIA_CONTRACT_ADDRESS = '0xd8183aa7cf350a1c4e1a247c12b4c5315bea9d7a';
+// Deployed: 2025-09-30T00:54:20.098Z
+const TRIVIA_CONTRACT_ADDRESS = '0x231240B1d776a8F72785FE3707b74Ed9C3048B3a';
 
 // Contract ABI for trivia battle functionality (updated to match deployed contract)
 export const TRIVIA_ABI = [
@@ -365,6 +366,8 @@ const USDC_ABI = [
     stateMutability: 'view',
   },
 ] as const;
+
+export { USDC_ABI };
 
 export class TriviaContract {
   /**

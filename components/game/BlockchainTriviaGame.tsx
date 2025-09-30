@@ -48,17 +48,10 @@ export default function BlockchainTriviaGame({
 
   const {
     sessionInfo,
-    playerScore,
-    trialPlayerScore,
-    entryFee,
-    isLoading: contractLoading,
     error: contractError,
     submitScore,
     submitTrialScore,
-    refreshSessionInfo,
-    formatUSDC,
-    formatTimeRemaining,
-  } = useTriviaContract(walletAddress, trialSessionId);
+  } = useTriviaContract(true, false);
 
   const DEFAULT_TOTAL_ROUNDS = 3;
   const DEFAULT_QUESTIONS_PER_ROUND = 10;
@@ -202,13 +195,7 @@ export default function BlockchainTriviaGame({
   }, [startGame]);
 
   // Auto-refresh session info
-  useEffect(() => {
-    const interval = setInterval(() => {
-      refreshSessionInfo();
-    }, 10000); // Refresh every 10 seconds
-
-    return () => clearInterval(interval);
-  }, [refreshSessionInfo]);
+  // Note: Session refresh removed as function not available in current hook
 
   // Render game entry if not started
   if (gameState.gameStatus === 'waiting') {
@@ -237,11 +224,11 @@ export default function BlockchainTriviaGame({
             <div className="flex items-center gap-4 text-sm">
               <div className="flex items-center gap-1">
                 <Clock className="w-4 h-4" />
-                <span>{formatTimeRemaining(sessionInfo?.endTime || BigInt(0))}</span>
+                <span>Active Session</span>
               </div>
               <div className="flex items-center gap-1">
                 <DollarSign className="w-4 h-4" />
-                <span>{formatUSDC(sessionInfo?.prizePool || BigInt(0))} USDC</span>
+                <span>{(Number(sessionInfo?.[2] || BigInt(0)) / 1e6).toFixed(3)} USDC</span>
               </div>
             </div>
           </CardTitle>
@@ -315,11 +302,11 @@ export default function BlockchainTriviaGame({
       )}
 
       {/* Loading State */}
-      {(isLoading || contractLoading) && (
+      {isLoading && (
         <div className="text-center py-8">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-400 mx-auto"></div>
           <p className="text-gray-400 mt-4">
-            {contractLoading ? 'Processing blockchain transaction...' : 'Loading game...'}
+            Loading game...
           </p>
         </div>
       )}

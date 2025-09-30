@@ -66,6 +66,10 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
           display: "modal",
           preference: "all",
         },
+        // OnchainKit automatically uses CDP Paymaster with projectId and apiKey
+        // No need for a separate paymaster URL that requires session tokens
+        // Disable analytics to prevent 401 errors
+        analytics: false,
       }}
     >
       {children}

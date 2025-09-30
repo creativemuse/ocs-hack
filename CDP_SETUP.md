@@ -5,7 +5,7 @@ This guide will help you set up the Coinbase CDP (Coinbase Developer Platform) i
 ## Prerequisites
 
 1. A Coinbase CDP account
-2. Your deployed TriviaBattle contract address: `0xd8183AA7cf350a1c4E1a247C12b4C5315BEa9D7A`
+2. Your deployed TriviaBattle contract address: `0x231240B1d776a8F72785FE3707b74Ed9C3048B3a`
 3. The contract ABI (already uploaded to CDP)
 
 ## Setup Steps
@@ -45,7 +45,7 @@ import { SmartContract } from "@coinbase/coinbase-sdk";
 
 const smartContract = await SmartContract.register({
   networkId: "base-mainnet",
-  contractAddress: "0xd8183AA7cf350a1c4E1a247C12b4C5315BEa9D7A",
+  contractAddress: "0x231240B1d776a8F72785FE3707b74Ed9C3048B3a",
   abi: [/* Your contract ABI */],
   contractName: "TriviaBattle",
 });
