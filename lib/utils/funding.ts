@@ -20,7 +20,8 @@ export function generateFundingUrl({
   appId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || '5b09d242-5390-4db3-866f-bfc2ce575821',
   chains = ['base']
 }: FundingUrlParams): string {
-  const baseUrl = 'https://pay.coinbase.com/landing';
+  // Use the select-asset URL for better compatibility with session tokens
+  const baseUrl = 'https://pay.coinbase.com/buy/select-asset';
   
   // Create the addresses object in the format expected by Coinbase Pay
   const addresses = {
@@ -28,10 +29,11 @@ export function generateFundingUrl({
   };
   
   const params = new URLSearchParams({
+    sessionToken: sessionToken,
     addresses: JSON.stringify(addresses),
-    appId: appId,
-    sdkVersion: 'onchainkit@1.0.2:WalletDropdownFundLink',
-    sessionToken: sessionToken
+    assets: JSON.stringify(['USDC']),
+    presetCryptoAmount: '10',
+    defaultPaymentMethod: 'APPLE_PAY'
   });
   
   return `${baseUrl}?${params.toString()}`;
@@ -64,5 +66,42 @@ export function extractWalletAddressFromUrl(url: string): string | null {
     return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Clears browser cache and storage to prevent session token reuse
+ * This helps ensure fresh session tokens are used for each payment attempt
+ */
+export async function clearBrowserCache(): Promise<void> {
+  try {
+    // Clear browser cache
+    if ('caches' in window) {
+      const cacheNames = await caches.keys();
+      await Promise.all(
+        cacheNames.map(cacheName => caches.delete(cacheName))
+      );
+      console.log('✔ Browser cache cleared');
+    }
+    
+    // Clear any potential session storage
+    if (typeof window !== 'undefined') {
+      // Clear session storage
+      sessionStorage.clear();
+      
+      // Clear any localStorage items related to Coinbase Pay
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (key.includes('coinbase') || key.includes('pay') || key.includes('session'))) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      console.log('✔ Browser storage cleared');
+    }
+  } catch (error) {
+    console.warn('⚠️ Failed to clear browser cache:', error);
   }
 }

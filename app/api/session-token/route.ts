@@ -106,14 +106,93 @@ function generateHS256JWT(apiKey: string, apiSecret: string): string {
   }
 }
 
+// Handle CORS preflight requests
+export async function OPTIONS(req: NextRequest) {
+  const origin = req.headers.get('origin');
+  const allowedOrigins = [
+    'https://beatme.creativeplatform.xyz',
+    'http://localhost:3000',
+    'http://localhost:3001'
+  ];
+  
+  // For mobile-only integrations, do not return Access-Control-Allow-Origin header
+  // For web clients, only allow requests from approved origins
+  if (origin && allowedOrigins.includes(origin)) {
+    return new Response(null, {
+      status: 200,
+      headers: {
+        'Access-Control-Allow-Origin': origin,
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'Access-Control-Max-Age': '86400', // 24 hours
+        'Access-Control-Allow-Credentials': 'false', // Explicitly disable credentials
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+      },
+    });
+  }
+  
+  // Block unauthorized origins
+  return new Response(null, { 
+    status: 403,
+    headers: {
+      'X-Content-Type-Options': 'nosniff',
+      'X-Frame-Options': 'DENY',
+      'X-XSS-Protection': '1; mode=block',
+    }
+  });
+}
+
 export async function POST(req: NextRequest) {
   try {
-    const { walletAddress } = await req.json();
+    // CORS Protection - Only allow requests from approved origins
+    const origin = req.headers.get('origin');
+    const allowedOrigins = [
+      'https://beatme.creativeplatform.xyz',
+      'http://localhost:3000',
+      'http://localhost:3001'
+    ];
+    
+    // Enhanced CORS Protection - Only allow requests from approved origins
+    if (origin && !allowedOrigins.includes(origin)) {
+      console.log('CORS: Blocked request from unauthorized origin:', origin);
+      return NextResponse.json(
+        { error: 'Unauthorized origin' },
+        { 
+          status: 403,
+          headers: {
+            // Do not include Access-Control-Allow-Origin for blocked origins
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'X-XSS-Protection': '1; mode=block',
+            'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+          }
+        }
+      );
+    }
+
+    const { walletAddress, requestId, component } = await req.json();
+    
+    // Log the request details for debugging
+    console.log('Session token request ID:', requestId);
+    console.log('Wallet address:', walletAddress);
+    console.log('Component:', component || 'unknown');
 
     if (!walletAddress) {
       return NextResponse.json(
         { error: 'Wallet address is required' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'X-XSS-Protection': '1; mode=block',
+          }
+        }
       );
     }
 
@@ -121,30 +200,54 @@ export async function POST(req: NextRequest) {
     if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
       return NextResponse.json(
         { error: 'Invalid wallet address format. Must be a valid Ethereum address (42 characters starting with 0x)' },
-        { status: 400 }
+        { 
+          status: 400,
+          headers: {
+            'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'X-XSS-Protection': '1; mode=block',
+          }
+        }
       );
     }
 
-    // Extract client IP from the request
-    // Note: We should not trust X-Forwarded-For headers as they can be spoofed
-    // For production, you should extract the real client IP from your load balancer/proxy
-    const forwardedFor = req.headers.get('x-forwarded-for');
-    const realIp = req.headers.get('x-real-ip');
-    const cfConnectingIp = req.headers.get('cf-connecting-ip'); // Cloudflare
+    // Enhanced Client IP extraction and validation
+    // Priority order for IP extraction (most trusted first)
+    const cfConnectingIp = req.headers.get('cf-connecting-ip'); // Cloudflare (most trusted)
     const xClientIp = req.headers.get('x-client-ip');
+    const xRealIp = req.headers.get('x-real-ip');
+    const forwardedFor = req.headers.get('x-forwarded-for');
     
-    console.log('X-Forwarded-For header:', forwardedFor);
-    console.log('X-Real-IP header:', realIp);
-    console.log('CF-Connecting-IP header:', cfConnectingIp);
-    console.log('X-Client-IP header:', xClientIp);
+    // Log all IP headers for debugging (remove in production)
+    console.log('IP Headers - CF-Connecting-IP:', cfConnectingIp);
+    console.log('IP Headers - X-Client-IP:', xClientIp);
+    console.log('IP Headers - X-Real-IP:', xRealIp);
+    console.log('IP Headers - X-Forwarded-For:', forwardedFor);
     
-    // For development/testing, use a public IP
-    // In production, you should extract the real client IP from your infrastructure
-    const clientIp = process.env.NODE_ENV === 'production' 
-      ? (cfConnectingIp || xClientIp || realIp || forwardedFor?.split(',')[0]?.trim() || '8.8.8.8')
-      : '8.8.8.8'; // Always use public IP for development
+    // Extract client IP with proper validation
+    let clientIp: string;
     
-    console.log('Final client IP being used:', clientIp);
+    if (process.env.NODE_ENV === 'production') {
+      // In production, prioritize trusted headers from your infrastructure
+      clientIp = cfConnectingIp || xClientIp || xRealIp || 
+                 (forwardedFor ? forwardedFor.split(',')[0].trim() : null) || 
+                 '8.8.8.8'; // Fallback to public IP
+    } else {
+      // In development, use a consistent public IP for testing
+      clientIp = '8.8.8.8';
+    }
+    
+    // Validate IP format (basic IPv4 validation)
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    if (!ipv4Regex.test(clientIp)) {
+      console.warn('Invalid IP format detected, using fallback:', clientIp);
+      clientIp = '8.8.8.8';
+    }
+    
+    console.log('Final validated client IP:', clientIp);
 
     // Check for CDP API credentials - try new format first, then legacy
     const cdpApiKeyName = process.env.CDP_API_KEY_NAME;
@@ -202,7 +305,17 @@ export async function POST(req: NextRequest) {
       console.error('No valid CDP API credentials found');
       return NextResponse.json(
         { error: 'Server configuration error - no valid CDP credentials' },
-        { status: 500 }
+        { 
+          status: 500,
+          headers: {
+            'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'X-XSS-Protection': '1; mode=block',
+          }
+        }
       );
     }
 
@@ -219,7 +332,13 @@ export async function POST(req: NextRequest) {
         }
       ],
       assets: ['USDC'],
-      clientIp: clientIp
+      clientIp: clientIp,
+      // Add unique request identifier to ensure each request is unique
+      requestId: requestId || `api_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      // Add component identifier to ensure different components get different tokens
+      component: component || 'unknown',
+      // Add session-specific identifier to prevent token reuse
+      sessionId: `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
     };
 
     console.log('Making CDP API request with body:', JSON.stringify(requestBody, null, 2));
@@ -263,21 +382,55 @@ export async function POST(req: NextRequest) {
       
       return NextResponse.json(
         { error: `Failed to generate session token: ${errorMessage}` },
-        { status: response.status }
+        { 
+          status: response.status,
+          headers: {
+            'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+            'Access-Control-Allow-Methods': 'POST',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+            'X-Content-Type-Options': 'nosniff',
+            'X-Frame-Options': 'DENY',
+            'X-XSS-Protection': '1; mode=block',
+          }
+        }
       );
     }
 
     const data = await response.json();
     console.log('Session token generated successfully');
+    console.log('Session token (first 20 chars):', data.token?.substring(0, 20) + '...');
+    console.log('Request ID used:', requestId);
     
+    // Return success response with CORS headers and security headers
     return NextResponse.json({
       sessionToken: data.token,
+    }, {
+      headers: {
+        'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+        'Access-Control-Allow-Methods': 'POST',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Frame-Options': 'DENY',
+        'X-XSS-Protection': '1; mode=block',
+        'Strict-Transport-Security': 'max-age=31536000; includeSubDomains',
+      }
     });
   } catch (error) {
     console.error('Error generating session token:', error);
+    const origin = req.headers.get('origin');
     return NextResponse.json(
       { error: `Internal server error: ${error instanceof Error ? error.message : 'Unknown error'}` },
-      { status: 500 }
+      { 
+        status: 500,
+        headers: {
+          'Access-Control-Allow-Origin': origin || 'https://beatme.creativeplatform.xyz',
+          'Access-Control-Allow-Methods': 'POST',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+          'X-Content-Type-Options': 'nosniff',
+          'X-Frame-Options': 'DENY',
+          'X-XSS-Protection': '1; mode=block',
+        }
+      }
     );
   }
 }

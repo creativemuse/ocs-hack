@@ -4,7 +4,7 @@ import { Coinbase, SmartContract } from "@coinbase/coinbase-sdk";
 // Contract configuration
 const CONTRACT_CONFIG = {
   networkId: "base-mainnet",
-  contractAddress: "0xd8183AA7cf350a1c4E1a247C12b4C5315BEa9D7A",
+  contractAddress: "0x231240B1d776a8F72785FE3707b74Ed9C3048B3a",
   contractName: "TriviaBattle",
   protocolName: "public"
 } as const;

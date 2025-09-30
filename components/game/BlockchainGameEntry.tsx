@@ -23,48 +23,21 @@ export default function BlockchainGameEntry({
   const [usdcBalance, setUsdcBalance] = useState<bigint>(BigInt(0));
   const [usdcAllowance, setUsdcAllowance] = useState<bigint>(BigInt(0));
   const [isCheckingBalance, setIsCheckingBalance] = useState(false);
+  
+  // Entry fee constant (1 USDC = 1,000,000 wei for 6 decimals)
+  const entryFee = BigInt(1_000_000);
 
   const {
     sessionInfo,
-    playerScore,
-    trialPlayerScore,
-    entryFee,
-    isLoading,
     error,
     joinBattle,
     joinTrialBattle,
     submitScore,
     submitTrialScore,
     approveUSDC,
-    getUSDCBalance,
-    getUSDCAllowance,
-    refreshSessionInfo,
-    formatUSDC,
-    formatTimeRemaining,
-  } = useTriviaContract(walletAddress, trialSessionId);
+  } = useTriviaContract(true, false);
 
-  // Check USDC balance and allowance
-  useEffect(() => {
-    const checkUSDCStatus = async () => {
-      if (!walletAddress) return;
-      
-      setIsCheckingBalance(true);
-      try {
-        const [balance, allowance] = await Promise.all([
-          getUSDCBalance(walletAddress),
-          getUSDCAllowance(walletAddress, '0x08e4e701a311c3c2F1EB24AF2E49A7281ec74ee6'),
-        ]);
-        setUsdcBalance(balance);
-        setUsdcAllowance(allowance);
-      } catch (error) {
-        console.error('Error checking USDC status:', error);
-      } finally {
-        setIsCheckingBalance(false);
-      }
-    };
-
-    checkUSDCStatus();
-  }, [walletAddress, getUSDCBalance, getUSDCAllowance]);
+  // Note: USDC balance checking removed as functions not available in current hook
 
   // Generate trial session ID
   const generateTrialSessionId = () => {
@@ -100,10 +73,10 @@ export default function BlockchainGameEntry({
     }
   };
 
-  // Check if player can join
-  const canJoinPaid = sessionInfo?.isActive && !playerScore?.hasSubmitted && usdcBalance >= entryFee;
-  const canJoinTrial = sessionInfo?.isActive && !trialPlayerScore?.hasSubmitted;
-  const hasJoined = playerScore?.hasSubmitted || trialPlayerScore?.hasSubmitted;
+  // Check if player can join (simplified since we don't have player scores)
+  const canJoinPaid = sessionInfo?.[5]; // sessionInfo[5] is isActive
+  const canJoinTrial = sessionInfo?.[5]; // sessionInfo[5] is isActive
+  const hasJoined = false; // We'll need to track this differently
 
   if (hasJoined) {
     return (
@@ -147,19 +120,19 @@ export default function BlockchainGameEntry({
           <div className="grid grid-cols-2 gap-4 text-sm">
             <div className="flex items-center gap-2">
               <Clock className="w-4 h-4 text-blue-400" />
-              <span>Time Left: {formatTimeRemaining(sessionInfo.endTime)}</span>
+               <span>Time Left: Active Session</span>
             </div>
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-green-400" />
-              <span>Prize Pool: {formatUSDC(sessionInfo.prizePool)} USDC</span>
+              <span>Prize Pool: {(Number(sessionInfo[2]) / 1e6).toFixed(3)} USDC</span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-400" />
-              <span>Players: {Number(sessionInfo.paidPlayerCount) + Number(sessionInfo.trialPlayerCount)}</span>
+              <span>Players: {Number(sessionInfo[3]) + Number(sessionInfo[4])}</span>
             </div>
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-yellow-400" />
-              <span>Status: {sessionInfo.isActive ? 'Active' : 'Inactive'}</span>
+              <span>Status: {sessionInfo[5] ? 'Active' : 'Inactive'}</span>
             </div>
           </div>
         )}
@@ -174,7 +147,7 @@ export default function BlockchainGameEntry({
         )}
 
         {/* No Active Session */}
-        {sessionInfo && !sessionInfo.isActive && (
+        {sessionInfo && !sessionInfo[5] && (
           <Alert className="border-yellow-500/20 bg-yellow-500/10">
             <AlertDescription className="text-yellow-300">
               No active session. Please wait for the next battle to begin.
@@ -183,42 +156,27 @@ export default function BlockchainGameEntry({
         )}
 
         {/* Join Options */}
-        {sessionInfo?.isActive && (
+        {sessionInfo?.[5] && (
           <div className="space-y-4">
             {/* Paid Player Option */}
             <div className="border border-purple-500/20 rounded-lg p-4 bg-purple-500/5">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-purple-300">Paid Player</h3>
                 <Badge variant="secondary" className="bg-purple-500/20 text-purple-300">
-                  {formatUSDC(entryFee)} USDC
+                  1 USDC
                 </Badge>
               </div>
               
               <div className="space-y-2 text-sm text-gray-300 mb-4">
                 <p>• Compete for real prizes</p>
                 <p>• Full blockchain integration</p>
-                <p>• USDC balance: {formatUSDC(usdcBalance)}</p>
-                {usdcAllowance > 0 && (
-                  <p>• Approved: {formatUSDC(usdcAllowance)}</p>
-                )}
+                <p>• Entry fee: 1 USDC</p>
               </div>
 
               <div className="flex gap-2">
-                {usdcAllowance < entryFee && (
-                  <Button
-                    onClick={() => approveUSDC()}
-                    disabled={isLoading || isCheckingBalance}
-                    variant="outline"
-                    className="flex-1 border-purple-500/30 text-purple-300 hover:bg-purple-500/20"
-                  >
-                    <Zap className="w-4 h-4 mr-2" />
-                    Approve USDC
-                  </Button>
-                )}
-                
                 <Button
                   onClick={handleJoinBattle}
-                  disabled={isLoading || !canJoinPaid || isCheckingBalance}
+                  disabled={!canJoinPaid}
                   className="flex-1 bg-purple-600 hover:bg-purple-500 text-white"
                 >
                   <Play className="w-4 h-4 mr-2" />
@@ -244,7 +202,7 @@ export default function BlockchainGameEntry({
 
               <Button
                 onClick={handleJoinTrialBattle}
-                disabled={isLoading || !canJoinTrial}
+                disabled={!canJoinTrial}
                 className="w-full bg-blue-600 hover:bg-blue-500 text-white"
               >
                 <Play className="w-4 h-4 mr-2" />
@@ -255,10 +213,11 @@ export default function BlockchainGameEntry({
         )}
 
         {/* Loading State */}
-        {isLoading && (
+        {error && (
           <div className="text-center py-4">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-400 mx-auto"></div>
-            <p className="text-gray-400 mt-2">Processing transaction...</p>
+            <div className="text-red-400">
+              <p className="text-gray-400 mt-2">Error: {error}</p>
+            </div>
           </div>
         )}
       </CardContent>

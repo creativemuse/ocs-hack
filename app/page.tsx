@@ -17,9 +17,11 @@ import type { TriviaQuestion } from '@/types/game';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { useAccount } from 'wagmi';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
+import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
+import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import { Trophy } from 'lucide-react';
-import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
+import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Identity, Address, EthBalance } from '@coinbase/onchainkit/identity';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
@@ -58,6 +60,9 @@ export default function Home() {
   // Add trial status hook
   const { address } = useAccount();
   const { trialStatus, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
+  
+  // Add contract USDC balance hook
+  const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError, refreshBalance } = useContractUSDCBalance();
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -425,9 +430,12 @@ export default function Home() {
                     <Address className="text-gray-400" />
                     <EthBalance />
                   </Identity>
-                  <WalletDropdownFundLink 
-                    className="text-white hover:text-white hover:bg-white/10"
-                  />
+                  <button
+                    onClick={() => setShowPayment(true)}
+                    className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
+                  >
+                    💳 Buy USDC
+                  </button>
                   <WalletDropdownDisconnect />
                 </WalletDropdown>
               </Wallet>
@@ -473,8 +481,9 @@ export default function Home() {
                   </span>
                   <button
                     onClick={() => {
-                      console.log('Toggle clicked');
-                      setPlayerModeChoice(playerModeChoice === 'trial' ? 'paid' : 'trial');
+                      const newChoice = playerModeChoice === 'trial' ? 'paid' : 'trial';
+                      console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
+                      setPlayerModeChoice(newChoice);
                     }}
                     className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 cursor-pointer hover:opacity-80 ${
                       playerModeChoice === 'paid' ? 'bg-green-500' : 'bg-gray-600'
@@ -512,6 +521,10 @@ export default function Home() {
             entryToken={entryToken}
             playerModeChoice={playerModeChoice}
           />
+          {/* Debug info */}
+          <div className="text-xs text-gray-500 text-center mt-2">
+            Debug: playerModeChoice = {playerModeChoice}
+          </div>
         </div>
       </div>
     );
@@ -552,11 +565,11 @@ export default function Home() {
               <h1 className="text-3xl font-bold mb-4">Game Complete!</h1>
               <div className="text-2xl mb-2">Final Score: {totalScore}</div>
               <div className="text-gray-400 mb-4">
-                {trialStatus.isTrialActive ? (isGuestMode ? `Trial Player: ${guestName}` : 'Trial Player') : 'Paid Player'}
+                {isTrialGame ? (isGuestMode ? `Trial Player: ${guestName}` : 'Trial Player') : 'Paid Player'}
               </div>
 
               {/* Trial Player Notice */}
-              {trialStatus.isTrialActive && (
+              {isTrialGame && (
                 <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6">
                   <div className="text-amber-300 text-sm">
                     <p className="font-medium mb-2">🎮 Trial Game Results</p>
@@ -592,9 +605,12 @@ export default function Home() {
                             <Address className="text-gray-400" />
                             <EthBalance />
                           </Identity>
-                          <WalletDropdownFundLink 
-                            className="text-white hover:text-white hover:bg-white/10"
-                          />
+                          <button
+                            onClick={() => setShowPayment(true)}
+                            className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
+                          >
+                            💳 Buy USDC
+                          </button>
                           <WalletDropdownDisconnect />
                         </WalletDropdown>
                       </Wallet>
@@ -603,8 +619,18 @@ export default function Home() {
                 </div>
               )}
 
+              {/* High Score Display with Reward Claiming */}
+              <div className="mb-6">
+                <HighScoreDisplay
+                  currentScore={totalScore}
+                  playerName={isGuestMode ? guestName : 'Player'}
+                  isGuest={isGuestMode}
+                  className="w-full"
+                />
+              </div>
+
               {/* Paid Player Success */}
-              {!trialStatus.isTrialActive && (
+              {!isTrialGame && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
                   <div className="text-green-300 text-sm">
                     <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
@@ -643,7 +669,7 @@ export default function Home() {
           </div>
 
           {/* Wallet Connection Status for Paid Players */}
-          {address && !trialStatus.isTrialActive && (
+          {address && !isTrialGame && (
             <div className="flex justify-center mb-4">
               <div className="bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-2">
                 <div className="flex items-center gap-2 text-green-300 text-sm">
@@ -652,14 +678,16 @@ export default function Home() {
                   <span className="text-green-200/80">• Playing for real money</span>
                 </div>
                 <div className="text-green-200/60 text-xs mt-1 text-center">
-                  {address.slice(0, 6)}...{address.slice(-4)}
+                  <Identity address={address}>
+                    <Name />
+                  </Identity>
                 </div>
               </div>
             </div>
           )}
 
           {/* Trial Player Status */}
-          {trialStatus.isTrialActive && (
+          {isTrialGame && (
             <div className="flex justify-center mb-4">
               <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2">
                 <div className="flex items-center gap-2 text-amber-300 text-sm">
@@ -949,7 +977,15 @@ export default function Home() {
                 </div>
                 <div className="content-stretch flex flex-col gap-4 items-start justify-start relative shrink-0 w-full" data-node-id="3:163">
                   <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[24px] w-full">
-                    <p className="leading-[normal]">{`${session?.prize_pool || 0} USDC TOTAL `}</p>
+                    <p className="leading-[normal]">
+                      {contractBalanceError ? (
+                        <span className="text-red-500">Error loading balance</span>
+                      ) : contractBalanceLoading ? (
+                        '...'
+                      ) : (
+                        `${contractUSDCBalance.toFixed(3)} USDC`
+                      )}
+                    </p>
                   </div>
                   <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0 w-full" data-node-id="3:161">
                     <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:159">

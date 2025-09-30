@@ -1,10 +1,42 @@
+import { createCDPJWTGenerator } from '../cdp/jwt-generator';
+
 // Contract configuration
 export const CONTRACT_CONFIG = {
   networkId: "base-mainnet",
-  contractAddress: "0xd8183AA7cf350a1c4E1a247C12b4C5315BEa9D7A",
+  contractAddress: "0x231240B1d776a8F72785FE3707b74Ed9C3048B3a",
   contractName: "TriviaBattle",
   protocolName: "public"
 } as const;
+
+// JWT token cache for efficient API calls
+let cachedJWT: string | null = null;
+let jwtExpiryTime: number = 0;
+
+/**
+ * Get a valid JWT token for CDP API calls
+ * Automatically generates new token if expired
+ */
+export const getValidJWT = async (): Promise<string> => {
+  const now = Date.now();
+  
+  // Check if we have a valid cached JWT
+  if (cachedJWT && now < jwtExpiryTime) {
+    return cachedJWT;
+  }
+  
+  // Generate new JWT
+  try {
+    const generator = createCDPJWTGenerator();
+    cachedJWT = generator.generateJWT();
+    jwtExpiryTime = now + (110 * 1000); // Set expiry 10 seconds before actual expiry
+    
+    console.log(`🔐 Generated new JWT for CDP API (expires in ${generator.getJWTTimeRemaining(cachedJWT)}s)`);
+    return cachedJWT;
+  } catch (error) {
+    console.error('❌ Failed to generate JWT for CDP API:', error);
+    throw new Error('CDP API authentication failed');
+  }
+};
 
 // Client-side API functions that call our server-side API routes
 export const initializeCDP = async () => {
