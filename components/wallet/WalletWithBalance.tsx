@@ -205,10 +205,10 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
                   ) : fundingSuccess ? (
                     <CheckCircle className="h-full w-full text-green-500" />
                   ) : (
-                    <Coins className="h-full w-full text-white" />
+                    <Coins className="h-full w-full text-gray-300" />
                   )}
                 </div>
-                <span className={cn(dsText.body, 'pl-6 text-white')}>
+                <span className={cn(dsText.body, 'pl-6 text-gray-300')}>
                   {sessionLoading ? 'Opening funding...' : fundingSuccess ? 'Funding opened!' : 'Add USDC Funds'}
                 </span>
               </button>

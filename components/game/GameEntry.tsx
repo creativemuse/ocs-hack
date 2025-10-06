@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -18,7 +18,7 @@ import PaymasterTest from '@/components/debug/PaymasterTest';
 import SponsoredTransactionExample from '@/components/transaction/SponsoredTransactionExample';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
-import { Avatar, Name, Address, Identity } from '@coinbase/onchainkit/identity';
+import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
 import { Transaction, TransactionButton, TransactionSponsor, TransactionStatus, TransactionStatusLabel, TransactionStatusAction } from '@coinbase/onchainkit/transaction';
 import type { LifecycleStatus } from '@coinbase/onchainkit/transaction';
 import { createPaidGameCalls, createTrialGameCalls } from '@/lib/transaction/paidGameCalls';
@@ -56,6 +56,44 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
+
+  // Auto-generate funding URL with CDP session token when address is available
+  useEffect(() => {
+    const generateInitialFundingUrl = async () => {
+      if (!address || fundingUrl || isFundingUrlGenerating) return;
+      
+      try {
+        setIsFundingUrlGenerating(true);
+        console.log('🔄 Auto-generating CDP funding URL with session token for:', address);
+        
+        // Clear browser cache for fresh token
+        await clearBrowserCache();
+        
+        // Generate fresh session token
+        const sessionToken = await getSessionToken(address);
+        console.log('✅ CDP session token generated:', sessionToken.substring(0, 20) + '...');
+        
+        // Generate funding URL with session token
+        const url = generateFundingUrl({
+          walletAddress: address,
+          sessionToken: sessionToken
+        });
+        
+        console.log('✅ CDP funding URL ready for onramp');
+        setFundingUrl(url);
+        setError(null);
+      } catch (err) {
+        console.error('❌ Failed to generate CDP funding URL:', err);
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(`Failed to initialize onramp: ${errorMessage}`);
+      } finally {
+        setIsFundingUrlGenerating(false);
+      }
+    };
+
+    generateInitialFundingUrl();
+  }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
 
   // Handle transaction status updates
   const handleTransactionStatus = useCallback((status: LifecycleStatus) => {
@@ -242,55 +280,39 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     setError(null);
   };
 
-  const handleGenerateFundingUrl = async () => {
+  // Manual refresh of funding URL (if needed)
+  const handleRefreshFundingUrl = async () => {
     if (!address) return;
     
     try {
-      console.log('Payment button clicked - generating fresh session token...');
-      console.log('Current wallet address:', address);
+      setIsFundingUrlGenerating(true);
+      console.log('🔄 Manually refreshing CDP funding URL...');
       
-      // Clear any existing funding URL to prevent reuse
+      // Clear existing URL and cache
       setFundingUrl(null);
       setError(null);
-      
-      // Clear browser cache and storage to ensure fresh token generation
       await clearBrowserCache();
       
-      // Generate a fresh session token with unique request ID
+      // Generate fresh session token
       const sessionToken = await getSessionToken(address);
+      console.log('✅ Fresh CDP session token generated:', sessionToken.substring(0, 20) + '...');
       
-      console.log('Fresh session token generated for payment:', sessionToken.substring(0, 20) + '...');
-      console.log('Fresh session token generated successfully - using secure initialization');
-      
+      // Generate new funding URL
       const url = generateFundingUrl({
         walletAddress: address,
         sessionToken: sessionToken
       });
       
-      console.log('✔ Opening payment modal with fresh token');
-      console.log('Payment URL:', url);
-      
+      console.log('✅ New CDP funding URL generated');
       setFundingUrl(url);
-      
-      // Automatically open the funding URL in a popup after generating the session token
-      const popup = window.open(
-        url,
-        'coinbase-funding',
-        'width=500,height=700,scrollbars=yes,resizable=yes,noopener,noreferrer'
-      );
-      
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        console.warn('Popup blocked - opening in new tab instead');
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
-        // Show success feedback briefly
-        setFundingSuccess(true);
-        setTimeout(() => setFundingSuccess(false), 2000);
-      }
+      setFundingSuccess(true);
+      setTimeout(() => setFundingSuccess(false), 2000);
     } catch (err) {
-      console.error('Failed to generate funding URL:', err);
+      console.error('❌ Failed to refresh funding URL:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(`Failed to generate funding URL: ${errorMessage}`);
+      setError(`Failed to refresh onramp URL: ${errorMessage}`);
+    } finally {
+      setIsFundingUrlGenerating(false);
     }
   };
 
@@ -435,16 +457,64 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
             </>
           ) : playerModeChoice === 'paid' ? (
             <>
-              {/* Enhanced Wallet Component with USDC Balance */}
-              <WalletWithBalance 
-                onFundingSuccess={() => {
-                  console.log('Funding successful, balance should be updated');
-                }}
-                className="mb-4"
-              />
+              {/* Enhanced Wallet Component with CDP Onramp Integration */}
+              <div className="mb-4">
+                <Wallet>
+                  <ConnectWallet 
+                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+                  >
+                    <Avatar className="h-6 w-6" />
+                    <Name />
+                  </ConnectWallet>
+                  <WalletDropdown>
+                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                      <Avatar />
+                      <Name />
+                      <Address className="text-gray-400" />
+                      <EthBalance />
+                    </Identity>
+                    <WalletDropdownFundLink 
+                      text="Add USDC"
+                      fundingUrl={fundingUrl || undefined}
+                      openIn="popup"
+                      popupSize="md"
+                      rel="noopener noreferrer"
+                      className="text-gray-300"
+                    />
+                    <WalletDropdownDisconnect />
+                  </WalletDropdown>
+                </Wallet>
+              </div>
+
+              {/* CDP Onramp Status */}
+              {/* <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-2 h-2 rounded-full ${fundingUrl ? 'bg-green-500' : isFundingUrlGenerating ? 'bg-yellow-500 animate-pulse' : 'bg-gray-500'}`}></div>
+                    <span className="text-xs text-gray-300">
+                      {isFundingUrlGenerating ? 'Initializing CDP Onramp...' : fundingUrl ? 'CDP Onramp Ready' : 'CDP Onramp Not Ready'}
+                    </span>
+                  </div>
+                  {fundingUrl && !isFundingUrlGenerating && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleRefreshFundingUrl}
+                      className="text-xs h-6 px-2 text-gray-300"
+                    >
+                      Refresh
+                    </Button>
+                  )}
+                </div>
+                {fundingSuccess && (
+                  <div className="mt-2 text-xs text-green-400">
+                    ✅ Onramp URL updated successfully
+                  </div>
+                )}
+              </div> */}
 
               {/* Debug Info - Remove in production */}
-              <WalletDebugInfo />
+              {/* <WalletDebugInfo /> */}
               {/* <PaymasterTest /> */}
               {/* <SponsoredTransactionExample /> */}
 
