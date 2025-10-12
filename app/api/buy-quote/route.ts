@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
     const walletAddress: string | undefined = body.walletAddress;
     const purchaseCurrency: string = body.purchaseCurrency || 'USDC';
     const purchaseNetwork: string = body.purchaseNetwork || 'base';
-    const paymentAmount: string = body.paymentAmount || '1.00';
+    const paymentAmount: string = body.paymentAmount || '5.00';
     const paymentCurrency: string = body.paymentCurrency || 'USD';
     const paymentMethod: string = body.paymentMethod || 'CARD';
     const country: string = body.country || 'US';
@@ -77,13 +77,13 @@ export async function POST(req: NextRequest) {
     }
 
     const quoteRequestBody: Record<string, unknown> = {
-      purchaseCurrency,
-      purchaseNetwork,
-      paymentAmount,
-      paymentCurrency,
-      paymentMethod,
+      purchase_currency: purchaseCurrency,
+      purchase_network: purchaseNetwork,
+      payment_amount: paymentAmount,
+      payment_currency: paymentCurrency,
+      payment_method: paymentMethod,
       country,
-      destinationAddress: walletAddress,
+      destination_address: walletAddress,
     };
     if (subdivision) quoteRequestBody.subdivision = subdivision;
 
@@ -103,11 +103,18 @@ export async function POST(req: NextRequest) {
     }
 
     const data = await response.json();
+    
+    // Extract data from Coinbase API response structure
+    const responseData = data.data || data;
+    
     return NextResponse.json({
-      onrampUrl: data.onrampUrl || null,
-      quoteId: data.quoteId || null,
-      purchaseAmount: data.purchaseAmount || null,
-      paymentTotal: data.paymentTotal || null,
+      onrampUrl: responseData.onramp_url || responseData.onrampUrl || null,
+      quoteId: responseData.quote_id || responseData.quoteId || null,
+      purchaseAmount: responseData.purchase_amount || responseData.purchaseAmount || null,
+      paymentTotal: responseData.payment_total || responseData.paymentTotal || null,
+      paymentSubtotal: responseData.payment_subtotal || responseData.paymentSubtotal || null,
+      coinbaseFee: responseData.coinbase_fee || responseData.coinbaseFee || null,
+      networkFee: responseData.network_fee || responseData.networkFee || null,
     });
   } catch (error) {
     console.error('Error creating buy quote:', error);

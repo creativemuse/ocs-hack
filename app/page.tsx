@@ -468,7 +468,7 @@ export default function Home() {
                     <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'trial' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
                     <span className="text-sm font-medium text-gray-300">Trial Mode</span>
                   </div>
-                  <span className="text-gray-500">•</span>
+                  {/* <span className="text-gray-500">•</span> */}
                   <div className="flex items-center space-x-2">
                     <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'paid' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
                     <span className="text-sm font-medium text-gray-300">Paid Mode</span>
@@ -522,9 +522,9 @@ export default function Home() {
             playerModeChoice={playerModeChoice}
           />
           {/* Debug info */}
-          <div className="text-xs text-gray-500 text-center mt-2">
+          {/* <div className="text-xs text-gray-500 text-center mt-2">
             Debug: playerModeChoice = {playerModeChoice}
-          </div>
+          </div> */}
         </div>
       </div>
     );

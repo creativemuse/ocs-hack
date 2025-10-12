@@ -1,6 +1,9 @@
 /**
  * Utility functions for generating Coinbase Pay funding URLs with session tokens
+ * and One-Click-Buy URLs
  */
+
+import type { OneClickBuyOptions, OneClickBuyResult } from '@/types/onramp';
 
 export interface FundingUrlParams {
   walletAddress: string;
@@ -67,6 +70,57 @@ export function extractWalletAddressFromUrl(url: string): string | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Generates a One-Click-Buy URL using the buy quote API
+ * @param walletAddress - The destination wallet address
+ * @param options - Optional configuration for the buy quote
+ * @returns Promise with the onramp URL and quote ID
+ */
+export async function generateOneClickBuyUrl(
+  walletAddress: string,
+  options?: OneClickBuyOptions
+): Promise<OneClickBuyResult> {
+  const defaultOptions: Required<Omit<OneClickBuyOptions, 'subdivision'>> = {
+    paymentAmount: '5.00',
+    paymentCurrency: 'USD',
+    purchaseCurrency: 'USDC',
+    purchaseNetwork: 'base',
+    paymentMethod: 'CARD',
+    country: 'US',
+  };
+
+  const params = {
+    walletAddress,
+    ...defaultOptions,
+    ...options,
+  };
+
+  const response = await fetch('/api/buy-quote', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(params),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.error || `Failed to generate buy quote: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!data.onrampUrl) {
+    throw new Error('No onramp URL returned from buy quote API');
+  }
+
+  return {
+    url: data.onrampUrl,
+    quoteId: data.quoteId,
+    quote: data,
+  };
 }
 
 /**

@@ -6,8 +6,7 @@ import { Avatar, Name, Address, Identity } from '@coinbase/onchainkit/identity';
 import { cn, text as dsText, pressable } from '@coinbase/onchainkit/theme';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useAccount } from 'wagmi';
-import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
-import { useSessionToken } from '@/hooks/useSessionToken';
+import { useOneClickBuy } from '@/hooks/useOneClickBuy';
 import { Coins, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -21,49 +20,31 @@ interface WalletWithBalanceProps {
 export default function WalletWithBalance({ onFundingSuccess, className = '' }: WalletWithBalanceProps) {
   const { address, isConnected } = useAccount();
   const { balance, hasEnoughForEntry, isLoading, error, refreshBalance } = useUSDCBalance();
-  const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
-  const [fundingUrl, setFundingUrl] = useState<string | null>(null);
+  const { generateBuyUrl, openOnramp, isLoading: buyLoading, error: buyError, quoteData } = useOneClickBuy();
   const [fundingSuccess, setFundingSuccess] = useState(false);
-  const [fundingError, setFundingError] = useState<string | null>(null);
 
-  const handleGenerateFundingUrl = async () => {
+  const handleAddFunds = async () => {
     if (!address) return;
     
     try {
-      console.log('Generating funding URL for wallet:', address);
+      console.log('Generating One-Click-Buy URL for wallet:', address);
       
-      // Clear any existing funding URL and errors
-      setFundingUrl(null);
-      setFundingError(null);
-      
-      // Clear browser cache to ensure fresh token generation
-      await clearBrowserCache();
-      
-      // Generate a fresh session token
-      const sessionToken = await getSessionToken(address);
-      
-      console.log('Session token generated for funding:', sessionToken.substring(0, 20) + '...');
-      
-      const url = generateFundingUrl({
-        walletAddress: address,
-        sessionToken: sessionToken
+      // Generate buy URL with $5 USDC preset on Base
+      const result = await generateBuyUrl(address, {
+        paymentAmount: '5.00',
+        paymentCurrency: 'USD',
+        purchaseCurrency: 'USDC',
+        purchaseNetwork: 'base',
+        paymentMethod: 'CARD',
+        country: 'US',
       });
       
-      console.log('Funding URL generated:', url);
-      
-      setFundingUrl(url);
-      
-      // Open the funding URL in a popup
-      const popup = window.open(
-        url,
-        'coinbase-funding',
-        'width=500,height=700,scrollbars=yes,resizable=yes,noopener,noreferrer'
-      );
-      
-      if (!popup || popup.closed || typeof popup.closed === 'undefined') {
-        console.warn('Popup blocked - opening in new tab instead');
-        window.open(url, '_blank', 'noopener,noreferrer');
-      } else {
+      if (result?.url) {
+        console.log('Opening One-Click-Buy URL');
+        
+        // Open the onramp URL
+        openOnramp(result.url);
+        
         // Show success feedback
         setFundingSuccess(true);
         setTimeout(() => {
@@ -73,9 +54,7 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
         }, 2000);
       }
     } catch (err) {
-      console.error('Failed to generate funding URL:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setFundingError(`Failed to generate funding URL: ${errorMessage}`);
+      console.error('Failed to generate One-Click-Buy URL:', err);
     }
   };
 
@@ -190,40 +169,34 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
             {isConnected && (
               <button
                 type="button"
-                onClick={handleGenerateFundingUrl}
-                disabled={sessionLoading}
+                onClick={handleAddFunds}
+                disabled={buyLoading}
                 className={cn(
                   pressable.default,
                   'text-ock-foreground',
                   'relative flex w-full items-center px-4 pt-3 pb-4',
-                  sessionLoading && 'opacity-50 cursor-not-allowed'
+                  buyLoading && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 <div className="absolute left-4 flex h-[1.125rem] w-[1.125rem] items-center justify-center">
-                  {sessionLoading ? (
+                  {buyLoading ? (
                     <Loader2 className="h-full w-full animate-spin" />
                   ) : fundingSuccess ? (
                     <CheckCircle className="h-full w-full text-green-500" />
                   ) : (
-                    <Coins className="h-full w-full text-gray-300" />
+                    <Coins className="h-full w-full" />
                   )}
                 </div>
-                <span className={cn(dsText.body, 'pl-6 text-gray-300')}>
-                  {sessionLoading ? 'Opening funding...' : fundingSuccess ? 'Funding opened!' : 'Add USDC Funds'}
+                <span className={cn(dsText.body, 'pl-6')}>
+                  {buyLoading ? 'Opening funding...' : fundingSuccess ? 'Funding opened!' : 'Add USDC Funds'}
                 </span>
               </button>
             )}
             
             {/* Error Messages */}
-            {sessionError && (
+            {buyError && (
               <div className="px-3 py-2 text-xs text-red-400">
-                {sessionError}
-              </div>
-            )}
-            
-            {fundingError && (
-              <div className="px-3 py-2 text-xs text-red-400">
-                {fundingError}
+                {buyError}
               </div>
             )}
             
