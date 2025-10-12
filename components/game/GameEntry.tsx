@@ -366,57 +366,6 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
         <TrialStatusDisplay walletAddress={address} entryToken={entryToken} />
       )}
 
-      {/* Session Status Display */}
-      <Card className="bg-gradient-to-br from-blue-900/20 to-indigo-900/20 border-blue-500/30">
-        <CardContent className="p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${sessionActive ? 'bg-green-500' : 'bg-yellow-500'}`}></div>
-              <span className="text-sm text-gray-300">
-                Game Session: {sessionActive ? 'Active' : 'Inactive'}
-              </span>
-            </div>
-            <div className="flex items-center gap-2">
-              {isStartingSession ? (
-                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={checkSessionStatus}
-                  className="text-xs"
-                >
-                  Refresh
-                </Button>
-              )}
-            </div>
-          </div>
-          
-          {/* Session Auto-Start Information */}
-          <div className="mt-2 p-2 bg-green-900/20 border border-green-500/30 rounded">
-            <div className="text-xs text-green-200">
-              <div className="font-medium">✅ Auto-Session Mode</div>
-              <div className="text-green-300">
-                Sessions start automatically when players join!
-              </div>
-            </div>
-          </div>
-          
-          {sessionInfo && (
-            <div className="mt-2 text-xs text-gray-400">
-              Players: {sessionInfo[3]?.toString() || '0'} paid, {sessionInfo[4]?.toString() || '0'} trial
-            </div>
-          )}
-          
-          {contractError && (
-            <div className="mt-2 p-2 bg-red-900/20 border border-red-500/30 rounded">
-              <div className="text-xs text-red-200">
-                Error: {contractError}
-              </div>
-            </div>
-          )}
-        </CardContent>
-      </Card>
       
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">
@@ -458,10 +407,10 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
           ) : playerModeChoice === 'paid' ? (
             <>
               {/* Enhanced Wallet Component with CDP Onramp Integration */}
-              <div className="mb-4">
+              <div className="mb-4 flex justify-center">
                 <Wallet>
                   <ConnectWallet 
-                    className="w-full bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
+                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
                   >
                     <Avatar className="h-6 w-6" />
                     <Name />
@@ -479,7 +428,6 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       openIn="popup"
                       popupSize="md"
                       rel="noopener noreferrer"
-                      className="text-gray-300"
                     />
                     <WalletDropdownDisconnect />
                   </WalletDropdown>
