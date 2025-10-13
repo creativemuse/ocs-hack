@@ -72,15 +72,16 @@ export const useTopEarners = (
       // Initial update
       updateTopEarners();
 
-      // Set up reactive listener
-      const unsubscribe = connection.db.players.onInsert(() => updateTopEarners());
-      const unsubscribe2 = connection.db.players.onUpdate(() => updateTopEarners());
-      const unsubscribe3 = connection.db.players.onDelete(() => updateTopEarners());
+      // Set up reactive listeners
+      connection.db.players.onInsert(updateTopEarners);
+      connection.db.players.onUpdate(updateTopEarners);
+      connection.db.players.onDelete(updateTopEarners);
 
       return () => {
-        unsubscribe();
-        unsubscribe2();
-        unsubscribe3();
+        // Clean up listeners using the remove methods
+        connection.db.players.removeOnInsert(updateTopEarners);
+        connection.db.players.removeOnUpdate(updateTopEarners);
+        connection.db.players.removeOnDelete(updateTopEarners);
       };
     } catch (err) {
       console.error('Error setting up top earners subscription:', err);
