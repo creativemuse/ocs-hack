@@ -98,18 +98,10 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
                 if (!mounted) return;
                 console.error('❌ SpacetimeDB subscription error:', errorContext);
                 
-                // Log detailed error information for debugging
-                if (errorContext?.subscriptions) {
-                  console.error('Failed subscriptions:', errorContext.subscriptions);
-                }
-                if (errorContext?.error) {
-                  console.error('Error details:', errorContext.error);
-                }
-                
                 // Extract the actual error message
-                const errorMessage = errorContext?.error?.message || 
-                                   errorContext?.message || 
-                                   'Subscription failed';
+                const errorMessage = typeof errorContext === 'string' 
+                  ? errorContext 
+                  : 'Subscription failed';
                 setError(new Error(`SpacetimeDB subscription error: ${errorMessage}`));
               })
               .subscribe([
