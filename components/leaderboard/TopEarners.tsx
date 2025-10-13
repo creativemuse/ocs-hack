@@ -4,6 +4,8 @@ import { useTopEarners } from '@/hooks/useTopEarners';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { Loader2 } from 'lucide-react';
+import { Name } from '@coinbase/onchainkit/identity';
+import { base } from 'viem/chains';
 
 interface TopEarnersProps {
   limit?: number;
@@ -17,9 +19,22 @@ export default function TopEarners({ limit = 10, className = '' }: TopEarnersPro
     return earnings.toFixed(2);
   };
 
-  const formatAddress = (address: string, username?: string) => {
-    if (username) return username;
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  // Component to display player name with fallback priority:
+  // 1. Username (if set)
+  // 2. Basename (if available)
+  // 3. Shortened wallet address
+  const PlayerDisplayName = ({ walletAddress, username }: { walletAddress: string; username?: string }) => {
+    if (username) {
+      return <span className="text-[#ffffff] text-[12px]">{username.toUpperCase()}</span>;
+    }
+    
+    return (
+      <Name 
+        address={walletAddress as `0x${string}`}
+        chain={base}
+        className="text-[#ffffff] text-[12px]"
+      />
+    );
   };
 
   const getRankIcon = (rank: number) => {
@@ -73,7 +88,10 @@ export default function TopEarners({ limit = 10, className = '' }: TopEarnersPro
               </div>
               <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
                 <p className="leading-[normal] whitespace-pre">
-                  {formatAddress(earner.walletAddress, earner.username).toUpperCase()}
+                  <PlayerDisplayName 
+                    walletAddress={earner.walletAddress} 
+                    username={earner.username} 
+                  />
                 </p>
               </div>
             </div>
