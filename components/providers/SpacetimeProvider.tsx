@@ -84,19 +84,30 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
             
             conn = connection;
             setConnection(connection);
-            setIsConnected(true);
             setError(null);
 
             // Subscribe to all relevant tables
-            connection.subscriptionBuilder().subscribe([
-              'SELECT * FROM players',
-              'SELECT * FROM game_sessions',
-              'SELECT * FROM player_stats',
-              'SELECT * FROM active_game_sessions',
-              'SELECT * FROM pending_claims',
-              'SELECT * FROM prize_history',
-              'SELECT * FROM audio_files',
-            ]);
+            // Wait for subscriptions to be applied before marking as connected
+            connection.subscriptionBuilder()
+              .onApplied(() => {
+                if (!mounted) return;
+                console.log('✅ SpacetimeDB subscriptions applied - data ready');
+                setIsConnected(true); // Mark as connected AFTER subscriptions applied
+              })
+              .onError((err) => {
+                if (!mounted) return;
+                console.error('❌ SpacetimeDB subscription error:', err);
+                setError(err instanceof Error ? err : new Error(String(err)));
+              })
+              .subscribe([
+                'SELECT * FROM players',
+                'SELECT * FROM game_sessions',
+                'SELECT * FROM player_stats',
+                'SELECT * FROM active_game_sessions',
+                'SELECT * FROM pending_claims',
+                'SELECT * FROM prize_history',
+                'SELECT * FROM audio_files',
+              ]);
           })
           .onDisconnect(() => {
             if (!mounted) return;
