@@ -7,6 +7,8 @@ import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useAccount } from 'wagmi';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
+import { Name } from '@coinbase/onchainkit/identity';
+import { base } from 'viem/chains';
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -75,6 +77,31 @@ export default function HighScoreDisplay({
 
   const formatScore = (score: number) => {
     return score.toLocaleString();
+  };
+
+  // Component to display player name with fallback priority:
+  // 1. Username (if set)
+  // 2. Basename (if available)  
+  // 3. Shortened wallet address
+  const PlayerDisplayName = ({ walletAddress, username, isGuest }: { walletAddress?: string; username?: string; isGuest?: boolean }) => {
+    if (isGuest) {
+      return <span>{username || 'Guest'}</span>;
+    }
+    
+    if (username) {
+      return <span>{username}</span>;
+    }
+    
+    if (walletAddress) {
+      return (
+        <Name 
+          address={walletAddress as `0x${string}`}
+          chain={base}
+        />
+      );
+    }
+    
+    return <span>Unknown Player</span>;
   };
 
   return (
@@ -232,7 +259,11 @@ export default function HighScoreDisplay({
               <div className="flex items-center">
                 {getRankIcon(index + 1)}
                 <span className="ml-2 text-sm font-medium text-gray-700">
-                  {score.playerName}
+                  <PlayerDisplayName 
+                    walletAddress={score.walletAddress}
+                    username={score.playerName}
+                    isGuest={score.isGuest}
+                  />
                   {score.isGuest && <span className="text-xs text-gray-500 ml-1">(Guest)</span>}
                 </span>
               </div>

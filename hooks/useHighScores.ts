@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 interface HighScore {
   id: string;
   playerName: string;
+  walletAddress?: string;
   score: number;
   timestamp: number;
   isGuest: boolean;
