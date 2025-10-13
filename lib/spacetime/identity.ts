@@ -101,7 +101,7 @@ export async function getPlayerProfile(
   walletAddress: string
 ): Promise<PlayerIdentity | null> {
   // Query the players table using the connection
-  const players = connection.db.players.filter(
+  const players = (Array.from(connection.db.players.iter()) as any[]).filter(
     (player: any) => player.walletAddress === walletAddress
   );
 

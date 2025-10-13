@@ -335,7 +335,7 @@ class SpacetimeDBClient {
   getPlayerProfile(walletAddress: string): Player | null {
     if (!this.connection) return null;
 
-    const players = this.connection.db.players.filter(
+    const players = (Array.from(this.connection.db.players.iter()) as Player[]).filter(
       (p: Player) => p.walletAddress === walletAddress
     );
 
@@ -345,7 +345,7 @@ class SpacetimeDBClient {
   getActivePlayers(limit: number = 50): Player[] {
     if (!this.connection) return [];
 
-    return this.connection.db.players
+    return (Array.from(this.connection.db.players.iter()) as Player[])
       .filter((p: Player) => p.gamesPlayed > 0)
       .sort((a: Player, b: Player) => Number(b.updatedAt) - Number(a.updatedAt))
       .slice(0, limit);
@@ -467,7 +467,7 @@ class SpacetimeDBClient {
   getTopEarners(limit: number = 10): TopEarner[] {
     if (!this.connection) return [];
 
-    return this.connection.db.players
+    return (Array.from(this.connection.db.players.iter()) as Player[])
       .filter((p: Player) => p.totalEarnings > 0)
       .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
       .slice(0, limit)
@@ -557,20 +557,20 @@ class SpacetimeDBClient {
   getPendingClaims(walletAddress?: string): PendingClaim[] {
     if (!this.connection) return [];
 
-    const claims = this.connection.db.pendingClaims
+    const claims = (Array.from(this.connection.db.pendingClaims.iter()) as PendingClaim[])
       .filter((claim: PendingClaim) => !claim.claimed);
 
     if (walletAddress) {
       return claims.filter((claim: PendingClaim) => claim.walletAddress === walletAddress);
     }
 
-    return Array.from(claims.iter());
+    return claims;
   }
 
   getPrizeHistory(walletAddress: string, limit: number = 20): PrizeHistory[] {
     if (!this.connection) return [];
 
-    return this.connection.db.prizeHistory
+    return (Array.from(this.connection.db.prizeHistory.iter()) as PrizeHistory[])
       .filter((prize: PrizeHistory) => prize.walletAddress === walletAddress)
       .sort((a: PrizeHistory, b: PrizeHistory) => Number(b.gameTimestamp) - Number(a.gameTimestamp))
       .slice(0, limit);

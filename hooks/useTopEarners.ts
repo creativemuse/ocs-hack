@@ -50,7 +50,8 @@ export const useTopEarners = (
     try {
       // Subscribe to players table changes
       const updateTopEarners = () => {
-        const earners = connection.db.players
+        // Use .iter() to get an iterable from SpacetimeDB table
+        const earners = (Array.from(connection.db.players.iter()) as Player[])
           .filter((p: Player) => p.totalEarnings > 0)
           .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
           .slice(0, limit)

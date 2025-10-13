@@ -41,7 +41,7 @@ export function usePlayerProfileLive(
     try {
       // Subscribe to players table changes for this specific wallet
       const updateProfile = () => {
-        const players = connection.db.players.filter(
+        const players = (Array.from(connection.db.players.iter()) as Player[]).filter(
           (p: Player) => p.walletAddress === walletAddress
         );
 
