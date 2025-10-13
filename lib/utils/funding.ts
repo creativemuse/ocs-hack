@@ -13,9 +13,13 @@ export interface FundingUrlParams {
 }
 
 /**
- * Generates a Coinbase Pay funding URL with session token
+ * Generates a Coinbase Pay One-Click-Buy URL with session token
+ * According to Coinbase docs, One-Click-Buy URLs must have:
+ * - sessionToken (generated server-side with addresses)
+ * - defaultAsset
+ * - presetFiatAmount + fiatCurrency OR presetCryptoAmount
  * @param params - The parameters for generating the funding URL
- * @returns The complete funding URL with session token
+ * @returns The complete One-Click-Buy URL with session token
  */
 export function generateFundingUrl({
   walletAddress,
@@ -23,20 +27,19 @@ export function generateFundingUrl({
   appId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || '5b09d242-5390-4db3-866f-bfc2ce575821',
   chains = ['base']
 }: FundingUrlParams): string {
-  // Use the select-asset URL for better compatibility with session tokens
-  const baseUrl = 'https://pay.coinbase.com/buy/select-asset';
+  // Use the correct One-Click-Buy URL path
+  const baseUrl = 'https://pay.coinbase.com/buy';
   
-  // Create the addresses object in the format expected by Coinbase Pay
-  const addresses = {
-    [walletAddress]: chains
-  };
-  
+  // Build query parameters according to Coinbase One-Click-Buy requirements
+  // Note: addresses are already in the session token (from server-side API call)
+  // They should NOT be passed in the URL query parameters
   const params = new URLSearchParams({
     sessionToken: sessionToken,
-    addresses: JSON.stringify(addresses),
-    assets: JSON.stringify(['USDC']),
-    presetCryptoAmount: '10',
-    defaultPaymentMethod: 'APPLE_PAY'
+    defaultAsset: 'USDC',              // Required: specific asset to buy
+    fiatCurrency: 'USD',               // Required when using presetFiatAmount
+    presetFiatAmount: '2',            // Amount in USD (includes fees)
+    defaultPaymentMethod: 'CARD',      // CARD auto-upgrades to Apple Pay when available
+    defaultNetwork: 'base'             // Ensure it uses Base network
   });
   
   return `${baseUrl}?${params.toString()}`;
@@ -83,7 +86,7 @@ export async function generateOneClickBuyUrl(
   options?: OneClickBuyOptions
 ): Promise<OneClickBuyResult> {
   const defaultOptions: Required<Omit<OneClickBuyOptions, 'subdivision'>> = {
-    paymentAmount: '5.00',
+    paymentAmount: '2.00',
     paymentCurrency: 'USD',
     purchaseCurrency: 'USDC',
     purchaseNetwork: 'base',
