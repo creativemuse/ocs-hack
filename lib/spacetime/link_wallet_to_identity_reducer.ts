@@ -27,14 +27,13 @@ import {
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
 } from "spacetimedb";
 
-export type UpdatePlayerType = {
+export type LinkWalletToIdentity = {
   walletAddress: string,
-  newType: string,
 };
 /**
  * An object for generated helper functions.
  */
-export const UpdatePlayerType = {
+export const LinkWalletToIdentity = {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -43,20 +42,19 @@ export const UpdatePlayerType = {
     return __AlgebraicTypeValue.Product({
       elements: [
         { name: "walletAddress", algebraicType: __AlgebraicTypeValue.String},
-        { name: "newType", algebraicType: __AlgebraicTypeValue.String},
       ]
     });
   },
 
-  serialize(writer: __BinaryWriter, value: UpdatePlayerType): void {
-    __AlgebraicTypeValue.serializeValue(writer, UpdatePlayerType.getTypeScriptAlgebraicType(), value);
+  serialize(writer: __BinaryWriter, value: LinkWalletToIdentity): void {
+    __AlgebraicTypeValue.serializeValue(writer, LinkWalletToIdentity.getTypeScriptAlgebraicType(), value);
   },
 
-  deserialize(reader: __BinaryReader): UpdatePlayerType {
-    return __AlgebraicTypeValue.deserializeValue(reader, UpdatePlayerType.getTypeScriptAlgebraicType());
+  deserialize(reader: __BinaryReader): LinkWalletToIdentity {
+    return __AlgebraicTypeValue.deserializeValue(reader, LinkWalletToIdentity.getTypeScriptAlgebraicType());
   },
 
 }
 
-export default UpdatePlayerType;
+export default LinkWalletToIdentity;
 

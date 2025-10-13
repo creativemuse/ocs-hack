@@ -26,28 +26,24 @@ import {
   type ReducerEventContextInterface as __ReducerEventContextInterface,
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
 } from "spacetimedb";
-import { PlayerStats } from "./player_stats_type";
-import { PlayerType } from "./player_type_type";
-// Mark import as potentially unused
-declare type __keep_PlayerType = PlayerType;
-
+import { IdentityWalletMapping } from "./identity_wallet_mapping_type";
 import { type EventContext, type Reducer, RemoteReducers, RemoteTables } from ".";
 declare type __keep = [EventContext, Reducer, RemoteReducers, RemoteTables];
 
 /**
- * Table handle for the table `player_stats`.
+ * Table handle for the table `identity_wallet_mapping`.
  *
- * Obtain a handle from the [`playerStats`] property on [`RemoteTables`],
- * like `ctx.db.playerStats`.
+ * Obtain a handle from the [`identityWalletMapping`] property on [`RemoteTables`],
+ * like `ctx.db.identityWalletMapping`.
  *
  * Users are encouraged not to explicitly reference this type,
  * but to directly chain method calls,
- * like `ctx.db.playerStats.on_insert(...)`.
+ * like `ctx.db.identityWalletMapping.on_insert(...)`.
  */
-export class PlayerStatsTableHandle {
-  tableCache: __TableCache<PlayerStats>;
+export class IdentityWalletMappingTableHandle {
+  tableCache: __TableCache<IdentityWalletMapping>;
 
-  constructor(tableCache: __TableCache<PlayerStats>) {
+  constructor(tableCache: __TableCache<IdentityWalletMapping>) {
     this.tableCache = tableCache;
   }
 
@@ -55,24 +51,46 @@ export class PlayerStatsTableHandle {
     return this.tableCache.count();
   }
 
-  iter(): Iterable<PlayerStats> {
+  iter(): Iterable<IdentityWalletMapping> {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `walletAddress` unique index on the table `player_stats`,
+   * Access to the `spacetimeIdentity` unique index on the table `identity_wallet_mapping`,
    * which allows point queries on the field of the same name
-   * via the [`PlayerStatsWalletAddressUnique.find`] method.
+   * via the [`IdentityWalletMappingSpacetimeIdentityUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.playerStats.walletAddress().find(...)`.
+   * like `ctx.db.identityWalletMapping.spacetimeIdentity().find(...)`.
    *
-   * Get a handle on the `walletAddress` unique index on the table `player_stats`.
+   * Get a handle on the `spacetimeIdentity` unique index on the table `identity_wallet_mapping`.
+   */
+  spacetimeIdentity = {
+    // Find the subscribed row whose `spacetimeIdentity` column value is equal to `col_val`,
+    // if such a row is present in the client cache.
+    find: (col_val: __Identity): IdentityWalletMapping | undefined => {
+      for (let row of this.tableCache.iter()) {
+        if (__deepEqual(row.spacetimeIdentity, col_val)) {
+          return row;
+        }
+      }
+    },
+  };
+  /**
+   * Access to the `walletAddress` unique index on the table `identity_wallet_mapping`,
+   * which allows point queries on the field of the same name
+   * via the [`IdentityWalletMappingWalletAddressUnique.find`] method.
+   *
+   * Users are encouraged not to explicitly reference this type,
+   * but to directly chain method calls,
+   * like `ctx.db.identityWalletMapping.walletAddress().find(...)`.
+   *
+   * Get a handle on the `walletAddress` unique index on the table `identity_wallet_mapping`.
    */
   walletAddress = {
     // Find the subscribed row whose `walletAddress` column value is equal to `col_val`,
     // if such a row is present in the client cache.
-    find: (col_val: string): PlayerStats | undefined => {
+    find: (col_val: string): IdentityWalletMapping | undefined => {
       for (let row of this.tableCache.iter()) {
         if (__deepEqual(row.walletAddress, col_val)) {
           return row;
@@ -81,27 +99,27 @@ export class PlayerStatsTableHandle {
     },
   };
 
-  onInsert = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  onInsert = (cb: (ctx: EventContext, row: IdentityWalletMapping) => void) => {
     return this.tableCache.onInsert(cb);
   }
 
-  removeOnInsert = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  removeOnInsert = (cb: (ctx: EventContext, row: IdentityWalletMapping) => void) => {
     return this.tableCache.removeOnInsert(cb);
   }
 
-  onDelete = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  onDelete = (cb: (ctx: EventContext, row: IdentityWalletMapping) => void) => {
     return this.tableCache.onDelete(cb);
   }
 
-  removeOnDelete = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  removeOnDelete = (cb: (ctx: EventContext, row: IdentityWalletMapping) => void) => {
     return this.tableCache.removeOnDelete(cb);
   }
 
   // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: PlayerStats, newRow: PlayerStats) => void) => {
+  onUpdate = (cb: (ctx: EventContext, oldRow: IdentityWalletMapping, newRow: IdentityWalletMapping) => void) => {
     return this.tableCache.onUpdate(cb);
   }
 
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: PlayerStats, newRow: PlayerStats) => void) => {
+  removeOnUpdate = (cb: (ctx: EventContext, onRow: IdentityWalletMapping, newRow: IdentityWalletMapping) => void) => {
     return this.tableCache.removeOnUpdate(cb);
   }}

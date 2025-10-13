@@ -26,28 +26,24 @@ import {
   type ReducerEventContextInterface as __ReducerEventContextInterface,
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
 } from "spacetimedb";
-import { PlayerStats } from "./player_stats_type";
-import { PlayerType } from "./player_type_type";
-// Mark import as potentially unused
-declare type __keep_PlayerType = PlayerType;
-
+import { ActiveConnection } from "./active_connection_type";
 import { type EventContext, type Reducer, RemoteReducers, RemoteTables } from ".";
 declare type __keep = [EventContext, Reducer, RemoteReducers, RemoteTables];
 
 /**
- * Table handle for the table `player_stats`.
+ * Table handle for the table `active_connections`.
  *
- * Obtain a handle from the [`playerStats`] property on [`RemoteTables`],
- * like `ctx.db.playerStats`.
+ * Obtain a handle from the [`activeConnections`] property on [`RemoteTables`],
+ * like `ctx.db.activeConnections`.
  *
  * Users are encouraged not to explicitly reference this type,
  * but to directly chain method calls,
- * like `ctx.db.playerStats.on_insert(...)`.
+ * like `ctx.db.activeConnections.on_insert(...)`.
  */
-export class PlayerStatsTableHandle {
-  tableCache: __TableCache<PlayerStats>;
+export class ActiveConnectionsTableHandle {
+  tableCache: __TableCache<ActiveConnection>;
 
-  constructor(tableCache: __TableCache<PlayerStats>) {
+  constructor(tableCache: __TableCache<ActiveConnection>) {
     this.tableCache = tableCache;
   }
 
@@ -55,53 +51,53 @@ export class PlayerStatsTableHandle {
     return this.tableCache.count();
   }
 
-  iter(): Iterable<PlayerStats> {
+  iter(): Iterable<ActiveConnection> {
     return this.tableCache.iter();
   }
   /**
-   * Access to the `walletAddress` unique index on the table `player_stats`,
+   * Access to the `spacetimeIdentity` unique index on the table `active_connections`,
    * which allows point queries on the field of the same name
-   * via the [`PlayerStatsWalletAddressUnique.find`] method.
+   * via the [`ActiveConnectionsSpacetimeIdentityUnique.find`] method.
    *
    * Users are encouraged not to explicitly reference this type,
    * but to directly chain method calls,
-   * like `ctx.db.playerStats.walletAddress().find(...)`.
+   * like `ctx.db.activeConnections.spacetimeIdentity().find(...)`.
    *
-   * Get a handle on the `walletAddress` unique index on the table `player_stats`.
+   * Get a handle on the `spacetimeIdentity` unique index on the table `active_connections`.
    */
-  walletAddress = {
-    // Find the subscribed row whose `walletAddress` column value is equal to `col_val`,
+  spacetimeIdentity = {
+    // Find the subscribed row whose `spacetimeIdentity` column value is equal to `col_val`,
     // if such a row is present in the client cache.
-    find: (col_val: string): PlayerStats | undefined => {
+    find: (col_val: __Identity): ActiveConnection | undefined => {
       for (let row of this.tableCache.iter()) {
-        if (__deepEqual(row.walletAddress, col_val)) {
+        if (__deepEqual(row.spacetimeIdentity, col_val)) {
           return row;
         }
       }
     },
   };
 
-  onInsert = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  onInsert = (cb: (ctx: EventContext, row: ActiveConnection) => void) => {
     return this.tableCache.onInsert(cb);
   }
 
-  removeOnInsert = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  removeOnInsert = (cb: (ctx: EventContext, row: ActiveConnection) => void) => {
     return this.tableCache.removeOnInsert(cb);
   }
 
-  onDelete = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  onDelete = (cb: (ctx: EventContext, row: ActiveConnection) => void) => {
     return this.tableCache.onDelete(cb);
   }
 
-  removeOnDelete = (cb: (ctx: EventContext, row: PlayerStats) => void) => {
+  removeOnDelete = (cb: (ctx: EventContext, row: ActiveConnection) => void) => {
     return this.tableCache.removeOnDelete(cb);
   }
 
   // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: PlayerStats, newRow: PlayerStats) => void) => {
+  onUpdate = (cb: (ctx: EventContext, oldRow: ActiveConnection, newRow: ActiveConnection) => void) => {
     return this.tableCache.onUpdate(cb);
   }
 
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: PlayerStats, newRow: PlayerStats) => void) => {
+  removeOnUpdate = (cb: (ctx: EventContext, onRow: ActiveConnection, newRow: ActiveConnection) => void) => {
     return this.tableCache.removeOnUpdate(cb);
   }}

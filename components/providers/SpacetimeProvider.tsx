@@ -9,6 +9,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { DbConnection, type DbConnectionImpl } from '@/lib/spacetime/database';
+import { useWalletLinking } from '@/hooks/useWalletLinking';
 
 // Configuration
 const SPACETIME_CONFIG = {
@@ -44,6 +45,9 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
   const [connection, setConnection] = useState<DbConnectionImpl | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
+
+  // Automatically link wallet to SpacetimeDB identity when wallet connects
+  useWalletLinking();
 
   useEffect(() => {
     // Only initialize in browser environment

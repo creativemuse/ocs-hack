@@ -32,6 +32,8 @@ export type StartGameSession = {
   difficulty: string,
   gameMode: string,
   playerType: string,
+  walletAddress: string | undefined,
+  guestId: string | undefined,
 };
 /**
  * An object for generated helper functions.
@@ -48,6 +50,8 @@ export const StartGameSession = {
         { name: "difficulty", algebraicType: __AlgebraicTypeValue.String},
         { name: "gameMode", algebraicType: __AlgebraicTypeValue.String},
         { name: "playerType", algebraicType: __AlgebraicTypeValue.String},
+        { name: "walletAddress", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.String)},
+        { name: "guestId", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.String)},
       ]
     });
   },

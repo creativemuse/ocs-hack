@@ -251,6 +251,24 @@ class SpacetimeDBClient {
       .slice(0, limit);
   }
 
+  /**
+   * Link current SpacetimeDB identity to wallet address for persistent stats
+   */
+  async linkWalletToIdentity(walletAddress: string): Promise<void> {
+    if (!this.connection) {
+      console.warn('⚠️ Not connected to SpacetimeDB');
+      return;
+    }
+
+    try {
+      this.connection.reducers.linkWalletToIdentity(walletAddress);
+      console.log(`✅ Linked wallet ${walletAddress} to SpacetimeDB identity`);
+    } catch (error) {
+      console.error('❌ Failed to link wallet:', error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // PLAYER MANAGEMENT
   // ============================================================================
@@ -341,18 +359,23 @@ class SpacetimeDBClient {
     sessionId: string,
     difficulty: string,
     gameMode: string,
-    playerType: 'paid' | 'trial' = 'trial'
+    playerType: 'paid' | 'trial' = 'trial',
+    walletAddress?: string,  // NEW: Required for paid players
+    guestId?: string         // NEW: Required for trial/guest
   ): Promise<void> {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.startGameSession(
+      this.connection.reducers.startGameSession(
         sessionId,
         difficulty,
         gameMode,
-        playerType
+        playerType,
+        walletAddress || undefined,
+        guestId || undefined
       );
-      console.log(`🎮 Started game session: ${sessionId} (${playerType})`);
+      const playerId = walletAddress || guestId || 'unknown';
+      console.log(`🎮 Started game session: ${sessionId} for ${playerId} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to start game session:', error);
       throw error;
@@ -421,21 +444,23 @@ class SpacetimeDBClient {
   // LEADERBOARD & STATS
   // ============================================================================
 
-  getLeaderboard(limit: number = 10): PlayerStats[] {
+  getLeaderboard(limit: number = 10): Player[] {
     if (!this.connection) return [];
 
-    return this.connection.db.playerStats
-    .filter((stats: PlayerStats) => stats.playerType.tag === 'Paid')      
-    .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+    // Get paid players sorted by cumulative USDC earnings
+    const players = Array.from(this.connection.db.players.iter()) as Player[];
+    return players
+      .filter((p: Player) => p.totalEarnings > 0)
+      .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
       .slice(0, limit);
   }
 
-  getTrialLeaderboard(limit: number = 10): PlayerStats[] {
+  getTrialLeaderboard(limit: number = 10): any[] {
     if (!this.connection) return [];
 
-    return this.connection.db.playerStats
-      .filter((stats: PlayerStats) => stats.playerType.tag === 'Trial')
-      .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+    // Trial players tracked in guest_players table, sorted by best score
+    return Array.from(this.connection.db.guestPlayers.iter())
+      .sort((a: any, b: any) => b.bestScore - a.bestScore)
       .slice(0, limit);
   }
 
@@ -675,6 +700,30 @@ class SpacetimeDBClient {
   getAllAdmins(): Admin[] {
     if (!this.connection) return [];
     return Array.from(this.connection.db.admins.iter());
+  }
+
+  /**
+   * Get admin record by spacetime identity
+   * Note: Admins are identified by their SpacetimeDB Identity, not wallet address
+   */
+  async getAdminByIdentity(identityHex: string): Promise<Admin | null> {
+    if (!this.connection) return null;
+
+    try {
+      // Find admin by their SpacetimeDB identity
+      // The adminIdentity.find method expects an Identity object, 
+      // so we need to compare hex strings manually
+      for (const admin of this.connection.db.admins.iter()) {
+        if (admin.adminIdentity.toHexString() === identityHex) {
+          return admin;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get admin by identity:', error);
+      return null;
+    }
   }
 }
 

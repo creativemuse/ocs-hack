@@ -22,7 +22,12 @@
     "test-component-tokens": "tsx scripts/test-component-tokens.ts",
     "test-session-token-reuse": "tsx scripts/test-session-token-reuse.ts",
     "test:cdp-api": "tsx scripts/test-cdp-api.ts",
-    "test:spacetime": "tsx scripts/test-spacetime-connection.ts"
+    "test:spacetime": "tsx scripts/test-spacetime-connection.ts",
+    "test:spacetime-all": "tsx scripts/run-all-spacetime-tests.ts",
+    "test:wallet-flow": "tsx scripts/test-wallet-identity-flow.ts",
+    "test:trial-flow": "tsx scripts/test-trial-player-flow.ts",
+    "test:leaderboard": "tsx scripts/test-leaderboard-earnings.ts",
+    "test:cross-device": "tsx scripts/test-cross-device-persistence.ts"
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.38.2",

@@ -72,7 +72,11 @@ pub struct GameSession {
     #[unique]
     pub session_id: String,
     
-    pub player_identity: Identity,
+    // HYBRID APPROACH: Track both wallet and identity
+    pub wallet_address: Option<String>,     // PRIMARY for paid players
+    pub guest_id: Option<String>,           // PRIMARY for trial/guest
+    pub spacetime_identity: Identity,       // For connection tracking
+    
     pub player_type: PlayerType,
     pub score: u32,
     pub questions_answered: u32,
@@ -105,11 +109,15 @@ pub struct ActiveGameSession {
 }
 
 // Player statistics stored in SpacetimeDB
+// PRIMARY KEY CHANGED: wallet_address instead of Identity
 #[spacetimedb::table(name = player_stats, public)]
 #[derive(Clone)]
 pub struct PlayerStats {
     #[primary_key]
-    pub player_identity: Identity,
+    pub wallet_address: String,  // Changed from Identity for cross-device persistence
+    
+    // Track current identity for connection management
+    pub current_identity: Option<Identity>,
     
     pub player_type: PlayerType,
     pub total_games: u32,
@@ -119,6 +127,7 @@ pub struct PlayerStats {
     pub total_questions_answered: u32,
     pub total_correct_answers: u32,
     pub last_played: Timestamp,
+    pub created_at: Timestamp,
 }
 
 // Guest player data stored in SpacetimeDB
@@ -179,6 +188,20 @@ pub struct Player {
     pub wallet_connected: bool,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
+}
+
+// Identity to wallet mapping for paid players
+#[spacetimedb::table(name = identity_wallet_mapping, public)]
+#[derive(Clone)]
+pub struct IdentityWalletMapping {
+    #[primary_key]
+    pub spacetime_identity: Identity,
+    
+    #[unique]
+    pub wallet_address: String,
+    
+    pub linked_at: Timestamp,
+    pub last_seen: Timestamp,
 }
 
 // Game entries for tracking paid/trial status
@@ -279,7 +302,12 @@ pub struct QuestionAttempt {
     pub id: u64,
     
     pub session_id: String,
-    pub player_identity: Identity,
+    
+    // HYBRID APPROACH
+    pub wallet_address: Option<String>,     // For paid players
+    pub guest_id: Option<String>,           // For trial/guest
+    pub spacetime_identity: Identity,       // Connection tracking
+    
     pub player_type: PlayerType,
     pub audio_file_id: String,
     pub selected_answer: u32,
@@ -301,6 +329,18 @@ pub struct Admin {
     pub granted_by: Identity,
 }
 
+// Active connections for real-time presence tracking
+#[spacetimedb::table(name = active_connections, public)]
+#[derive(Clone)]
+pub struct ActiveConnection {
+    #[primary_key]
+    pub spacetime_identity: Identity,
+    
+    pub wallet_address: Option<String>,
+    pub connected_at: Timestamp,
+    pub last_activity: Timestamp,
+}
+
 // ============================================================================
 // LIFECYCLE REDUCERS
 // ============================================================================
@@ -315,29 +355,40 @@ pub fn init(_ctx: &ReducerContext) {
 #[spacetimedb::reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) {
     let identity = ctx.sender;
-    log::info!("👤 Player connected: {:?}", identity);
+    log::info!("👤 Identity connected: {:?}", identity);
     
-    // Initialize player stats if they don't exist using efficient primary key lookup
-    if ctx.db.player_stats().player_identity().find(&identity).is_none() {
-        ctx.db.player_stats().insert(PlayerStats {
-            player_identity: identity,
-            player_type: PlayerType::Trial,
-            total_games: 0,
-            total_score: 0,
-            best_score: 0,
-            average_score: 0.0,
-            total_questions_answered: 0,
-            total_correct_answers: 0,
-            last_played: ctx.timestamp,
+    // Track active connection
+    if ctx.db.active_connections().spacetime_identity().find(&identity).is_none() {
+        ctx.db.active_connections().insert(ActiveConnection {
+            spacetime_identity: identity,
+            wallet_address: None,  // Will be updated when wallet links
+            connected_at: ctx.timestamp,
+            last_activity: ctx.timestamp,
         });
-        log::info!("📊 Initialized stats for new player: {:?} (trial)", identity);
+    }
+    
+    // Check if identity is linked to a wallet
+    if let Some(mapping) = ctx.db.identity_wallet_mapping().spacetime_identity().find(&identity) {
+        log::info!("🔗 Known wallet: {}", mapping.wallet_address);
+        
+        // Update player stats last_played
+        if let Some(mut stats) = ctx.db.player_stats().wallet_address().find(&mapping.wallet_address) {
+            stats.current_identity = Some(identity);
+            stats.last_played = ctx.timestamp;
+            ctx.db.player_stats().wallet_address().update(stats);
+        }
+    } else {
+        log::info!("🆕 New anonymous identity (no wallet linked)");
     }
 }
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
     let identity = ctx.sender;
-    log::info!("👤 Player disconnected: {:?}", identity);
+    log::info!("👤 Identity disconnected: {:?}", identity);
+    
+    // Remove from active connections
+    ctx.db.active_connections().spacetime_identity().delete(&identity);
 }
 
 // ============================================================================
@@ -457,6 +508,8 @@ pub fn start_game_session(
     difficulty: String,
     game_mode: String,
     player_type: String,
+    wallet_address: Option<String>,  // NEW: Required for paid players
+    guest_id: Option<String>,        // NEW: Required for trial/guest
 ) {
     let identity = ctx.sender;
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
@@ -464,7 +517,9 @@ pub fn start_game_session(
     ctx.db.game_sessions().insert(GameSession {
         id: 0,
         session_id: session_id.clone(),
-        player_identity: identity,
+        wallet_address: wallet_address.clone(),
+        guest_id: guest_id.clone(),
+        spacetime_identity: identity,
         player_type: ptype,
         score: 0,
         questions_answered: 0,
@@ -475,7 +530,10 @@ pub fn start_game_session(
         game_mode,
     });
     
-    log::info!("🎮 Started game session: {} for player {:?} ({:?})", session_id, identity, ptype);
+    let player_id = wallet_address.as_deref()
+        .or(guest_id.as_deref())
+        .unwrap_or("unknown");
+    log::info!("🎮 Started game session: {} for {} ({:?})", session_id, player_id, ptype);
 }
 
 #[spacetimedb::reducer]
@@ -492,10 +550,19 @@ pub fn record_question_attempt(
     let is_correct = selected_answer == correct_answer;
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
+    // Look up wallet/guest from session
+    let (wallet_address, guest_id) = if let Some(session) = ctx.db.game_sessions().session_id().find(&session_id) {
+        (session.wallet_address.clone(), session.guest_id.clone())
+    } else {
+        (None, None)
+    };
+    
     ctx.db.question_attempts().insert(QuestionAttempt {
         id: 0,
         session_id: session_id.clone(),
-        player_identity: identity,
+        wallet_address,
+        guest_id,
+        spacetime_identity: identity,
         player_type: ptype,
         audio_file_id: audio_file_name.clone(),
         selected_answer,
@@ -521,27 +588,41 @@ pub fn record_question_attempt(
 pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
     let identity = ctx.sender;
     
-    // Use efficient unique index lookup
+    // Find session
     if let Some(mut session) = ctx.db.game_sessions().session_id().find(&session_id) {
         let session_score = session.score;
         let session_questions = session.questions_answered;
         let session_correct = session.correct_answers;
         let player_type = session.player_type;
+        let wallet_address = session.wallet_address.clone();
         
         session.ended_at = Some(ctx.timestamp);
         ctx.db.game_sessions().session_id().update(session);
         
-        // Update player stats using efficient primary key lookup
-        if let Some(mut stats) = ctx.db.player_stats().player_identity().find(&identity) {
-            stats.total_games += 1;
-            stats.total_score += session_score;
-            stats.best_score = std::cmp::max(stats.best_score, session_score);
-            stats.total_questions_answered += session_questions;
-            stats.total_correct_answers += session_correct;
-            stats.average_score = stats.total_score as f64 / stats.total_games as f64;
-            stats.last_played = ctx.timestamp;
-            
-            ctx.db.player_stats().player_identity().update(stats);
+        // Update stats based on player type
+        match player_type {
+            PlayerType::Paid => {
+                // Update wallet-based stats
+                if let Some(wallet) = wallet_address {
+                    if let Some(mut stats) = ctx.db.player_stats().wallet_address().find(&wallet) {
+                        stats.total_games += 1;
+                        stats.total_score += session_score;
+                        stats.best_score = std::cmp::max(stats.best_score, session_score);
+                        stats.total_questions_answered += session_questions;
+                        stats.total_correct_answers += session_correct;
+                        stats.average_score = stats.total_score as f64 / stats.total_games as f64;
+                        stats.last_played = ctx.timestamp;
+                        stats.current_identity = Some(identity);
+                        
+                        ctx.db.player_stats().wallet_address().update(stats);
+                        log::info!("✅ Updated paid player stats for {}", wallet);
+                    }
+                }
+            }
+            PlayerType::Trial => {
+                // Trial players don't get persistent stats in player_stats
+                log::info!("ℹ️ Trial player session ended (no persistent stats)");
+            }
         }
         
         log::info!("🏁 Ended game session: {} (score: {}, type: {:?})", session_id, session_score, player_type);
@@ -554,29 +635,34 @@ pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
 
 #[spacetimedb::reducer]
 pub fn get_leaderboard(ctx: &ReducerContext, limit: u32) {
-    // Filter paid players
-    let mut paid_stats: Vec<_> = ctx.db.player_stats().iter()
-        .filter(|s| matches!(s.player_type, PlayerType::Paid))
+    // Get all paid players from Players table (has total_earnings)
+    // Filter players with earnings > 0 and sort by total_earnings
+    let mut paid_players: Vec<_> = ctx.db.players().iter()
+        .filter(|p| p.total_earnings > 0.0)
         .collect();
-    paid_stats.sort_by(|a, b| b.best_score.cmp(&a.best_score));
     
-    log::info!("🏆 Leaderboard request (top {} paid players only):", limit);
-    for (i, stat) in paid_stats.iter().take(limit as usize).enumerate() {
-        log::info!("  {}. Player {:?}: {} best score (paid)", i + 1, stat.player_identity, stat.best_score);
+    paid_players.sort_by(|a, b| {
+        b.total_earnings.partial_cmp(&a.total_earnings)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    
+    log::info!("🏆 Earnings Leaderboard (top {} paid players by USDC):", limit);
+    for (i, player) in paid_players.iter().take(limit as usize).enumerate() {
+        let username = player.username.as_deref().unwrap_or(&player.wallet_address);
+        log::info!("  {}. {}: ${:.2} USDC ({} games)", 
+            i + 1, username, player.total_earnings, player.games_played);
     }
 }
 
 #[spacetimedb::reducer]
 pub fn get_trial_leaderboard(ctx: &ReducerContext, limit: u32) {
-    // Filter trial players
-    let mut trial_stats: Vec<_> = ctx.db.player_stats().iter()
-        .filter(|s| matches!(s.player_type, PlayerType::Trial))
-        .collect();
-    trial_stats.sort_by(|a, b| b.best_score.cmp(&a.best_score));
+    // Trial players use guest_players table, sorted by best score
+    let mut guests: Vec<_> = ctx.db.guest_players().iter().collect();
+    guests.sort_by(|a, b| b.best_score.cmp(&a.best_score));
     
-    log::info!("🏆 Trial leaderboard request (top {} trial players, no prizes):", limit);
-    for (i, stat) in trial_stats.iter().take(limit as usize).enumerate() {
-        log::info!("  {}. Player {:?}: {} best score (trial)", i + 1, stat.player_identity, stat.best_score);
+    log::info!("🏆 Trial leaderboard (top {} guests by score, no prizes):", limit);
+    for (i, guest) in guests.iter().take(limit as usize).enumerate() {
+        log::info!("  {}. {}: {} best score", i + 1, guest.name, guest.best_score);
     }
 }
 
@@ -659,17 +745,33 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
 }
 
 #[spacetimedb::reducer]
-pub fn update_player_type(ctx: &ReducerContext, new_type: String) {
+pub fn update_player_type(ctx: &ReducerContext, wallet_address: String, new_type: String) {
     let identity = ctx.sender;
     let ptype = if new_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
-    // Use efficient primary key lookup and update
-    if let Some(mut stats) = ctx.db.player_stats().player_identity().find(&identity) {
+    // Update player stats using wallet address
+    if let Some(mut stats) = ctx.db.player_stats().wallet_address().find(&wallet_address) {
+        let old_type = stats.player_type;
         stats.player_type = ptype;
-        ctx.db.player_stats().player_identity().update(stats);
-        log::info!("🔄 Updated player type for {:?}: {:?}", identity, ptype);
+        stats.current_identity = Some(identity);
+        ctx.db.player_stats().wallet_address().update(stats);
+        log::info!("🔄 Updated player type for {}: {:?} → {:?}", wallet_address, old_type, ptype);
     } else {
-        log::warn!("❌ No stats found for player {:?}", identity);
+        // Create new stats if doesn't exist
+        ctx.db.player_stats().insert(PlayerStats {
+            wallet_address: wallet_address.clone(),
+            current_identity: Some(identity),
+            player_type: ptype,
+            total_games: 0,
+            total_score: 0,
+            best_score: 0,
+            average_score: 0.0,
+            total_questions_answered: 0,
+            total_correct_answers: 0,
+            last_played: ctx.timestamp,
+            created_at: ctx.timestamp,
+        });
+        log::info!("✅ Created new player stats for {}: {:?}", wallet_address, ptype);
     }
 }
 
@@ -701,6 +803,82 @@ pub fn create_player(ctx: &ReducerContext, wallet_address: String, username: Opt
     } else {
         log::info!("⚠️ Player already exists: {}", wallet_address);
     }
+}
+
+/// Link current SpacetimeDB identity to a wallet address
+/// This enables paid player stats to persist across devices/browsers
+#[spacetimedb::reducer]
+pub fn link_wallet_to_identity(
+    ctx: &ReducerContext,
+    wallet_address: String,
+) {
+    let identity = ctx.sender;
+    log::info!("🔗 Linking wallet {} to identity {:?}", wallet_address, identity);
+    
+    // Check if this identity is already linked
+    if let Some(existing_mapping) = ctx.db.identity_wallet_mapping().spacetime_identity().find(&identity) {
+        if existing_mapping.wallet_address != wallet_address {
+            log::warn!("⚠️ Identity {:?} already linked to {}", identity, existing_mapping.wallet_address);
+            return;
+        }
+        // Same wallet, just update last_seen
+        let mut mapping = existing_mapping;
+        mapping.last_seen = ctx.timestamp;
+        ctx.db.identity_wallet_mapping().spacetime_identity().update(mapping);
+        log::info!("✅ Updated existing link for {}", wallet_address);
+        return;
+    }
+    
+    // Check if this wallet is already linked to a different identity
+    if let Some(existing_mapping) = ctx.db.identity_wallet_mapping().wallet_address().find(&wallet_address) {
+        log::info!("🔄 Wallet {} was linked to {:?}, updating to {:?}", wallet_address, existing_mapping.spacetime_identity, identity);
+        // Delete old mapping
+        ctx.db.identity_wallet_mapping().spacetime_identity().delete(&existing_mapping.spacetime_identity);
+    }
+    
+    // Create new mapping
+    ctx.db.identity_wallet_mapping().insert(IdentityWalletMapping {
+        spacetime_identity: identity,
+        wallet_address: wallet_address.clone(),
+        linked_at: ctx.timestamp,
+        last_seen: ctx.timestamp,
+    });
+    
+    // Update active connection with wallet
+    if let Some(mut conn) = ctx.db.active_connections().spacetime_identity().find(&identity) {
+        conn.wallet_address = Some(wallet_address.clone());
+        ctx.db.active_connections().spacetime_identity().update(conn);
+    }
+    
+    // Initialize or update player stats for this wallet
+    match ctx.db.player_stats().wallet_address().find(&wallet_address) {
+        Some(mut stats) => {
+            // Update existing stats with new identity
+            stats.current_identity = Some(identity);
+            stats.last_played = ctx.timestamp;
+            ctx.db.player_stats().wallet_address().update(stats);
+            log::info!("✅ Updated existing stats for {}", wallet_address);
+        }
+        None => {
+            // Create new stats entry
+            ctx.db.player_stats().insert(PlayerStats {
+                wallet_address: wallet_address.clone(),
+                current_identity: Some(identity),
+                player_type: PlayerType::Paid,  // Wallet = paid player
+                total_games: 0,
+                total_score: 0,
+                best_score: 0,
+                average_score: 0.0,
+                total_questions_answered: 0,
+                total_correct_answers: 0,
+                last_played: ctx.timestamp,
+                created_at: ctx.timestamp,
+            });
+            log::info!("✅ Created new stats for {}", wallet_address);
+        }
+    }
+    
+    log::info!("✅ Successfully linked wallet {} to identity {:?}", wallet_address, identity);
 }
 
 #[spacetimedb::reducer]

@@ -3,7 +3,7 @@
  * This script helps diagnose SpaceTimeDB connection issues
  */
 
-import { DbConnection } from '../lib/spacetime/bindings/index';
+import { DbConnection } from '../lib/spacetime/database';
 
 const config = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',

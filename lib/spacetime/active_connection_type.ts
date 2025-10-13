@@ -27,14 +27,16 @@ import {
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
 } from "spacetimedb";
 
-export type UpdatePlayerType = {
-  walletAddress: string,
-  newType: string,
+export type ActiveConnection = {
+  spacetimeIdentity: __Identity,
+  walletAddress: string | undefined,
+  connectedAt: __Timestamp,
+  lastActivity: __Timestamp,
 };
 /**
  * An object for generated helper functions.
  */
-export const UpdatePlayerType = {
+export const ActiveConnection = {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -42,21 +44,24 @@ export const UpdatePlayerType = {
   getTypeScriptAlgebraicType(): __AlgebraicTypeType {
     return __AlgebraicTypeValue.Product({
       elements: [
-        { name: "walletAddress", algebraicType: __AlgebraicTypeValue.String},
-        { name: "newType", algebraicType: __AlgebraicTypeValue.String},
+        { name: "spacetimeIdentity", algebraicType: __AlgebraicTypeValue.createIdentityType()},
+        { name: "walletAddress", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.String)},
+        { name: "connectedAt", algebraicType: __AlgebraicTypeValue.createTimestampType()},
+        { name: "lastActivity", algebraicType: __AlgebraicTypeValue.createTimestampType()},
       ]
     });
   },
 
-  serialize(writer: __BinaryWriter, value: UpdatePlayerType): void {
-    __AlgebraicTypeValue.serializeValue(writer, UpdatePlayerType.getTypeScriptAlgebraicType(), value);
+  serialize(writer: __BinaryWriter, value: ActiveConnection): void {
+    __AlgebraicTypeValue.serializeValue(writer, ActiveConnection.getTypeScriptAlgebraicType(), value);
   },
 
-  deserialize(reader: __BinaryReader): UpdatePlayerType {
-    return __AlgebraicTypeValue.deserializeValue(reader, UpdatePlayerType.getTypeScriptAlgebraicType());
+  deserialize(reader: __BinaryReader): ActiveConnection {
+    return __AlgebraicTypeValue.deserializeValue(reader, ActiveConnection.getTypeScriptAlgebraicType());
   },
 
 }
 
-export default UpdatePlayerType;
+export default ActiveConnection;
+
 

@@ -27,14 +27,16 @@ import {
   type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
 } from "spacetimedb";
 
-export type UpdatePlayerType = {
+export type IdentityWalletMapping = {
+  spacetimeIdentity: __Identity,
   walletAddress: string,
-  newType: string,
+  linkedAt: __Timestamp,
+  lastSeen: __Timestamp,
 };
 /**
  * An object for generated helper functions.
  */
-export const UpdatePlayerType = {
+export const IdentityWalletMapping = {
   /**
   * A function which returns this type represented as an AlgebraicType.
   * This function is derived from the AlgebraicType used to generate this type.
@@ -42,21 +44,24 @@ export const UpdatePlayerType = {
   getTypeScriptAlgebraicType(): __AlgebraicTypeType {
     return __AlgebraicTypeValue.Product({
       elements: [
+        { name: "spacetimeIdentity", algebraicType: __AlgebraicTypeValue.createIdentityType()},
         { name: "walletAddress", algebraicType: __AlgebraicTypeValue.String},
-        { name: "newType", algebraicType: __AlgebraicTypeValue.String},
+        { name: "linkedAt", algebraicType: __AlgebraicTypeValue.createTimestampType()},
+        { name: "lastSeen", algebraicType: __AlgebraicTypeValue.createTimestampType()},
       ]
     });
   },
 
-  serialize(writer: __BinaryWriter, value: UpdatePlayerType): void {
-    __AlgebraicTypeValue.serializeValue(writer, UpdatePlayerType.getTypeScriptAlgebraicType(), value);
+  serialize(writer: __BinaryWriter, value: IdentityWalletMapping): void {
+    __AlgebraicTypeValue.serializeValue(writer, IdentityWalletMapping.getTypeScriptAlgebraicType(), value);
   },
 
-  deserialize(reader: __BinaryReader): UpdatePlayerType {
-    return __AlgebraicTypeValue.deserializeValue(reader, UpdatePlayerType.getTypeScriptAlgebraicType());
+  deserialize(reader: __BinaryReader): IdentityWalletMapping {
+    return __AlgebraicTypeValue.deserializeValue(reader, IdentityWalletMapping.getTypeScriptAlgebraicType());
   },
 
 }
 
-export default UpdatePlayerType;
+export default IdentityWalletMapping;
+
 

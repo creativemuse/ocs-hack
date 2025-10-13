@@ -34,7 +34,9 @@ declare type __keep_PlayerType = PlayerType;
 export type GameSession = {
   id: bigint,
   sessionId: string,
-  playerIdentity: __Identity,
+  walletAddress: string | undefined,
+  guestId: string | undefined,
+  spacetimeIdentity: __Identity,
   playerType: PlayerType,
   score: number,
   questionsAnswered: number,
@@ -57,7 +59,9 @@ export const GameSession = {
       elements: [
         { name: "id", algebraicType: __AlgebraicTypeValue.U64},
         { name: "sessionId", algebraicType: __AlgebraicTypeValue.String},
-        { name: "playerIdentity", algebraicType: __AlgebraicTypeValue.createIdentityType()},
+        { name: "walletAddress", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.String)},
+        { name: "guestId", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.String)},
+        { name: "spacetimeIdentity", algebraicType: __AlgebraicTypeValue.createIdentityType()},
         { name: "playerType", algebraicType: PlayerType.getTypeScriptAlgebraicType()},
         { name: "score", algebraicType: __AlgebraicTypeValue.U32},
         { name: "questionsAnswered", algebraicType: __AlgebraicTypeValue.U32},

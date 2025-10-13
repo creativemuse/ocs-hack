@@ -60,6 +60,8 @@ import { IdentityDisconnected } from "./identity_disconnected_reducer.ts";
 export { IdentityDisconnected };
 import { JoinActiveGameSession } from "./join_active_game_session_reducer.ts";
 export { JoinActiveGameSession };
+import { LinkWalletToIdentity } from "./link_wallet_to_identity_reducer.ts";
+export { LinkWalletToIdentity };
 import { MarkEntryConsumed } from "./mark_entry_consumed_reducer.ts";
 export { MarkEntryConsumed };
 import { RecordGuestGame } from "./record_guest_game_reducer.ts";
@@ -84,6 +86,8 @@ import { UpdateTrialStatus } from "./update_trial_status_reducer.ts";
 export { UpdateTrialStatus };
 
 // Import and reexport all table handle types
+import { ActiveConnectionsTableHandle } from "./active_connections_table.ts";
+export { ActiveConnectionsTableHandle };
 import { ActiveGameSessionsTableHandle } from "./active_game_sessions_table.ts";
 export { ActiveGameSessionsTableHandle };
 import { AdminsTableHandle } from "./admins_table.ts";
@@ -100,6 +104,8 @@ import { GuestGameSessionsTableHandle } from "./guest_game_sessions_table.ts";
 export { GuestGameSessionsTableHandle };
 import { GuestPlayersTableHandle } from "./guest_players_table.ts";
 export { GuestPlayersTableHandle };
+import { IdentityWalletMappingTableHandle } from "./identity_wallet_mapping_table.ts";
+export { IdentityWalletMappingTableHandle };
 import { PendingClaimsTableHandle } from "./pending_claims_table.ts";
 export { PendingClaimsTableHandle };
 import { PlayerStatsTableHandle } from "./player_stats_table.ts";
@@ -114,6 +120,8 @@ import { QuestionAttemptsTableHandle } from "./question_attempts_table.ts";
 export { QuestionAttemptsTableHandle };
 
 // Import and reexport all types
+import { ActiveConnection } from "./active_connection_type.ts";
+export { ActiveConnection };
 import { ActiveGameSession } from "./active_game_session_type.ts";
 export { ActiveGameSession };
 import { Admin } from "./admin_type.ts";
@@ -134,6 +142,8 @@ import { GuestGameSession } from "./guest_game_session_type.ts";
 export { GuestGameSession };
 import { GuestPlayer } from "./guest_player_type.ts";
 export { GuestPlayer };
+import { IdentityWalletMapping } from "./identity_wallet_mapping_type.ts";
+export { IdentityWalletMapping };
 import { PendingClaim } from "./pending_claim_type.ts";
 export { PendingClaim };
 import { Player } from "./player_type.ts";
@@ -153,6 +163,15 @@ export { SessionStatus };
 
 const REMOTE_MODULE = {
   tables: {
+    active_connections: {
+      tableName: "active_connections",
+      rowType: ActiveConnection.getTypeScriptAlgebraicType(),
+      primaryKey: "spacetimeIdentity",
+      primaryKeyInfo: {
+        colName: "spacetimeIdentity",
+        colType: (ActiveConnection.getTypeScriptAlgebraicType() as __AlgebraicTypeVariants.Product).value.elements[0].algebraicType,
+      },
+    },
     active_game_sessions: {
       tableName: "active_game_sessions",
       rowType: ActiveGameSession.getTypeScriptAlgebraicType(),
@@ -225,6 +244,15 @@ const REMOTE_MODULE = {
         colType: (GuestPlayer.getTypeScriptAlgebraicType() as __AlgebraicTypeVariants.Product).value.elements[0].algebraicType,
       },
     },
+    identity_wallet_mapping: {
+      tableName: "identity_wallet_mapping",
+      rowType: IdentityWalletMapping.getTypeScriptAlgebraicType(),
+      primaryKey: "spacetimeIdentity",
+      primaryKeyInfo: {
+        colName: "spacetimeIdentity",
+        colType: (IdentityWalletMapping.getTypeScriptAlgebraicType() as __AlgebraicTypeVariants.Product).value.elements[0].algebraicType,
+      },
+    },
     pending_claims: {
       tableName: "pending_claims",
       rowType: PendingClaim.getTypeScriptAlgebraicType(),
@@ -237,9 +265,9 @@ const REMOTE_MODULE = {
     player_stats: {
       tableName: "player_stats",
       rowType: PlayerStats.getTypeScriptAlgebraicType(),
-      primaryKey: "playerIdentity",
+      primaryKey: "walletAddress",
       primaryKeyInfo: {
-        colName: "playerIdentity",
+        colName: "walletAddress",
         colType: (PlayerStats.getTypeScriptAlgebraicType() as __AlgebraicTypeVariants.Product).value.elements[0].algebraicType,
       },
     },
@@ -341,6 +369,10 @@ const REMOTE_MODULE = {
       reducerName: "join_active_game_session",
       argsType: JoinActiveGameSession.getTypeScriptAlgebraicType(),
     },
+    link_wallet_to_identity: {
+      reducerName: "link_wallet_to_identity",
+      argsType: LinkWalletToIdentity.getTypeScriptAlgebraicType(),
+    },
     mark_entry_consumed: {
       reducerName: "mark_entry_consumed",
       argsType: MarkEntryConsumed.getTypeScriptAlgebraicType(),
@@ -430,6 +462,7 @@ export type Reducer = never
 | { name: "IdentityConnected", args: IdentityConnected }
 | { name: "IdentityDisconnected", args: IdentityDisconnected }
 | { name: "JoinActiveGameSession", args: JoinActiveGameSession }
+| { name: "LinkWalletToIdentity", args: LinkWalletToIdentity }
 | { name: "MarkEntryConsumed", args: MarkEntryConsumed }
 | { name: "RecordGuestGame", args: RecordGuestGame }
 | { name: "RecordPrizeDistribution", args: RecordPrizeDistribution }
@@ -666,6 +699,22 @@ export class RemoteReducers {
     this.connection.offReducer("join_active_game_session", callback);
   }
 
+  linkWalletToIdentity(walletAddress: string) {
+    const __args = { walletAddress };
+    let __writer = new __BinaryWriter(1024);
+    LinkWalletToIdentity.serialize(__writer, __args);
+    let __argsBuffer = __writer.getBuffer();
+    this.connection.callReducer("link_wallet_to_identity", __argsBuffer, this.setCallReducerFlags.linkWalletToIdentityFlags);
+  }
+
+  onLinkWalletToIdentity(callback: (ctx: ReducerEventContext, walletAddress: string) => void) {
+    this.connection.onReducer("link_wallet_to_identity", callback);
+  }
+
+  removeOnLinkWalletToIdentity(callback: (ctx: ReducerEventContext, walletAddress: string) => void) {
+    this.connection.offReducer("link_wallet_to_identity", callback);
+  }
+
   markEntryConsumed(sessionId: string) {
     const __args = { sessionId };
     let __writer = new __BinaryWriter(1024);
@@ -746,19 +795,19 @@ export class RemoteReducers {
     this.connection.offReducer("revoke_admin_privileges", callback);
   }
 
-  startGameSession(sessionId: string, difficulty: string, gameMode: string, playerType: string) {
-    const __args = { sessionId, difficulty, gameMode, playerType };
+  startGameSession(sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) {
+    const __args = { sessionId, difficulty, gameMode, playerType, walletAddress, guestId };
     let __writer = new __BinaryWriter(1024);
     StartGameSession.serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("start_game_session", __argsBuffer, this.setCallReducerFlags.startGameSessionFlags);
   }
 
-  onStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string) => void) {
+  onStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
     this.connection.onReducer("start_game_session", callback);
   }
 
-  removeOnStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string) => void) {
+  removeOnStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
     this.connection.offReducer("start_game_session", callback);
   }
 
@@ -810,19 +859,19 @@ export class RemoteReducers {
     this.connection.offReducer("update_player_stats", callback);
   }
 
-  updatePlayerType(newType: string) {
-    const __args = { newType };
+  updatePlayerType(walletAddress: string, newType: string) {
+    const __args = { walletAddress, newType };
     let __writer = new __BinaryWriter(1024);
     UpdatePlayerType.serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("update_player_type", __argsBuffer, this.setCallReducerFlags.updatePlayerTypeFlags);
   }
 
-  onUpdatePlayerType(callback: (ctx: ReducerEventContext, newType: string) => void) {
+  onUpdatePlayerType(callback: (ctx: ReducerEventContext, walletAddress: string, newType: string) => void) {
     this.connection.onReducer("update_player_type", callback);
   }
 
-  removeOnUpdatePlayerType(callback: (ctx: ReducerEventContext, newType: string) => void) {
+  removeOnUpdatePlayerType(callback: (ctx: ReducerEventContext, walletAddress: string, newType: string) => void) {
     this.connection.offReducer("update_player_type", callback);
   }
 
@@ -910,6 +959,11 @@ export class SetReducerFlags {
     this.joinActiveGameSessionFlags = flags;
   }
 
+  linkWalletToIdentityFlags: __CallReducerFlags = 'FullUpdate';
+  linkWalletToIdentity(flags: __CallReducerFlags) {
+    this.linkWalletToIdentityFlags = flags;
+  }
+
   markEntryConsumedFlags: __CallReducerFlags = 'FullUpdate';
   markEntryConsumed(flags: __CallReducerFlags) {
     this.markEntryConsumedFlags = flags;
@@ -970,6 +1024,11 @@ export class SetReducerFlags {
 export class RemoteTables {
   constructor(private connection: __DbConnectionImpl) {}
 
+  get activeConnections(): ActiveConnectionsTableHandle {
+    // clientCache is a private property
+    return new ActiveConnectionsTableHandle((this.connection as unknown as { clientCache: __ClientCache }).clientCache.getOrCreateTable<ActiveConnection>(REMOTE_MODULE.tables.active_connections));
+  }
+
   get activeGameSessions(): ActiveGameSessionsTableHandle {
     // clientCache is a private property
     return new ActiveGameSessionsTableHandle((this.connection as unknown as { clientCache: __ClientCache }).clientCache.getOrCreateTable<ActiveGameSession>(REMOTE_MODULE.tables.active_game_sessions));
@@ -1008,6 +1067,11 @@ export class RemoteTables {
   get guestPlayers(): GuestPlayersTableHandle {
     // clientCache is a private property
     return new GuestPlayersTableHandle((this.connection as unknown as { clientCache: __ClientCache }).clientCache.getOrCreateTable<GuestPlayer>(REMOTE_MODULE.tables.guest_players));
+  }
+
+  get identityWalletMapping(): IdentityWalletMappingTableHandle {
+    // clientCache is a private property
+    return new IdentityWalletMappingTableHandle((this.connection as unknown as { clientCache: __ClientCache }).clientCache.getOrCreateTable<IdentityWalletMapping>(REMOTE_MODULE.tables.identity_wallet_mapping));
   }
 
   get pendingClaims(): PendingClaimsTableHandle {

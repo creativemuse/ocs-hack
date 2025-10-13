@@ -32,7 +32,8 @@ declare type __keep_PlayerType = PlayerType;
 
 
 export type PlayerStats = {
-  playerIdentity: __Identity,
+  walletAddress: string,
+  currentIdentity: __Identity | undefined,
   playerType: PlayerType,
   totalGames: number,
   totalScore: number,
@@ -41,6 +42,7 @@ export type PlayerStats = {
   totalQuestionsAnswered: number,
   totalCorrectAnswers: number,
   lastPlayed: __Timestamp,
+  createdAt: __Timestamp,
 };
 /**
  * An object for generated helper functions.
@@ -53,7 +55,8 @@ export const PlayerStats = {
   getTypeScriptAlgebraicType(): __AlgebraicTypeType {
     return __AlgebraicTypeValue.Product({
       elements: [
-        { name: "playerIdentity", algebraicType: __AlgebraicTypeValue.createIdentityType()},
+        { name: "walletAddress", algebraicType: __AlgebraicTypeValue.String},
+        { name: "currentIdentity", algebraicType: __AlgebraicTypeValue.createOptionType(__AlgebraicTypeValue.createIdentityType())},
         { name: "playerType", algebraicType: PlayerType.getTypeScriptAlgebraicType()},
         { name: "totalGames", algebraicType: __AlgebraicTypeValue.U32},
         { name: "totalScore", algebraicType: __AlgebraicTypeValue.U32},
@@ -62,6 +65,7 @@ export const PlayerStats = {
         { name: "totalQuestionsAnswered", algebraicType: __AlgebraicTypeValue.U32},
         { name: "totalCorrectAnswers", algebraicType: __AlgebraicTypeValue.U32},
         { name: "lastPlayed", algebraicType: __AlgebraicTypeValue.createTimestampType()},
+        { name: "createdAt", algebraicType: __AlgebraicTypeValue.createTimestampType()},
       ]
     });
   },
