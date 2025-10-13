@@ -9,6 +9,7 @@ import { useAccount } from 'wagmi';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
 import { Name } from '@coinbase/onchainkit/identity';
 import { base } from 'viem/chains';
+import { Confetti } from '@neoconfetti/react';
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -35,6 +36,7 @@ export default function HighScoreDisplay({
     isNewHighScore: boolean;
     rank: number;
   } | null>(null);
+  const [showConfetti, setShowConfetti] = useState(false);
 
   const currentHighScore = getCurrentHighScore();
   const playerRank = getPlayerRank(currentScore);
@@ -56,6 +58,13 @@ export default function HighScoreDisplay({
             isNewHighScore: result.isNewHighScore,
             rank: result.rank
           });
+          
+          // Trigger confetti for new high scores
+          if (result.isNewHighScore) {
+            setShowConfetti(true);
+            // Auto-hide confetti after animation completes
+            setTimeout(() => setShowConfetti(false), 4000);
+          }
         }
       };
       submitCurrentScore();
@@ -105,7 +114,22 @@ export default function HighScoreDisplay({
   };
 
   return (
-    <div className={`bg-white rounded-lg p-4 shadow-lg border ${className}`}>
+    <div className={`bg-white rounded-lg p-4 shadow-lg border ${className} relative`}>
+      {/* Confetti Effect - Centered at top of container */}
+      {showConfetti && (
+        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <Confetti
+            particleCount={200}
+            force={0.6}
+            duration={3500}
+            colors={['#FFC700', '#FFD700', '#FF0000', '#2E3191', '#41BBC7', '#10B981']}
+            particleShape="mix"
+            stageHeight={600}
+            stageWidth={800}
+          />
+        </div>
+      )}
+
       <div className="mb-4">
         <h3 className="text-lg font-bold text-gray-800 mb-2">High Scores</h3>
         
