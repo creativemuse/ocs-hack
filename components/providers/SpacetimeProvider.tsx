@@ -94,10 +94,23 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
                 console.log('✅ SpacetimeDB subscriptions applied - data ready');
                 setIsConnected(true); // Mark as connected AFTER subscriptions applied
               })
-              .onError((err) => {
+              .onError((errorContext) => {
                 if (!mounted) return;
-                console.error('❌ SpacetimeDB subscription error:', err);
-                setError(err instanceof Error ? err : new Error(String(err)));
+                console.error('❌ SpacetimeDB subscription error:', errorContext);
+                
+                // Log detailed error information for debugging
+                if (errorContext?.subscriptions) {
+                  console.error('Failed subscriptions:', errorContext.subscriptions);
+                }
+                if (errorContext?.error) {
+                  console.error('Error details:', errorContext.error);
+                }
+                
+                // Extract the actual error message
+                const errorMessage = errorContext?.error?.message || 
+                                   errorContext?.message || 
+                                   'Subscription failed';
+                setError(new Error(`SpacetimeDB subscription error: ${errorMessage}`));
               })
               .subscribe([
                 'SELECT * FROM players',
@@ -105,8 +118,9 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
                 'SELECT * FROM player_stats',
                 'SELECT * FROM active_game_sessions',
                 'SELECT * FROM pending_claims',
-                'SELECT * FROM prize_history',
                 'SELECT * FROM audio_files',
+                'SELECT * FROM active_connections',
+                'SELECT * FROM identity_wallet_mapping',
               ]);
           })
           .onDisconnect(() => {
