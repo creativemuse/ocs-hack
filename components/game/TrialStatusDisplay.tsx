@@ -74,7 +74,7 @@ export default function TrialStatusDisplay({ walletAddress, entryToken, classNam
               />
             </div>
             <div className="text-xs text-gray-400 text-center space-y-2">
-              <div>After {totalTrialGames} free plays, you'll need to pay 1 USDC per game</div>
+              <div>After {totalTrialGames} free play, you'll need to pay 1 USDC per game</div>
               <div className="text-amber-400 font-medium">
                 ⚠️ Trial players cannot win prizes from the prize pool
               </div>
