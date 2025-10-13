@@ -9,13 +9,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { DbConnection, type DbConnectionImpl } from '@/lib/spacetime/database';
+import { useWalletLinking } from '@/hooks/useWalletLinking';
 
 // Configuration
 const SPACETIME_CONFIG = {
   host: process.env.NEXT_PUBLIC_SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  database: process.env.NEXT_PUBLIC_SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.NEXT_PUBLIC_SPACETIME_MODULE || 'beat-me',
-  token: process.env.NEXT_PUBLIC_SPACETIME_TOKEN,
 };
 
 interface SpacetimeContextValue {
@@ -47,6 +46,9 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
+  // Automatically link wallet to SpacetimeDB identity when wallet connects
+  useWalletLinking();
+
   useEffect(() => {
     // Only initialize in browser environment
     if (typeof window === 'undefined') {
@@ -54,7 +56,7 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
     }
 
     // Check if SpacetimeDB is configured
-    if (!SPACETIME_CONFIG.host || !SPACETIME_CONFIG.database) {
+    if (!SPACETIME_CONFIG.host || !SPACETIME_CONFIG.module) {
       console.log('⚠️ SpacetimeDB not configured');
       return;
     }
@@ -66,17 +68,20 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
       try {
         console.log('🚀 Initializing SpacetimeDB connection...');
 
-        // Build WebSocket URI
-        const wsUri = `${SPACETIME_CONFIG.host.replace('https://', 'wss://').replace('http://', 'ws://')}/database/subscribe/${SPACETIME_CONFIG.database}`;
+        // Load saved token from localStorage for persistent identity
+        const savedToken = localStorage.getItem('spacetime_auth_token');
 
         // Create connection builder
         const builder = DbConnection.builder()
-          .withUri(wsUri)
+          .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
           .withModuleName(SPACETIME_CONFIG.module)
-          .onConnect((connection, identity, _token) => {
+          .onConnect((connection, identity, token) => {
             if (!mounted) return;
             
             console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
+            // Save token for future connections to maintain persistent identity
+            localStorage.setItem('spacetime_auth_token', token);
+            
             conn = connection;
             setConnection(connection);
             setIsConnected(true);
@@ -105,9 +110,9 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
             setIsConnected(false);
           });
 
-        // Add token if available
-        if (SPACETIME_CONFIG.token) {
-          builder.withToken(SPACETIME_CONFIG.token);
+        // Pass saved token if available for persistent identity
+        if (savedToken) {
+          builder.withToken(savedToken);
         }
 
         // Build connection (this automatically connects)

@@ -48,6 +48,10 @@ ADMIN_API_SECRET=your_super_secret_admin_key_here
 # OnchainKit API Key (for enhanced wallet features)
 NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
 
+# CDP Paymaster & Bundler Endpoint (for gasless transactions)
+# Get from: https://portal.cdp.coinbase.com/products/bundler-and-paymaster -> Configuration tab
+NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT=https://api.developer.coinbase.com/rpc/v1/base/your_key_here
+
 # Environment
 NODE_ENV=development
 

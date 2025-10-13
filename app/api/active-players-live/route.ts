@@ -75,8 +75,20 @@ export async function GET(req: NextRequest) {
 
     console.log('🔍 Fetching active players from CDP SQL API...');
     
-    // Create CDP SQL client
-    const sqlClient = createCDPSQLClient();
+    // Create CDP SQL client (will throw if credentials missing)
+    let sqlClient;
+    try {
+      sqlClient = createCDPSQLClient();
+    } catch (credError) {
+      console.error('⚠️ CDP credentials error:', credError instanceof Error ? credError.message : credError);
+      const demoPlayers = generateDemoPlayers();
+      return NextResponse.json({ 
+        players: demoPlayers,
+        count: demoPlayers.length,
+        source: 'demo-no-credentials',
+        error: credError instanceof Error ? credError.message : 'CDP credentials not configured'
+      });
+    }
     
     // Get active players from blockchain data (last 24 hours)
     const rawPlayers = await sqlClient.getActivePlayers(
