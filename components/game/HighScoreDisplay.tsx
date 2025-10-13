@@ -13,6 +13,7 @@ interface HighScoreDisplayProps {
   playerName: string;
   isGuest: boolean;
   guestId?: string;
+  isTrialGame?: boolean;
   className?: string;
 }
 
@@ -21,6 +22,7 @@ export default function HighScoreDisplay({
   playerName, 
   isGuest, 
   guestId,
+  isTrialGame = false,
   className = '' 
 }: HighScoreDisplayProps) {
   const { highScores, getCurrentHighScore, getPlayerRank, submitScore } = useHighScores();
@@ -88,7 +90,7 @@ export default function HighScoreDisplay({
                 {playerName} {isGuest && '(Guest)'}
               </p>
               <p className="text-lg font-bold text-blue-900">
-                {formatScore(currentScore)} USDC
+                {formatScore(currentScore)}
               </p>
             </div>
             <div className="text-right">
@@ -135,7 +137,7 @@ export default function HighScoreDisplay({
         {/* Claim Winnings Section - Only for connected paid players */}
         {isConnected && !isGuest && (
           <div className="mb-3">
-            {winnings.isPaidPlayer ? (
+            {!isTrialGame ? (
               <div className="bg-gradient-to-r from-yellow-50 to-orange-50 border border-yellow-200 rounded-lg p-3">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -144,11 +146,11 @@ export default function HighScoreDisplay({
                   </div>
                   <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-700 border-yellow-500/30">
                     <Crown className="h-3 w-3 mr-1" />
-                    Paid Player
+                    {isTrialGame ? 'Trial Player' : 'Paid Player'}
                   </Badge>
                 </div>
                 
-                {winnings.hasWinnings && !winnings.hasClaimed ? (
+                {!isTrialGame && winnings.hasWinnings && !winnings.hasClaimed ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Your Winnings:</span>
@@ -167,16 +169,20 @@ export default function HighScoreDisplay({
                       disabled={winnings.hasClaimed}
                     />
                   </div>
-                ) : winnings.hasClaimed ? (
+                ) : !isTrialGame && winnings.hasClaimed ? (
                   <div className="flex items-center gap-2 text-green-600 justify-center p-3">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm font-medium">
                       Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
                     </span>
                   </div>
+                ) : !isTrialGame ? (
+                  <div className="text-sm text-gray-600">
+                    {winnings.sessionActive ? 'Session still active - winnings will be calculated after completion' : 'No winnings to claim for this session'}
+                  </div>
                 ) : (
                   <div className="text-sm text-gray-600">
-                    No winnings to claim for this session
+                    Trial players are not eligible for prize distribution
                   </div>
                 )}
               </div>
@@ -203,7 +209,7 @@ export default function HighScoreDisplay({
                 <span className="text-sm font-medium text-yellow-800">Current High Score</span>
               </div>
               <span className="text-lg font-bold text-yellow-900">
-                {formatScore(currentHighScore)} USDC
+                {formatScore(currentHighScore)}
               </span>
             </div>
           </div>

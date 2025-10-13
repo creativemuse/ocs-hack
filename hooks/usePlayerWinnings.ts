@@ -63,20 +63,6 @@ export function usePlayerWinnings() {
       const sessionActive = isActive;
       const totalPrizePool = prizePool.toString();
       
-      // Only paid players can claim winnings
-      if (!prizesDistributed || Number(paidPlayerCount) === 0) {
-        setWinnings({
-          hasWinnings: false,
-          winningAmount: '0',
-          hasClaimed: false,
-          isEligible: false,
-          totalPrizePool,
-          sessionActive,
-          isPaidPlayer: false,
-        });
-        return;
-      }
-
       // Get player's score
       const [score, hasSubmitted, submissionTime] = playerScore as readonly [bigint, boolean, bigint];
       
@@ -113,9 +99,6 @@ export function usePlayerWinnings() {
       }
 
       // Prize distribution logic for paid players only
-      // This assumes the contract's distributePrizes() has already been called
-      // and we need to check if this paid player is eligible for winnings
-      
       const playerScoreNum = Number(score);
       const totalPaidPlayers = Number(paidPlayerCount);
       const totalPrizePoolNum = Number(prizePool);
@@ -125,7 +108,8 @@ export function usePlayerWinnings() {
       let rank = 0;
       let isEligible = false;
       
-      // Only paid players with submitted scores can win
+      // For paid players, show potential winnings even if prizes haven't been distributed yet
+      // This gives them a preview of what they might win
       if (playerScoreNum > 0 && totalPaidPlayers > 0 && totalPrizePoolNum > 0) {
         
         // Prize distribution tiers (customize these based on your game rules)
@@ -158,7 +142,7 @@ export function usePlayerWinnings() {
         hasWinnings: isEligible && winningAmount !== '0',
         winningAmount,
         hasClaimed: false, // We'll track this in localStorage or a separate contract call
-        isEligible,
+        isEligible: isPaidPlayer, // All paid players are eligible to see the interface
         rank,
         totalPrizePool,
         sessionActive,

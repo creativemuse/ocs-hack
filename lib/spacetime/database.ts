@@ -4,46 +4,38 @@
  * This module manages the connection to SpacetimeDB using the new SDK
  */
 
-import { DbConnection } from './bindings';
+import { DbConnection } from './index';
 import type { DbConnectionImpl } from 'spacetimedb';
 
 // Configuration
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.SPACETIME_MODULE || 'beat-me',
-  token: process.env.SPACETIME_TOKEN || undefined,
 };
 
 export interface DatabaseConfig {
   host: string;
-  database: string;
   module: string;
-  token?: string;
-}
-
-/**
- * Get the WebSocket URI for SpacetimeDB connection
- */
-export function getWebSocketUri(): string {
-  const host = SPACETIME_CONFIG.host
-    .replace('https://', 'wss://')
-    .replace('http://', 'ws://');
-  
-  return `${host}/database/subscribe/${SPACETIME_CONFIG.database}`;
 }
 
 /**
  * Create a connection builder configured for the project
  */
 export function createConnectionBuilder() {
-  const wsUri = getWebSocketUri();
+  // Load saved token from localStorage (browser only)
+  const savedToken = typeof window !== 'undefined' 
+    ? localStorage.getItem('spacetime_auth_token') 
+    : null;
   
   const builder = DbConnection.builder()
-    .withUri(wsUri)
+    .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
     .withModuleName(SPACETIME_CONFIG.module)
-    .onConnect((conn, identity, _token) => {
+    .onConnect((conn, identity, token) => {
       console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
+      // Save token for future connections to maintain persistent identity
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('spacetime_auth_token', token);
+      }
     })
     .onDisconnect(() => {
       console.log('🔌 Disconnected from SpacetimeDB');
@@ -52,9 +44,9 @@ export function createConnectionBuilder() {
       console.error('❌ SpacetimeDB connection error:', error);
     });
 
-  // Add token if available
-  if (SPACETIME_CONFIG.token) {
-    builder.withToken(SPACETIME_CONFIG.token);
+  // Pass saved token if available for persistent identity
+  if (savedToken) {
+    builder.withToken(savedToken);
   }
 
   return builder;
@@ -65,25 +57,40 @@ export function createConnectionBuilder() {
  * This is the main connection factory for the application
  */
 export async function createConnection(): Promise<DbConnectionImpl> {
-  const builder = createConnectionBuilder();
-  const connection = builder.build();
-  
-  // Wait for connection to be established
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error('Connection timeout'));
     }, 10000);
 
-    // Listen for connection
-    const checkConnection = () => {
-      // Connection is established when builder completes
-      clearTimeout(timeout);
-      resolve(connection);
-    };
+    // Load saved token from localStorage (browser only)
+    const savedToken = typeof window !== 'undefined' 
+      ? localStorage.getItem('spacetime_auth_token') 
+      : null;
+    
+    const builder = DbConnection.builder()
+      .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
+      .withModuleName(SPACETIME_CONFIG.module)
+      .onConnect((conn, identity, token) => {
+        clearTimeout(timeout);
+        console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
+        // Save token for persistent identity
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('spacetime_auth_token', token);
+        }
+        resolve(conn);
+      })
+      .onConnectError((error) => {
+        clearTimeout(timeout);
+        console.error('❌ SpacetimeDB connection error:', error);
+        reject(error);
+      });
 
-    // Connection is ready immediately after build
-    // The SDK handles the connection lifecycle
-    checkConnection();
+    // Pass saved token if available for persistent identity
+    if (savedToken) {
+      builder.withToken(savedToken);
+    }
+
+    builder.build();
   });
 }
 
@@ -91,7 +98,7 @@ export async function createConnection(): Promise<DbConnectionImpl> {
  * Check if SpacetimeDB is configured
  */
 export function isConfigured(): boolean {
-  return !!(SPACETIME_CONFIG.host && SPACETIME_CONFIG.database && SPACETIME_CONFIG.module);
+  return !!(SPACETIME_CONFIG.host && SPACETIME_CONFIG.module);
 }
 
 /**
@@ -102,5 +109,5 @@ export function getConfig(): DatabaseConfig {
 }
 
 // Export types from bindings for convenience
-export * from './bindings';
+export * from './index';
 export type { DbConnectionImpl } from 'spacetimedb';

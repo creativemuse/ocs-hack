@@ -18,6 +18,7 @@ import {
   type AnonymousSession,
   type PrizePool,
   type Admin,
+  PlayerType,
 } from '../spacetime/database';
 
 // Re-export types for convenience
@@ -47,9 +48,7 @@ export interface TopEarner {
 // Configuration
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.SPACETIME_MODULE || 'beat-me',
-  token: process.env.SPACETIME_TOKEN || undefined,
 };
 
 /**
@@ -78,7 +77,7 @@ class SpacetimeDBClient {
 
   private async _doInitialize(): Promise<void> {
     // Check if SpacetimeDB is configured
-    if (!process.env.SPACETIME_HOST || !process.env.SPACETIME_DATABASE) {
+    if (!process.env.SPACETIME_HOST || !process.env.SPACETIME_MODULE) {
       console.log('⚠️ SpacetimeDB not configured - using fallback mode');
       this.isConnected = false;
       return;
@@ -87,50 +86,61 @@ class SpacetimeDBClient {
     try {
       console.log('🚀 Initializing SpacetimeDB client...');
       console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
-      console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
+      console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
 
-      // Build WebSocket URI
-      const wsUri = `${SPACETIME_CONFIG.host.replace('https://', 'wss://').replace('http://', 'ws://')}/database/subscribe/${SPACETIME_CONFIG.database}`;
+      // Wait for connection to be established
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          reject(new Error('SpaceTimeDB connection timeout'));
+        }, 10000);
 
-      // Create connection builder
-      const builder = DbConnection.builder()
-        .withUri(wsUri)
-        .withModuleName(SPACETIME_CONFIG.module)
-        .onConnect((conn, identity, _token) => {
-          console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
-          this.connection = conn;
-          this.isConnected = true;
-          
-          // Subscribe to all tables for live updates
-          conn.subscriptionBuilder().subscribe([
-            'SELECT * FROM players',
-            'SELECT * FROM game_sessions',
-            'SELECT * FROM player_stats',
-            'SELECT * FROM active_game_sessions',
-            'SELECT * FROM pending_claims',
-            'SELECT * FROM prize_history',
-          ]);
-        })
-        .onDisconnect(() => {
-          console.log('🔌 Disconnected from SpacetimeDB');
-          this.isConnected = false;
-        })
-        .onConnectError((error) => {
-          console.error('❌ SpacetimeDB connection error:', error);
-          this.isConnected = false;
-        });
+        let connectionResolved = false;
 
-      // Add token if available
-      if (SPACETIME_CONFIG.token) {
-        builder.withToken(SPACETIME_CONFIG.token);
-      }
+        // Create connection builder with event handlers
+        const builder = DbConnection.builder()
+          .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
+          .withModuleName(SPACETIME_CONFIG.module)
+          .onConnect((conn, identity, token) => {
+            if (connectionResolved) return;
+            connectionResolved = true;
+            clearTimeout(timeout);
+            
+            console.log('✅ Connected to SpacetimeDB');
+            console.log(`   Identity: ${identity.toHexString()}`);
+            console.log(`   Token: ${token ? '***' + token.slice(-8) : 'None'}`);
+            this.connection = conn;
+            this.isConnected = true;
+            
+            // Subscribe to all tables for live updates
+            conn.subscriptionBuilder()
+              .onApplied(() => {
+                console.log('✅ SpacetimeDB subscription applied');
+              })
+              .subscribeToAllTables();
+            
+            resolve();
+          })
+          .onDisconnect(() => {
+            console.log('🔌 Disconnected from SpacetimeDB');
+            this.isConnected = false;
+          })
+          .onConnectError((error) => {
+            if (connectionResolved) return;
+            connectionResolved = true;
+            clearTimeout(timeout);
+            console.error('❌ SpacetimeDB connection error:', error);
+            this.isConnected = false;
+            reject(error);
+          });
 
-      // Build and connect
-      this.connection = builder.build();
-      this.isConnected = true;
+        // Anonymous connection - no token needed
+        // The SDK will generate and manage identity automatically
+
+        // Build connection (this initiates the WebSocket connection)
+        builder.build();
+      });
 
       console.log('✅ SpacetimeDB client initialized successfully');
-      console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
     } catch (error) {
       console.warn('⚠️ SpacetimeDB connection failed - using fallback mode:', error);
       this.isConnected = false;
@@ -184,17 +194,79 @@ class SpacetimeDBClient {
   }
 
   /**
-   * Generic query method (legacy compatibility)
+   * @deprecated Raw SQL queries are not supported by SpacetimeDB TypeScript SDK.
+   * Use the specific query methods instead:
+   * - getPlayerProfile(walletAddress) - for player lookups
+   * - getAnonymousSession(sessionId) - for anonymous sessions
+   * - getGuestPlayer(guestId) - for guest players
+   * - getGuestGameSessions(guestId, limit) - for guest game sessions
+   * - Or access tables directly via this.connection.db.tableName.iter()
+   * 
+   * @throws Error explaining the proper methods to use
    */
-  async query(sql: string, args: any[] = []): Promise<any[]> {
+  async query(_sql: string, _args: any[] = []): Promise<any[]> {
+    throw new Error(
+      'Raw SQL queries are not supported. Use specific methods like:\n' +
+      '  - getPlayerProfile(walletAddress)\n' +
+      '  - getAnonymousSession(sessionId)\n' +
+      '  - getGuestPlayer(guestId)\n' +
+      '  - getGuestGameSessions(guestId, limit)\n' +
+      'Or access tables directly via connection.db.tableName'
+    );
+  }
+
+  /**
+   * Get anonymous session by session ID
+   */
+  getAnonymousSession(sessionId: string): AnonymousSession | null {
+    if (!this.connection) return null;
+
+    const sessions = Array.from(this.connection.db.anonymousSessions.iter()) as AnonymousSession[];
+    const filtered = sessions.filter((s: AnonymousSession) => s.sessionId === sessionId);
+
+    return filtered.length > 0 ? filtered[0] : null;
+  }
+
+  /**
+   * Get guest player by guest ID
+   */
+  getGuestPlayer(guestId: string): any | null {
+    if (!this.connection) return null;
+
+    const guests = Array.from(this.connection.db.guestPlayers.iter())
+      .filter((g: any) => g.guestId === guestId);
+
+    return guests.length > 0 ? guests[0] : null;
+  }
+
+  /**
+   * Get guest game sessions by guest ID
+   */
+  getGuestGameSessions(guestId: string, limit: number = 10): any[] {
+    if (!this.connection) return [];
+
+    return Array.from(this.connection.db.guestGameSessions.iter())
+      .filter((g: any) => g.guestId === guestId)
+      .sort((a: any, b: any) => Number(b.startedAt) - Number(a.startedAt))
+      .slice(0, limit);
+  }
+
+  /**
+   * Link current SpacetimeDB identity to wallet address for persistent stats
+   */
+  async linkWalletToIdentity(walletAddress: string): Promise<void> {
     if (!this.connection) {
-      throw new Error('Not connected to SpacetimeDB');
+      console.warn('⚠️ Not connected to SpacetimeDB');
+      return;
     }
 
-    // Note: This is a placeholder. SpacetimeDB SDK may not support raw SQL queries
-    // You may need to implement specific query methods for each table
-    console.warn('⚠️ Generic query method is not fully implemented');
-    return [];
+    try {
+      this.connection.reducers.linkWalletToIdentity(walletAddress);
+      console.log(`✅ Linked wallet ${walletAddress} to SpacetimeDB identity`);
+    } catch (error) {
+      console.error('❌ Failed to link wallet:', error);
+      throw error;
+    }
   }
 
   // ============================================================================
@@ -287,18 +359,23 @@ class SpacetimeDBClient {
     sessionId: string,
     difficulty: string,
     gameMode: string,
-    playerType: 'paid' | 'trial' = 'trial'
+    playerType: 'paid' | 'trial' = 'trial',
+    walletAddress?: string,  // NEW: Required for paid players
+    guestId?: string         // NEW: Required for trial/guest
   ): Promise<void> {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.startGameSession(
+      this.connection.reducers.startGameSession(
         sessionId,
         difficulty,
         gameMode,
-        playerType
+        playerType,
+        walletAddress || undefined,
+        guestId || undefined
       );
-      console.log(`🎮 Started game session: ${sessionId} (${playerType})`);
+      const playerId = walletAddress || guestId || 'unknown';
+      console.log(`🎮 Started game session: ${sessionId} for ${playerId} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to start game session:', error);
       throw error;
@@ -320,7 +397,7 @@ class SpacetimeDBClient {
   async getActiveGameSession(): Promise<ActiveGameSession | null> {
     if (!this.connection) return null;
 
-    const activeSessions = this.connection.db.activeGameSessions.toArray();
+    const activeSessions = Array.from(this.connection.db.activeGameSessions.iter()) as ActiveGameSession[];
     return activeSessions.length > 0 ? activeSessions[0] : null;
   }
 
@@ -367,21 +444,23 @@ class SpacetimeDBClient {
   // LEADERBOARD & STATS
   // ============================================================================
 
-  getLeaderboard(limit: number = 10): PlayerStats[] {
+  getLeaderboard(limit: number = 10): Player[] {
     if (!this.connection) return [];
 
-    return this.connection.db.playerStats
-    .filter((stats: PlayerStats) => stats.playerType === 'paid')      
-    .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+    // Get paid players sorted by cumulative USDC earnings
+    const players = Array.from(this.connection.db.players.iter()) as Player[];
+    return players
+      .filter((p: Player) => p.totalEarnings > 0)
+      .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
       .slice(0, limit);
   }
 
-  getTrialLeaderboard(limit: number = 10): PlayerStats[] {
+  getTrialLeaderboard(limit: number = 10): any[] {
     if (!this.connection) return [];
 
-    return this.connection.db.playerStats
-      .filter((stats: PlayerStats) => stats.playerType === 'trial')
-      .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+    // Trial players tracked in guest_players table, sorted by best score
+    return Array.from(this.connection.db.guestPlayers.iter())
+      .sort((a: any, b: any) => b.bestScore - a.bestScore)
       .slice(0, limit);
   }
 
@@ -434,7 +513,7 @@ class SpacetimeDBClient {
 
   getAllAudioFiles(): AudioFile[] {
     if (!this.connection) return [];
-    return this.connection.db.audioFiles.toArray();
+    return Array.from(this.connection.db.audioFiles.iter());
   }
 
   // ============================================================================
@@ -485,7 +564,7 @@ class SpacetimeDBClient {
       return claims.filter((claim: PendingClaim) => claim.walletAddress === walletAddress);
     }
 
-    return claims.toArray();
+    return Array.from(claims.iter());
   }
 
   getPrizeHistory(walletAddress: string, limit: number = 20): PrizeHistory[] {
@@ -605,22 +684,46 @@ class SpacetimeDBClient {
 
   getAllPlayers(): Player[] {
     if (!this.connection) return [];
-    return this.connection.db.players.toArray();
+    return Array.from(this.connection.db.players.iter());
   }
 
   getAllGameSessions(): GameSession[] {
     if (!this.connection) return [];
-    return this.connection.db.gameSessions.toArray();
+    return Array.from(this.connection.db.gameSessions.iter());
   }
 
   getAllPlayerStats(): PlayerStats[] {
     if (!this.connection) return [];
-    return this.connection.db.playerStats.toArray();
+    return Array.from(this.connection.db.playerStats.iter());
   }
 
   getAllAdmins(): Admin[] {
     if (!this.connection) return [];
-    return this.connection.db.admins.toArray();
+    return Array.from(this.connection.db.admins.iter());
+  }
+
+  /**
+   * Get admin record by spacetime identity
+   * Note: Admins are identified by their SpacetimeDB Identity, not wallet address
+   */
+  async getAdminByIdentity(identityHex: string): Promise<Admin | null> {
+    if (!this.connection) return null;
+
+    try {
+      // Find admin by their SpacetimeDB identity
+      // The adminIdentity.find method expects an Identity object, 
+      // so we need to compare hex strings manually
+      for (const admin of this.connection.db.admins.iter()) {
+        if (admin.adminIdentity.toHexString() === identityHex) {
+          return admin;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Failed to get admin by identity:', error);
+      return null;
+    }
   }
 }
 

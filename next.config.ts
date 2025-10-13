@@ -30,8 +30,16 @@ const nextConfig: NextConfig = {
   },
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
+    
+    // Handle SpaceTimeDB compilation issues
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'spacetimedb/src/lib/algebraic_type': false,
+    };
+    
     return config;
   },
+  transpilePackages: ['spacetimedb'],
 };
 
 export default nextConfig;

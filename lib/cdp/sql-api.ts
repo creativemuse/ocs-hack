@@ -48,8 +48,22 @@ export class CDPSQLClient {
     });
 
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Unknown error' }));
-      throw new Error(`CDP SQL API error: ${error.message || response.statusText}`);
+      const errorBody = await response.json().catch(() => null);
+      const errorMessage = errorBody?.message || errorBody?.error || response.statusText;
+      
+      // Provide specific error messages for common issues
+      if (response.status === 401) {
+        throw new Error(
+          `CDP SQL API authentication failed (401). ` +
+          `Please check your CDP_API_KEY and CDP_API_SECRET in .env.local. ` +
+          `Error: ${errorMessage}`
+        );
+      }
+      
+      throw new Error(
+        `CDP SQL API error (${response.status}): ${errorMessage}. ` +
+        `Response body: ${JSON.stringify(errorBody)}`
+      );
     }
 
     return response.json();
@@ -185,9 +199,21 @@ export class CDPSQLClient {
  * Create CDP SQL client from environment variables
  */
 export function createCDPSQLClient(): CDPSQLClient {
+  // Check for credentials using both new and legacy variable names
+  const keyName = process.env.CDP_API_KEY || process.env.KEY_NAME;
+  const keySecret = process.env.CDP_API_SECRET || process.env.KEY_SECRET;
+
+  if (!keyName || !keySecret) {
+    throw new Error(
+      'CDP API credentials not configured. ' +
+      'Add CDP_API_KEY and CDP_API_SECRET to your .env.local file. ' +
+      'Get your credentials from: https://portal.cdp.coinbase.com/'
+    );
+  }
+
   const config = {
-    keyName: process.env.CDP_API_KEY || process.env.KEY_NAME!,
-    keySecret: process.env.CDP_API_SECRET || process.env.KEY_SECRET!,
+    keyName,
+    keySecret,
     requestMethod: 'POST',
     requestHost: 'api.cdp.coinbase.com',
     requestPath: '/platform/v2/data/query/run',

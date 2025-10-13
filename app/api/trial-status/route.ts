@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { TRIVIA_CONTRACT_ADDRESS, TRIVIA_ABI } from '@/lib/blockchain/contracts';
 import { createPublicClient, http } from 'viem';
-import { baseSepolia } from 'viem/chains';
+import { base } from 'viem/chains';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
 
 // Create public client for contract calls
 const publicClient = createPublicClient({
-  chain: baseSepolia,
+  chain: base,
   transport: http()
 });
 
@@ -102,21 +102,17 @@ export async function GET(req: NextRequest) {
       console.log('Checking wallet player status for:', walletAddress);
       
       try {
-        // Query SpaceTimeDB for player data
-        const playerData = await spacetimeClient.query(
-          'SELECT * FROM players WHERE wallet_address = ?',
-          [walletAddress]
-        );
+        // Use SpacetimeDB SDK to get player data
+        const player = spacetimeClient.getPlayerProfile(walletAddress);
 
-        if (playerData && playerData.length > 0) {
-          const player = playerData[0] as any;
+        if (player) {
           return NextResponse.json({
-            trialGamesRemaining: player.trial_games_remaining || 0,
-            trialCompleted: player.trial_completed || false,
+            trialGamesRemaining: player.trialGamesRemaining || 0,
+            trialCompleted: player.trialCompleted || false,
             walletConnected: true,
-            gamesPlayed: player.games_played || 0,
-            totalScore: player.total_score || 0,
-            bestScore: player.best_score || 0
+            gamesPlayed: player.gamesPlayed || 0,
+            totalScore: player.totalScore || 0,
+            bestScore: player.bestScore || 0
           });
         } else {
           // Player doesn't exist yet, return default trial status
@@ -161,18 +157,14 @@ export async function GET(req: NextRequest) {
         }
         
         // If not used in contract, check SpaceTimeDB as fallback
-        const sessionData = await spacetimeClient.query(
-          'SELECT * FROM anonymous_sessions WHERE session_id = ?',
-          [sessionId]
-        );
+        const session = spacetimeClient.getAnonymousSession(sessionId);
 
-        if (sessionData && sessionData.length > 0) {
-          const session = sessionData[0] as any;
-          const gamesPlayed = session.games_played || 0;
+        if (session) {
+          const gamesPlayed = session.gamesPlayed || 0;
           return NextResponse.json({
             gamesPlayed,
-            totalScore: session.total_score || 0,
-            bestScore: session.best_score || 0,
+            totalScore: session.totalScore || 0,
+            bestScore: session.bestScore || 0,
             trialGamesRemaining: Math.max(0, 1 - gamesPlayed),
             trialCompleted: gamesPlayed >= 1
           });

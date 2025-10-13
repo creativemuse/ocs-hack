@@ -52,8 +52,10 @@ export function useLeaderboardLive(
     try {
       // Subscribe to player_stats table changes
       const updateLeaderboard = () => {
+        // PlayerType.tag is capitalized ("Paid" or "Trial")
+        const playerTypeTag = type === 'paid' ? 'Paid' : 'Trial';
         const leaderboard = connection.db.playerStats
-          .filter((s: PlayerStats) => s.playerType === type)
+          .filter((s: PlayerStats) => s.playerType.tag === playerTypeTag)
           .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
           .slice(0, limit);
 
