@@ -7,7 +7,7 @@ This project integrates Coinbase Onramp's One-Click-Buy URL functionality to ena
 ## Features
 
 - **One-Click-Buy URLs**: Pre-filled onramp URLs that take users directly to the payment screen
-- **$5 USDC Default**: Optimized for the game's 1 USDC entry fee
+- **$2 USDC Default**: Optimized for the game's 1 USDC entry fee
 - **Base Network**: All transactions occur on Base for low fees
 - **Apple Pay Support**: Automatic Apple Pay detection for compatible devices
 - **Card Payments**: Standard debit card payments for all users
@@ -23,7 +23,7 @@ Generates a one-click-buy URL with quote information.
 ```json
 {
   "walletAddress": "0x...",
-  "paymentAmount": "5.00",
+  "paymentAmount": "2.00",
   "paymentCurrency": "USD",
   "purchaseCurrency": "USDC",
   "purchaseNetwork": "base",
@@ -211,26 +211,31 @@ The buy quote API endpoint includes CORS protection:
 
 ### One-Click-Buy URL Format
 
+According to [Coinbase Documentation](https://docs.cdp.coinbase.com/onramp-offramp/docs/api-configurations#one-click-buy-onramp-url), One-Click-Buy URLs must include:
+- `sessionToken` (contains wallet addresses)
+- `defaultAsset` (specific crypto to buy)
+- `presetFiatAmount` + `fiatCurrency` OR `presetCryptoAmount`
+
 ```
-https://pay.coinbase.com/buy/select-asset?
+https://pay.coinbase.com/buy?
   sessionToken=<token>&
-  quoteId=<id>&
+  defaultAsset=USDC&
+  fiatCurrency=USD&
+  presetFiatAmount=10&
   defaultPaymentMethod=CARD&
-  presetFiatAmount=5.00&
-  fiatCurrency=USD
+  defaultNetwork=base
 ```
 
 ### Available Parameters
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `sessionToken` | Authentication token | Generated |
-| `quoteId` | Quote identifier | From API |
-| `defaultAsset` | Crypto asset | USDC |
-| `defaultNetwork` | Blockchain | base |
-| `presetFiatAmount` | Fiat amount | 5.00 |
-| `fiatCurrency` | Fiat currency | USD |
-| `defaultPaymentMethod` | Payment type | CARD |
+| `sessionToken` | Authentication token (includes addresses) | Generated server-side |
+| `defaultAsset` | Crypto asset to purchase | USDC |
+| `fiatCurrency` | Fiat currency (required with presetFiatAmount) | USD |
+| `presetFiatAmount` | Fiat amount in dollars | 10.00 |
+| `defaultNetwork` | Blockchain network | base |
+| `defaultPaymentMethod` | Payment type (CARD auto-upgrades to Apple Pay) | CARD |
 
 ## Customization
 
