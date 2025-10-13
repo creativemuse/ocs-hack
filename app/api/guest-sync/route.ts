@@ -68,13 +68,13 @@ export async function GET(req: NextRequest) {
     // Initialize SpacetimeDB connection
     await spacetimeClient.initialize();
     
-    // Query guest player data
-    const guestPlayers = await spacetimeClient.query('SELECT * FROM guest_players WHERE guest_id = ?', [guestId]);
-    const guestGames = await spacetimeClient.query('SELECT * FROM guest_game_sessions WHERE guest_id = ? ORDER BY started_at DESC LIMIT 10', [guestId]);
+    // Use SpacetimeDB SDK to get guest player data
+    const guest = spacetimeClient.getGuestPlayer(guestId);
+    const recentGames = spacetimeClient.getGuestGameSessions(guestId, 10);
 
     return NextResponse.json({
-      guest: guestPlayers[0] || null,
-      recentGames: guestGames || []
+      guest: guest || null,
+      recentGames: recentGames || []
     });
   } catch (error) {
     console.error('Error fetching guest data from SpacetimeDB:', error);

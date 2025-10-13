@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useReadContract } from 'wagmi';
 
 // Contract addresses (Base Mainnet)
-const TRIVIA_CONTRACT_ADDRESS = '0x231240B1d776a8F72785FE3707b74Ed9C3048B3a';
+const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
 const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
 // USDC ABI for balance checking

@@ -21,7 +21,8 @@
     "test-session-token": "tsx scripts/test-session-token.ts",
     "test-component-tokens": "tsx scripts/test-component-tokens.ts",
     "test-session-token-reuse": "tsx scripts/test-session-token-reuse.ts",
-    "test:cdp-api": "tsx scripts/test-cdp-api.ts"
+    "test:cdp-api": "tsx scripts/test-cdp-api.ts",
+    "test:spacetime": "tsx scripts/test-spacetime-connection.ts"
   },
   "dependencies": {
     "@coinbase/cdp-sdk": "^1.38.2",

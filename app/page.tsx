@@ -65,6 +65,14 @@ export default function Home() {
   // Add contract USDC balance hook
   const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError, refreshBalance } = useContractUSDCBalance();
 
+  // Automatically switch to paid mode if trial is exhausted
+  useEffect(() => {
+    if (trialStatus.gamesRemaining === 0 && !trialStatus.isTrialActive && playerModeChoice === 'trial') {
+      console.log('Trial exhausted - automatically switching to paid mode');
+      setPlayerModeChoice('paid');
+    }
+  }, [trialStatus.gamesRemaining, trialStatus.isTrialActive, playerModeChoice]);
+
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
     setGameError(null);
@@ -467,27 +475,36 @@ export default function Home() {
                 <div className="flex items-center space-x-3">
                   <div className="flex items-center space-x-2">
                     <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'trial' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
-                    <span className="text-sm font-medium text-gray-300">Trial Mode</span>
+                    <span className={`text-sm font-medium ${trialStatus.gamesRemaining === 0 ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
+                      Trial Mode
+                      {trialStatus.gamesRemaining === 0 && (
+                        <span className="ml-2 text-xs text-red-400">(Used)</span>
+                      )}
+                    </span>
                   </div>
                   {/* <span className="text-gray-500">•</span> */}
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'paid' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
-                    <span className="text-sm font-medium text-gray-300">Paid Mode</span>
-                  </div>
-                </div>
-                
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm text-gray-400">
+                  <div className="flex items-center space-x-3">
+                  {/* <span className="text-sm text-gray-400">
                     {playerModeChoice === 'trial' ? 'Trial Mode' : 'Paid Mode'}
-                  </span>
+                  </span> */}
                   <button
                     onClick={() => {
+                      // Prevent toggling to trial if trial is exhausted
+                      if (trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid') {
+                        console.log('Trial mode unavailable - trial already used');
+                        return;
+                      }
                       const newChoice = playerModeChoice === 'trial' ? 'paid' : 'trial';
                       console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
                       setPlayerModeChoice(newChoice);
                     }}
-                    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 cursor-pointer hover:opacity-80 ${
-                      playerModeChoice === 'paid' ? 'bg-green-500' : 'bg-gray-600'
+                    disabled={trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid'}
+                    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
+                      trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid' 
+                        ? 'bg-green-500 opacity-50 cursor-not-allowed' 
+                        : playerModeChoice === 'paid' 
+                        ? 'bg-green-500 cursor-pointer hover:opacity-80' 
+                        : 'bg-gray-600 cursor-pointer hover:opacity-80'
                     }`}
                   >
                     <span
@@ -497,7 +514,22 @@ export default function Home() {
                     />
                   </button>
                 </div>
+
+                  <div className="flex items-center space-x-2">
+                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'paid' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
+                    <span className="text-sm font-medium text-gray-300">Paid Mode</span>
+                  </div>
+                </div>
               </div>
+
+              {/* Trial exhausted message */}
+              {trialStatus.gamesRemaining === 0 && (
+                <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+                  <p className="text-sm text-blue-300">
+                    ℹ️ Your free trial has been used. You can only play in Paid Mode now.
+                  </p>
+                </div>
+              )}
 
               {/* Mode Description */}
               <div className="text-center">
@@ -626,6 +658,7 @@ export default function Home() {
                   currentScore={totalScore}
                   playerName={isGuestMode ? guestName : 'Player'}
                   isGuest={isGuestMode}
+                  isTrialGame={isTrialGame}
                   className="w-full"
                 />
               </div>

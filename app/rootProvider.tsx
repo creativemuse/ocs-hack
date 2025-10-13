@@ -18,7 +18,7 @@ const wagmiConfig = createConfig({
   ],
   ssr: true,
   transports: {
-    [base.id]: http(),
+    [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
   },
 });
 
@@ -67,8 +67,8 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
           display: "modal",
           preference: "all",
         },
-        // OnchainKit automatically uses CDP Paymaster with projectId and apiKey
-        // No need for a separate paymaster URL that requires session tokens
+        // Paymaster configuration for sponsored transactions
+        paymaster: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT,
         // Disable analytics to prevent 401 errors
         analytics: false,
       }}
