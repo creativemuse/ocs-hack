@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
+import { apiLogger } from '@/lib/utils/logger';
 
 export async function GET(req: NextRequest) {
   try {
-    // TODO: Add admin authentication middleware here
-    // For now, we'll implement basic admin access
+    // Admin authentication required
+    const authError = checkAdminAuth(req);
+    if (authError) return authError;
     
     await spacetimeClient.initialize();
-    await spacetimeClient.getAllPlayersAdmin();
+    const players = spacetimeClient.getAllPlayers();
+    
+    apiLogger.success('GET', '/api/admin/users');
     
     return NextResponse.json({ 
-      success: true, 
+      success: true,
+      data: players,
       message: 'All players retrieved successfully (admin access)',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Admin users access failed:', error);
+    apiLogger.error('GET', '/api/admin/users', error);
     return NextResponse.json(
       { 
         error: 'Failed to retrieve users',
@@ -28,11 +34,12 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    // Admin authentication required
+    const authError = checkAdminAuth(req);
+    if (authError) return authError;
+    
     const body = await req.json();
     const { action, targetIdentity, adminLevel } = body;
-    
-    // TODO: Add admin authentication middleware here
-    // For now, we'll implement basic admin access
     
     await spacetimeClient.initialize();
     
@@ -66,9 +73,10 @@ export async function POST(req: NextRequest) {
         targetIdentity
       });
     } else if (action === 'list') {
-      await spacetimeClient.listAdmins();
+      const admins = spacetimeClient.getAllAdmins();
       return NextResponse.json({ 
-        success: true, 
+        success: true,
+        data: admins,
         message: 'Admin list retrieved successfully',
         action: 'list'
       });
@@ -79,7 +87,7 @@ export async function POST(req: NextRequest) {
       );
     }
   } catch (error) {
-    console.error('❌ Admin user management failed:', error);
+    apiLogger.error('POST', '/api/admin/users', error);
     return NextResponse.json(
       { 
         error: 'Failed to manage admin users',

@@ -6,12 +6,12 @@ export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
 // Trivia Battle smart contract address (deployed on Base Mainnet)
-// Updated with automatic session creation and 2.5% platform fee
+// Updated with claim-based prize distribution system
 // Compiled with Solidity 0.8.25 (no compiler warnings)
-// Deployed: 2025-09-30T00:54:20.098Z
-const TRIVIA_CONTRACT_ADDRESS = '0x231240B1d776a8F72785FE3707b74Ed9C3048B3a';
+// Deployed: 2025-10-13 (with claimWinnings function)
+const TRIVIA_CONTRACT_ADDRESS = '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
 
-// Contract ABI for trivia battle functionality (updated to match deployed contract)
+// Contract ABI for trivia battle functionality (updated with claim-based prize distribution)
 export const TRIVIA_ABI = [
   {
     "inputs": [
@@ -133,6 +133,15 @@ export const TRIVIA_ABI = [
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "WinningsClaimed",
+    "type": "event"
+  },
+  {
     "inputs": [],
     "name": "ENTRY_FEE",
     "outputs": [
@@ -148,6 +157,13 @@ export const TRIVIA_ABI = [
       { "internalType": "uint256", "name": "", "type": "uint256" }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "claimWinnings",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -221,6 +237,17 @@ export const TRIVIA_ABI = [
     "type": "function"
   },
   {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "hasClaimed",
+    "outputs": [
+      { "internalType": "bool", "name": "", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "joinBattle",
     "outputs": [],
@@ -250,6 +277,17 @@ export const TRIVIA_ABI = [
     "name": "platformFeeRecipient",
     "outputs": [
       { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "playerWinnings",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
     ],
     "stateMutability": "view",
     "type": "function"

@@ -428,6 +428,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       openIn="popup"
                       popupSize="md"
                       rel="noopener noreferrer"
+                      className="text-gray-800 dark:text-gray-300 font-semibold hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 border-l-4 border-blue-500"
                     />
                     <WalletDropdownDisconnect />
                   </WalletDropdown>

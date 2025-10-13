@@ -40,26 +40,6 @@ export async function POST(req: NextRequest) {
     // Initialize SpacetimeDB connection
     await spacetimeClient.initialize();
 
-    // Create or get SpacetimeDB identity for this player
-    let spacetimeIdentity: string | undefined;
-    
-    if (spacetimeClient.isConfigured()) {
-      // Try to create a SpacetimeDB identity for this player
-      const identityResult = await spacetimeClient.createPlayerIdentity();
-      if (identityResult) {
-        spacetimeIdentity = identityResult.identity;
-        
-        // Store the player identity mapping
-        await spacetimeClient.storePlayerIdentity(
-          identityResult.identity,
-          isTrial ? 'trial' : 'paid',
-          walletAddress
-        );
-        
-        console.log(`🔑 Created SpacetimeDB identity: ${spacetimeIdentity} for ${walletAddress || anonId}`);
-      }
-    }
-
     // Trials: allow only if they have remaining (wallet) or anon games_played < 1
     if (isTrial) {
       if (walletAddress) {
@@ -102,7 +82,6 @@ export async function POST(req: NextRequest) {
       isTrial,
       playerType: isTrial ? 'trial' : 'paid',
       paidTxHash: paidTxHash,
-      spacetimeIdentity,
       exp: Math.floor(Date.now() / 1000) + 10 * 60,
     });
 

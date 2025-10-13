@@ -4,7 +4,6 @@ import { TRIVIA_CONTRACT_ADDRESS, TRIVIA_ABI } from '@/lib/blockchain/contracts'
 import { createPublicClient, http } from 'viem';
 import { baseSepolia } from 'viem/chains';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
-import { getPlayerIdentity, getPlayerBySession } from '@/lib/spacetime/identity';
 
 // Create public client for contract calls
 const publicClient = createPublicClient({

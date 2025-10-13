@@ -30,16 +30,20 @@ export const useActivePlayers = ({
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch('/api/active-players');
+      // Try live CDP SQL API first
+      const response = await fetch('/api/active-players-live');
       if (!response.ok) {
         throw new Error('Failed to fetch active players');
       }
       
       const data = await response.json();
       
-      // Check if we got demo data (which is fine)
+      // Log data source for debugging
       if (data.source && data.source.startsWith('demo')) {
-        console.log('Using demo players data:', data.source);
+        console.log('⚠️ Using demo players data:', data.source);
+      } else if (data.source === 'cdp-sql-api-live') {
+        console.log('✅ Using real live player data from CDP SQL API');
+        console.log(`📊 Found ${data.count} active players from blockchain`);
       }
       
       setPlayers(data.players.slice(0, maxPlayers));

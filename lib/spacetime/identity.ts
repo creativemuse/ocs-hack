@@ -2,17 +2,14 @@
  * SpacetimeDB Identity Management for Player Sessions
  * 
  * This module manages player identities and their trial/paid status using SpacetimeDB's
- * identity system. Each player gets a unique SpacetimeDB identity that tracks:
- * - Trial game completion
- * - Player type (trial/paid)
- * - Associated wallet address (if any)
+ * identity system with the new SDK.
  */
 
-import { executeSql, callReducer, PlayerQueries, Reducers } from './database';
+import { Identity } from 'spacetimedb';
+import { createConnection, type DbConnectionImpl } from './database';
 
 // Configuration
 const SPACETIME_HOST = process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com';
-const SPACETIME_DATABASE = process.env.SPACETIME_DATABASE || 'c2007dc6e3857303a80d6cf822ead75c1460957cfd14c51f5e168e9673e44b2b';
 
 export interface SpacetimeIdentity {
   identity: string;
@@ -81,69 +78,75 @@ export async function verifyIdentity(identity: string, token: string): Promise<b
 }
 
 /**
- * Store player identity mapping in SpacetimeDB
+ * Store player identity using the connection's reducer
  */
 export async function storePlayerIdentity(params: {
-  spacetimeIdentity: string;
-  spacetimeToken: string;
+  connection: DbConnectionImpl;
   playerType: 'trial' | 'paid';
   walletAddress?: string;
   sessionId?: string;
-  trialCompleted?: boolean;
 }): Promise<void> {
-  // Use SQL to insert player data
-  const query = PlayerQueries.insertPlayer(
-    params.spacetimeIdentity,
-    params.playerType,
-    params.walletAddress,
-    params.sessionId
+  // Use the CreatePlayer reducer from the generated bindings
+  await params.connection.reducers.createPlayer(
+    params.walletAddress || '',
+    undefined, // username
   );
-  
-  await executeSql(query, params.spacetimeToken);
 }
 
 /**
- * Get player identity information
+ * Get player profile from connection
  */
-export async function getPlayerIdentity(identity: string, token: string): Promise<PlayerIdentity | null> {
-  try {
-    const query = PlayerQueries.getPlayerByIdentity(identity);
-    const results = await executeSql(query, token);
-    
-    if (!results || results.length === 0 || !results[0].rows?.[0]) {
-      return null;
-    }
-    
-    const playerData = results[0].rows[0];
-    
-    return {
-      spacetimeIdentity: playerData[0], // spacetime_identity
-      playerType: playerData[1] as 'trial' | 'paid', // player_type
-      walletAddress: playerData[2] || undefined, // wallet_address
-      sessionId: playerData[3] || undefined, // session_id
-      trialCompleted: playerData[4], // trial_completed
-      createdAt: playerData[5], // created_at
-    };
-  } catch (error) {
-    console.error('Error getting player identity:', error);
+export async function getPlayerProfile(
+  connection: DbConnectionImpl,
+  walletAddress: string
+): Promise<PlayerIdentity | null> {
+  // Query the players table using the connection
+  const players = connection.db.players.filter(
+    (player: any) => player.walletAddress === walletAddress
+  );
+
+  if (players.length === 0) {
     return null;
   }
+
+  const player = players[0];
+  
+  return {
+    spacetimeIdentity: '', // Identity is managed by connection
+    playerType: player.trialCompleted ? 'paid' : 'trial',
+    walletAddress: player.walletAddress,
+    sessionId: undefined,
+    trialCompleted: player.trialCompleted,
+    createdAt: player.createdAt,
+  };
 }
 
 /**
- * Mark a trial as completed for a player identity
+ * Mark a trial as completed for a player
  */
-export async function markTrialCompleted(identity: string, token: string): Promise<void> {
-  const query = PlayerQueries.markTrialCompleted(identity);
-  await executeSql(query, token);
+export async function markTrialCompleted(
+  connection: DbConnectionImpl,
+  walletAddress: string
+): Promise<void> {
+  await connection.reducers.updateTrialStatus(
+    walletAddress,
+    0, // trial_games_remaining
+    true // trial_completed
+  );
 }
 
 /**
- * Link a wallet address to an existing identity
+ * Update player to paid status
  */
-export async function linkWalletToIdentity(identity: string, walletAddress: string, token: string): Promise<void> {
-  const query = PlayerQueries.updatePlayerToPaid(identity, walletAddress);
-  await executeSql(query, token);
+export async function linkWalletToIdentity(
+  connection: DbConnectionImpl,
+  walletAddress: string
+): Promise<void> {
+  await connection.reducers.updateTrialStatus(
+    walletAddress,
+    0,
+    true
+  );
 }
 
 /**
@@ -153,42 +156,16 @@ export async function ensurePlayerIdentity(params: {
   sessionId?: string;
   walletAddress?: string;
   isTrialPlayer: boolean;
-  serverToken?: string;
 }): Promise<{
   identity: SpacetimeIdentity;
   playerInfo: PlayerIdentity;
   isNewIdentity: boolean;
 } | null> {
   try {
-    // If wallet address provided, check if identity exists
-    if (params.walletAddress && params.serverToken) {
-      const query = PlayerQueries.getPlayerByWallet(params.walletAddress);
-      const results = await executeSql(query, params.serverToken);
-      
-      if (results && results.length > 0 && results[0].rows?.[0]) {
-        const playerData = results[0].rows[0];
-        const existingIdentity = playerData[0]; // spacetime_identity
-        
-        // Note: We would need to retrieve the token for this identity
-        // For now, create a new token for the existing identity
-        return null; // Need to implement token retrieval
-      }
-    }
-
     // Create new identity
     const newIdentity = await createPlayerIdentity();
     
     if (!newIdentity) return null;
-    
-    // Store player identity mapping
-    await storePlayerIdentity({
-      spacetimeIdentity: newIdentity.identity,
-      spacetimeToken: newIdentity.token,
-      playerType: params.isTrialPlayer ? 'trial' : 'paid',
-      walletAddress: params.walletAddress,
-      sessionId: params.sessionId,
-      trialCompleted: false,
-    });
 
     return {
       identity: newIdentity,
@@ -211,8 +188,11 @@ export async function ensurePlayerIdentity(params: {
 /**
  * Check if an identity can play trial games
  */
-export async function canPlayTrial(identity: string, token: string): Promise<boolean> {
-  const playerInfo = await getPlayerIdentity(identity, token);
+export async function canPlayTrial(
+  connection: DbConnectionImpl,
+  walletAddress: string
+): Promise<boolean> {
+  const playerInfo = await getPlayerProfile(connection, walletAddress);
   
   if (!playerInfo) return true; // New player can play trial
   
@@ -221,29 +201,11 @@ export async function canPlayTrial(identity: string, token: string): Promise<boo
 }
 
 /**
- * Get player by session ID
+ * Get player by wallet address
  */
-export async function getPlayerBySession(sessionId: string, token: string): Promise<PlayerIdentity | null> {
-  try {
-    const query = PlayerQueries.getPlayerBySession(sessionId);
-    const results = await executeSql(query, token);
-    
-    if (!results || results.length === 0 || !results[0].rows?.[0]) {
-      return null;
-    }
-    
-    const playerData = results[0].rows[0];
-    
-    return {
-      spacetimeIdentity: playerData[0], // spacetime_identity
-      playerType: playerData[1] as 'trial' | 'paid', // player_type
-      walletAddress: playerData[2] || undefined, // wallet_address
-      sessionId: playerData[3] || undefined, // session_id
-      trialCompleted: playerData[4], // trial_completed
-      createdAt: playerData[5], // created_at
-    };
-  } catch (error) {
-    console.error('Error getting player by session:', error);
-    return null;
-  }
+export async function getPlayerByWallet(
+  connection: DbConnectionImpl,
+  walletAddress: string
+): Promise<PlayerIdentity | null> {
+  return getPlayerProfile(connection, walletAddress);
 }

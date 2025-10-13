@@ -167,6 +167,18 @@ pub struct PendingClaim {
     pub expires_at: Timestamp,
 }
 
+// Prize history for tracking all prize distributions
+#[spacetimedb::table(name = prize_history)]
+#[derive(Clone)]
+pub struct PrizeHistory {
+    pub wallet_address: String,
+    pub session_id: String,
+    pub prize_amount: f64,
+    pub rank: u32,
+    pub game_timestamp: Timestamp,
+    pub claimed: bool,
+}
+
 // Question attempts stored in SpacetimeDB
 #[spacetimedb::table(name = question_attempts)]
 #[derive(Clone)]
@@ -1251,5 +1263,69 @@ pub fn get_trial_leaderboard_admin(ctx: &ReducerContext) {
         let username = player.username.as_deref().unwrap_or("Unknown");
         log::info!("  {}. {} - {} points ({} games remaining)", 
                   i + 1, username, player.best_score, player.trial_games_remaining);
+    }
+}
+
+// Record prize distribution for a player
+#[spacetimedb::reducer]
+pub fn record_prize_distribution(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    session_id: String,
+    prize_amount: f64,
+    rank: u32,
+) {
+    log::info!("💰 Recording prize: {} USDC for {} (rank: {})", prize_amount, wallet_address, rank);
+    
+    ctx.db.prize_history().insert(PrizeHistory {
+        wallet_address: wallet_address.clone(),
+        session_id,
+        prize_amount,
+        rank,
+        game_timestamp: ctx.timestamp,
+        claimed: false,
+    });
+    
+    // Update player's total_earnings
+    if let Some(player) = ctx.db.players().iter().find(|p| p.wallet_address == wallet_address) {
+        let updated_earnings = player.total_earnings + prize_amount;
+        let player_clone = player.clone();
+        ctx.db.players().delete(player);
+        ctx.db.players().insert(Player {
+            wallet_address: player_clone.wallet_address,
+            username: player_clone.username,
+            avatar_url: player_clone.avatar_url,
+            total_score: player_clone.total_score,
+            games_played: player_clone.games_played,
+            best_score: player_clone.best_score,
+            total_earnings: updated_earnings,
+            trial_games_remaining: player_clone.trial_games_remaining,
+            trial_completed: player_clone.trial_completed,
+            wallet_connected: player_clone.wallet_connected,
+            created_at: player_clone.created_at,
+            updated_at: ctx.timestamp,
+        });
+        log::info!("✅ Updated total earnings for {} to ${:.2}", wallet_address, updated_earnings);
+    } else {
+        log::warn!("⚠️ Player not found: {}", wallet_address);
+    }
+}
+
+// Get top earners by total USDC winnings
+#[spacetimedb::reducer]
+pub fn get_top_earners(ctx: &ReducerContext, limit: u32) {
+    let mut players: Vec<_> = ctx.db.players().iter()
+        .filter(|p| p.total_earnings > 0.0)
+        .collect();
+    
+    players.sort_by(|a, b| {
+        b.total_earnings.partial_cmp(&a.total_earnings)
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    
+    log::info!("🏆 Top {} earners:", limit);
+    for (i, player) in players.iter().take(limit as usize).enumerate() {
+        let username = player.username.as_deref().unwrap_or(&player.wallet_address);
+        log::info!("  {}. {} - ${:.2} USDC", i + 1, username, player.total_earnings);
     }
 }

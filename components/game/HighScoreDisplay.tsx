@@ -1,13 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, Crown, Gift, Coins, CheckCircle, Loader2 } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
-import { useTriviaContract } from '@/hooks/useTriviaContract';
-import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useAccount } from 'wagmi';
+import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -27,44 +26,19 @@ export default function HighScoreDisplay({
   const { highScores, getCurrentHighScore, getPlayerRank, submitScore } = useHighScores();
   const { address, isConnected } = useAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
-  const { claimWinnings, isClaiming, isSuccess, error: claimError, resetState } = useTriviaContract(true);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{
     isNewHighScore: boolean;
     rank: number;
   } | null>(null);
-  const [claimAttempted, setClaimAttempted] = useState(false);
 
   const currentHighScore = getCurrentHighScore();
   const playerRank = getPlayerRank(currentScore);
   const isHighestScore = currentScore >= currentHighScore;
 
-  // Reset contract state when component mounts
-  useEffect(() => {
-    resetState();
-  }, [resetState]);
-
-  // Handle successful claim
-  useEffect(() => {
-    if (isSuccess && claimAttempted) {
-      markAsClaimed();
-      setClaimAttempted(false);
-      refreshWinnings();
-    }
-  }, [isSuccess, claimAttempted, markAsClaimed, refreshWinnings]);
-
-  const handleClaimWinnings = async () => {
-    if (!address || !isConnected) {
-      return;
-    }
-
-    if (!winnings.hasWinnings || winnings.hasClaimed || !winnings.isPaidPlayer) {
-      return;
-    }
-
-    setClaimAttempted(true);
-    resetState();
-    await claimWinnings(winnings.winningAmount);
+  const handleClaimSuccess = () => {
+    markAsClaimed();
+    refreshWinnings();
   };
 
   // Auto-submit score when component mounts (for completed games)
@@ -187,27 +161,14 @@ export default function HighScoreDisplay({
                         Prize Rank: #{winnings.rank}
                       </div>
                     )}
-                    <Button
-                      onClick={handleClaimWinnings}
-                      disabled={isClaiming || winnings.hasClaimed}
-                      size="sm"
-                      className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white"
-                    >
-                      {isClaiming ? (
-                        <>
-                          <Loader2 className="h-3 w-3 mr-2 animate-spin" />
-                          Claiming Winnings...
-                        </>
-                      ) : (
-                        <>
-                          <Gift className="h-3 w-3 mr-2" />
-                          Claim Winnings (Gasless)
-                        </>
-                      )}
-                    </Button>
+                    <ClaimWinningsButton
+                      winningAmount={winnings.winningAmount}
+                      onClaimSuccess={handleClaimSuccess}
+                      disabled={winnings.hasClaimed}
+                    />
                   </div>
                 ) : winnings.hasClaimed ? (
-                  <div className="flex items-center gap-2 text-green-600">
+                  <div className="flex items-center gap-2 text-green-600 justify-center p-3">
                     <CheckCircle className="h-4 w-4" />
                     <span className="text-sm font-medium">
                       Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
@@ -216,20 +177,6 @@ export default function HighScoreDisplay({
                 ) : (
                   <div className="text-sm text-gray-600">
                     No winnings to claim for this session
-                  </div>
-                )}
-
-                {/* Error Display */}
-                {claimError && (
-                  <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded text-red-600 text-xs">
-                    {claimError}
-                  </div>
-                )}
-
-                {/* Success Message */}
-                {isSuccess && (
-                  <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded text-green-600 text-xs">
-                    Winnings claimed successfully!
                   </div>
                 )}
               </div>

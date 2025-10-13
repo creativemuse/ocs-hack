@@ -1,16 +1,15 @@
 const { ethers } = require('hardhat');
+const hre = require('hardhat');
 
 async function main() {
-  // Replace this with your actual deployed contract address
-  const CONTRACT_ADDRESS = '0x08e4e701a311c3c2F1EB24AF2E49A7281ec74ee6';
-  
-  if (CONTRACT_ADDRESS === 'YOUR_CONTRACT_ADDRESS_HERE') {
-    console.log('❌ Please update the CONTRACT_ADDRESS in this script with your deployed contract address');
-    return;
-  }
+  // New contract with claim-based prize distribution
+  const CONTRACT_ADDRESS = '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
+  const USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+  const PLATFORM_FEE_RECIPIENT = '0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260';
 
   console.log('🔍 Verifying deployed contract...');
   console.log('Contract Address:', CONTRACT_ADDRESS);
+  console.log('Network: Base Mainnet');
   
   try {
     // Get the contract factory
@@ -23,22 +22,40 @@ async function main() {
     const owner = await triviaBattle.owner();
     const usdcToken = await triviaBattle.usdcToken();
     const entryFee = await triviaBattle.ENTRY_FEE();
+    const platformFeeBps = await triviaBattle.PLATFORM_FEE_BPS();
+    const platformFeeRecipient = await triviaBattle.platformFeeRecipient();
     
-    console.log('✅ Contract verification successful!');
+    console.log('✅ Contract connectivity verified!');
     console.log('📋 Contract details:');
     console.log('   - Owner:', owner);
     console.log('   - USDC Token:', usdcToken);
     console.log('   - Entry Fee:', ethers.formatUnits(entryFee, 6), 'USDC');
+    console.log('   - Platform Fee:', platformFeeBps.toString(), 'BPS (2.5%)');
+    console.log('   - Platform Fee Recipient:', platformFeeRecipient);
     
-    // Update the contracts.ts file
-    console.log('\n📝 Next steps:');
-    console.log('1. Update TRIVIA_CONTRACT_ADDRESS in lib/blockchain/contracts.ts with:', CONTRACT_ADDRESS);
-    console.log('2. Test the contract with USDC transfers');
-    console.log('3. Start your first game session!');
+    // Verify on Basescan
+    console.log('\n🔍 Verifying contract on Basescan...');
+    try {
+      await hre.run('verify:verify', {
+        address: CONTRACT_ADDRESS,
+        constructorArguments: [USDC_ADDRESS, PLATFORM_FEE_RECIPIENT],
+        network: 'base',
+      });
+      console.log('✅ Contract verified on Basescan!');
+      console.log(`🔗 View at: https://basescan.org/address/${CONTRACT_ADDRESS}#code`);
+    } catch (verifyError) {
+      if (verifyError.message.includes('Already Verified')) {
+        console.log('✅ Contract already verified on Basescan');
+        console.log(`🔗 View at: https://basescan.org/address/${CONTRACT_ADDRESS}#code`);
+      } else {
+        console.log('⚠️  Basescan verification failed:', verifyError.message);
+        console.log('   Contract is deployed and working, but source code not verified yet');
+        console.log('   You can manually verify at: https://basescan.org/verifyContract');
+      }
+    }
     
-    // Generate the update command
-    console.log('\n🔧 To update your configuration, run:');
-    console.log(`sed -i '' 's/0x0000000000000000000000000000000000000001/${CONTRACT_ADDRESS}/g' lib/blockchain/contracts.ts`);
+    console.log('\n📝 Contract has been updated in contracts.ts');
+    console.log('✅ All set! Ready to use claim-based prize distribution.');
     
   } catch (error) {
     console.error('❌ Contract verification failed:', error.message);

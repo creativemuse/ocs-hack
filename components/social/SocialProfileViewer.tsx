@@ -1,14 +1,15 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Avatar } from '@coinbase/onchainkit/identity';
 import { base } from 'viem/chains';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Users, Calendar, Share2, ExternalLink } from 'lucide-react';
+import { Trophy, Users, Calendar, Share2, ExternalLink, Sparkles } from 'lucide-react';
 import type { ActivePlayer } from '@/hooks/useActivePlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
+import { usePlayerProfile } from '@/hooks/usePlayerProfile';
 
 interface SocialProfileViewerProps {
   player: ActivePlayer | null;
@@ -24,7 +25,22 @@ export default function SocialProfileViewer({
   const { sharePlayerActivity } = useSocialShare();
   const [isSharing, setIsSharing] = useState(false);
 
+  // Fetch real blockchain profile data
+  const { profile: blockchainProfile, isLoading: profileLoading } = usePlayerProfile({
+    address: player?.address || null,
+    enabled: isOpen && !!player
+  });
+
   if (!player) return null;
+
+  // Use blockchain data if available, otherwise fall back to player data
+  const displayStats = {
+    totalScore: blockchainProfile?.totalEarnings || player.totalScore,
+    gamesPlayed: blockchainProfile?.totalGames || player.gamesPlayed,
+    perfectRounds: blockchainProfile?.perfectRounds || 0,
+    highestPayout: blockchainProfile?.highestPayout || 0,
+    isLiveData: !!blockchainProfile
+  };
 
   const formatAddress = (address: string) => {
     if (address.startsWith('anon_')) {
@@ -114,20 +130,63 @@ export default function SocialProfileViewer({
             </div>
           </div>
 
+          {/* Live Data Badge */}
+          {displayStats.isLiveData && (
+            <div className="flex items-center justify-center space-x-2">
+              <Badge className="bg-gradient-to-r from-green-500 to-blue-500 text-white border-0">
+                <Sparkles className="w-3 h-3 mr-1" />
+                Live Blockchain Data
+              </Badge>
+            </div>
+          )}
+
           {/* Stats Grid */}
           <div className="grid grid-cols-2 gap-4">
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
+            <div className="bg-gray-800 rounded-lg p-4 text-center relative">
               <Trophy className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{player.totalScore}</div>
+              <div className="text-2xl font-bold text-white">
+                {profileLoading ? (
+                  <div className="h-8 w-20 mx-auto bg-gray-700 animate-pulse rounded" />
+                ) : (
+                  displayStats.totalScore
+                )}
+              </div>
               <div className="text-gray-400 text-sm">Total USDC</div>
             </div>
             
-            <div className="bg-gray-800 rounded-lg p-4 text-center">
+            <div className="bg-gray-800 rounded-lg p-4 text-center relative">
               <Users className="w-6 h-6 text-blue-400 mx-auto mb-2" />
-              <div className="text-2xl font-bold text-white">{player.gamesPlayed}</div>
+              <div className="text-2xl font-bold text-white">
+                {profileLoading ? (
+                  <div className="h-8 w-20 mx-auto bg-gray-700 animate-pulse rounded" />
+                ) : (
+                  displayStats.gamesPlayed
+                )}
+              </div>
               <div className="text-gray-400 text-sm">Games Played</div>
             </div>
           </div>
+
+          {/* Additional Stats (only shown with blockchain data) */}
+          {displayStats.isLiveData && (displayStats.perfectRounds > 0 || displayStats.highestPayout > 0) && (
+            <div className="grid grid-cols-2 gap-4">
+              {displayStats.perfectRounds > 0 && (
+                <div className="bg-gradient-to-br from-purple-900 to-purple-800 rounded-lg p-4 text-center">
+                  <Sparkles className="w-6 h-6 text-purple-300 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{displayStats.perfectRounds}</div>
+                  <div className="text-purple-200 text-sm">Perfect Rounds</div>
+                </div>
+              )}
+              
+              {displayStats.highestPayout > 0 && (
+                <div className="bg-gradient-to-br from-green-900 to-green-800 rounded-lg p-4 text-center">
+                  <Trophy className="w-6 h-6 text-green-300 mx-auto mb-2" />
+                  <div className="text-2xl font-bold text-white">{displayStats.highestPayout}</div>
+                  <div className="text-green-200 text-sm">Highest Win</div>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Activity Status */}
           <div className="bg-gray-800 rounded-lg p-4">

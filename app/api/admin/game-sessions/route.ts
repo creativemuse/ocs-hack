@@ -1,21 +1,27 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
+import { apiLogger } from '@/lib/utils/logger';
 
 export async function GET(req: NextRequest) {
   try {
-    // TODO: Add admin authentication middleware here
-    // For now, we'll implement basic admin access
+    // Admin authentication required
+    const authError = checkAdminAuth(req);
+    if (authError) return authError;
     
     await spacetimeClient.initialize();
-    await spacetimeClient.getAllGameSessionsAdmin();
+    const gameSessions = spacetimeClient.getAllGameSessions();
+    
+    apiLogger.success('GET', '/api/admin/game-sessions');
     
     return NextResponse.json({ 
-      success: true, 
+      success: true,
+      data: gameSessions,
       message: 'Game sessions retrieved successfully (admin access)',
       timestamp: new Date().toISOString()
     });
   } catch (error) {
-    console.error('❌ Admin game sessions access failed:', error);
+    apiLogger.error('GET', '/api/admin/game-sessions', error);
     return NextResponse.json(
       { 
         error: 'Failed to retrieve game sessions',

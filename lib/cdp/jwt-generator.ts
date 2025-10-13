@@ -106,19 +106,19 @@ export class CDPJWTGenerator {
 // Factory function to create JWT generator from environment variables
 export function createCDPJWTGenerator(): CDPJWTGenerator {
   const config: CDPConfig = {
-    keyName: process.env.KEY_NAME!,
-    keySecret: process.env.KEY_SECRET!,
-    requestMethod: process.env.REQUEST_METHOD!,
-    requestHost: process.env.REQUEST_HOST!,
-    requestPath: process.env.REQUEST_PATH!,
+    keyName: process.env.CDP_API_KEY || process.env.KEY_NAME!,
+    keySecret: process.env.CDP_API_SECRET || process.env.KEY_SECRET!,
+    requestMethod: process.env.REQUEST_METHOD || 'POST',
+    requestHost: process.env.REQUEST_HOST || 'api.cdp.coinbase.com',
+    requestPath: process.env.REQUEST_PATH || '/platform/v2/data/query/run',
   };
 
   // Validate required environment variables
-  const requiredVars = ['KEY_NAME', 'KEY_SECRET', 'REQUEST_METHOD', 'REQUEST_HOST', 'REQUEST_PATH'];
-  const missingVars = requiredVars.filter(varName => !process.env[varName]);
+  const hasNewVars = process.env.CDP_API_KEY && process.env.CDP_API_SECRET;
+  const hasOldVars = process.env.KEY_NAME && process.env.KEY_SECRET;
   
-  if (missingVars.length > 0) {
-    throw new Error(`Missing required environment variables: ${missingVars.join(', ')}`);
+  if (!hasNewVars && !hasOldVars) {
+    throw new Error('Missing required CDP API credentials. Set CDP_API_KEY and CDP_API_SECRET in .env.local');
   }
 
   return new CDPJWTGenerator(config);

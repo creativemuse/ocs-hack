@@ -358,7 +358,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     }
     }, [address, isConnected, writeContractAsync]);
 
-  // Claim winnings (simulated - since contract doesn't have this function)
+  // Claim winnings (calls smart contract claimWinnings function)
   const claimWinnings = useCallback(async (winningAmount: string) => {
     if (!address || !isConnected) {
       setState(prev => ({ ...prev, error: 'Wallet not connected' }));
@@ -368,33 +368,17 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     setState(prev => ({ ...prev, isClaiming: true, error: null }));
 
     try {
-      // Since the contract doesn't have a claim function, we'll simulate the claim
-      // In a real implementation, this would call the contract's claimWinnings function
-      
       console.log(`Claiming ${winningAmount} USDC for player ${address}`);
       
-      // For now, we'll just mark it as successful and handle the actual transfer
-      // In production, you'd integrate with your backend to process the claim
+      // Call the smart contract claimWinnings function
+      await writeContractAsync({
+        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+        abi: TRIVIA_ABI,
+        functionName: 'claimWinnings',
+        args: [],
+      });
       
-      // Simulate transaction success
-      setState(prev => ({
-        ...prev,
-        isClaiming: false,
-        isSuccess: true,
-        transactionHash: `0x${Math.random().toString(16).substr(2, 64)}`, // Mock hash
-      }));
-
-      // You could also integrate with a backend API here to process the actual claim
-      // await fetch('/api/claim-winnings', {
-      //   method: 'POST',
-      //   headers: { 'Content-Type': 'application/json' },
-      //   body: JSON.stringify({ 
-      //     playerAddress: address, 
-      //     amount: winningAmount,
-      //     sessionId: sessionId 
-      //   })
-      // });
-
+      console.log('✅ Claim winnings transaction submitted');
     } catch (error) {
       console.error('Error claiming winnings:', error);
       setState(prev => ({
@@ -403,7 +387,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         error: error instanceof Error ? error.message : 'Failed to claim winnings',
       }));
     }
-  }, [address, isConnected]);
+  }, [address, isConnected, writeContractAsync]);
 
   // Update state based on transaction status
   const updateTransactionState = useCallback(() => {

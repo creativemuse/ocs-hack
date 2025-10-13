@@ -27,15 +27,15 @@ export async function GET() {
 
         if (activeSession) {
           const now = Date.now();
-          const elapsed = Math.floor((now - activeSession.start_time) / 1000);
+          const elapsed = Math.floor((now - Number(activeSession.startTime)) / 1000);
           const timeRemaining = Math.max(0, 300 - elapsed);
           // Fix: Allow joining when there are no paid players, regardless of time remaining
-          const canJoin = activeSession.paid_player_count === 0 || timeRemaining > 0;
+          const canJoin = activeSession.paidPlayerCount === 0 || timeRemaining > 0;
           return NextResponse.json({ 
             session: activeSession, 
             timeRemaining, 
             canJoin,
-            waitingForPaidPlayer: activeSession.paid_player_count === 0,
+            waitingForPaidPlayer: activeSession.paidPlayerCount === 0,
             source: 'spacetime'
           });
         }
@@ -80,10 +80,10 @@ export async function POST(req: NextRequest) {
             const updatedSession = await spacetimeClient.getActiveGameSession();
             if (updatedSession) {
               const now = Date.now();
-              const elapsed = Math.floor((now - updatedSession.start_time) / 1000);
+              const elapsed = Math.floor((now - Number(updatedSession.startTime)) / 1000);
               const timeRemaining = Math.max(0, 300 - elapsed);
-              const isFirstPaidPlayer = isPaidPlayer && updatedSession.paid_player_count === 1 && updatedSession.status === 'active';
-              const waitingForPaidPlayer = updatedSession.paid_player_count === 0;
+              const isFirstPaidPlayer = isPaidPlayer && updatedSession.paidPlayerCount === 1 && updatedSession.status === 'active';
+              const waitingForPaidPlayer = updatedSession.paidPlayerCount === 0;
               
               return NextResponse.json({ 
                 session: updatedSession, 

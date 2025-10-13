@@ -6,6 +6,7 @@ import "@coinbase/onchainkit/styles.css";
 import { WagmiProvider, createConfig, http } from "wagmi";
 import { coinbaseWallet } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 
 // Create wagmi config
 const wagmiConfig = createConfig({
@@ -60,7 +61,7 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
       config={{
         appearance: {
           name: "BEAT ME",
-          mode: "auto",
+          mode: "auto", // Change back to "auto" to allow theme switching
         },
         wallet: {
           display: "modal",
@@ -81,9 +82,11 @@ export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <OnchainKitProviderWrapper>
-          {children}
-        </OnchainKitProviderWrapper>
+        <SpacetimeProvider>
+          <OnchainKitProviderWrapper>
+            {children}
+          </OnchainKitProviderWrapper>
+        </SpacetimeProvider>
       </QueryClientProvider>
     </WagmiProvider>
   );

@@ -1,4 +1,5 @@
 import { TriviaContract, ENTRY_FEE_USDC, TRIAL_ENTRY_FEE_USDC } from './contracts';
+import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export interface PayoutDistribution {
   first: number;    // 50%
@@ -206,6 +207,26 @@ export class PayoutSystem {
       console.log('✅ Prize distribution transaction prepared:', transaction);
       console.log('💸 Prize breakdown:', prizeDistribution);
       console.log('🎮 Trial players in top ranks:', prizeDistribution.filter(p => p.isTrialPlayer).length);
+
+      // Sync winnings to SpaceTimeDB for leaderboard tracking
+      try {
+        await spacetimeClient.initialize();
+        for (const payout of prizeDistribution) {
+          // Only record prizes for paid players with actual winnings
+          if (payout.amount > 0 && !payout.isTrialPlayer) {
+            await spacetimeClient.recordPrizeDistribution(
+              payout.address,
+              payout.sessionId || gameId,
+              payout.amount,
+              payout.rank
+            );
+          }
+        }
+        console.log('✅ Prize distribution synced to SpaceTimeDB');
+      } catch (syncError) {
+        console.error('⚠️ Failed to sync prize distribution to SpaceTimeDB:', syncError);
+        // Don't fail the entire distribution if sync fails
+      }
 
       return {
         success: true,

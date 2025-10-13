@@ -31,6 +31,10 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     // Platform fee recipient address
     address public platformFeeRecipient;
     
+    // Prize claim system
+    mapping(address => uint256) public playerWinnings;
+    mapping(address => bool) public hasClaimed;
+    
     // Game session structure
     struct GameSession {
         uint256 startTime;
@@ -75,6 +79,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     event SessionEnded(uint256 endTime);
     event PlatformFeeCollected(uint256 amount, address indexed recipient);
     event PlatformFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
+    event WinningsClaimed(address indexed player, uint256 amount);
     
     // Modifiers
     modifier onlyActiveSession() {
@@ -294,11 +299,9 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             amounts[winnerIndex] = prizeAmount;
             winnerIndex++;
             
+            // Set player winnings instead of transferring immediately
             if (prizeAmount > 0) {
-                require(
-                    usdcToken.transfer(paidPlayerScores[i].playerAddress, prizeAmount),
-                    "Prize transfer failed"
-                );
+                playerWinnings[paidPlayerScores[i].playerAddress] += prizeAmount;
             }
         }
         
@@ -311,6 +314,26 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             amounts
         );
         emit SessionEnded(block.timestamp);
+    }
+    
+    /**
+     * @dev Claim winnings (gasless-enabled for players)
+     * Players can claim their accumulated winnings from prize distributions
+     */
+    function claimWinnings() external nonReentrant {
+        require(playerWinnings[msg.sender] > 0, "No winnings to claim");
+        require(!hasClaimed[msg.sender], "Already claimed");
+        
+        uint256 amount = playerWinnings[msg.sender];
+        playerWinnings[msg.sender] = 0;
+        hasClaimed[msg.sender] = true;
+        
+        require(
+            usdcToken.transfer(msg.sender, amount),
+            "Claim transfer failed"
+        );
+        
+        emit WinningsClaimed(msg.sender, amount);
     }
     
     /**

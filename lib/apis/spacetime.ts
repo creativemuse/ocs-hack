@@ -1,152 +1,82 @@
+/**
+ * SpacetimeDB Client API
+ * 
+ * Unified API for interacting with SpacetimeDB using the new SDK
+ */
+
+import { 
+  DbConnection, 
+  type DbConnectionImpl,
+  type Player,
+  type GameSession,
+  type ActiveGameSession,
+  type PlayerStats,
+  type AudioFile,
+  type PendingClaim,
+  type PrizeHistory,
+  type GameEntry,
+  type AnonymousSession,
+  type PrizePool,
+  type Admin,
+} from '../spacetime/database';
+
+// Re-export types for convenience
+export type {
+  Player,
+  GameSession,
+  ActiveGameSession,
+  PlayerStats,
+  AudioFile,
+  PendingClaim,
+  PrizeHistory,
+  GameEntry,
+  AnonymousSession,
+  PrizePool,
+  Admin,
+};
+
+export interface TopEarner {
+  walletAddress: string;
+  username: string | undefined;
+  avatarUrl: string | undefined;
+  totalEarnings: number;
+  gamesPlayed: number;
+  bestScore: number;
+}
+
 // Configuration
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  port: process.env.SPACETIME_PORT || '443',
   database: process.env.SPACETIME_DATABASE || 'c2009532fc1fc554482aecff4e1b56027991d26aaf86538679ec83183140151a',
   module: process.env.SPACETIME_MODULE || 'beat-me',
-  // Remove hardcoded identity - we'll generate tokens dynamically
-  token: process.env.SPACETIME_TOKEN || null,
+  token: process.env.SPACETIME_TOKEN || undefined,
 };
 
-// Types matching the Rust module
-export interface AudioFile {
-  name: string;
-  artist_name: string;
-  song_title: string;
-  ipfs_cid: string;
-  ipfs_url: string;
-  file_size: number;
-  duration?: number;
-  uploaded_at: number;
-  uploaded_by: string;
-}
-
-export interface GameSession {
-  session_id: string;
-  player_identity: string;
-  player_type: 'paid' | 'trial'; // Added player type tracking
-  score: number;
-  questions_answered: number;
-  correct_answers: number;
-  started_at: number;
-  ended_at?: number;
-  difficulty: string;
-  game_mode: string;
-}
-
-export interface ActiveGameSession {
-  session_id: string;
-  status: 'waiting' | 'active' | 'completed';
-  player_count: number;
-  paid_player_count: number; // Only paid players contribute to prize pool
-  trial_player_count: number; // Trial players for tracking only
-  prize_pool: number; // Only accumulates from paid player entry fees
-  entry_fee: number;
-  start_time: number;
-  created_at: number;
-}
-
-export interface PlayerStats {
-  player_identity: string;
-  player_type: 'paid' | 'trial'; // Added player type tracking
-  total_games: number;
-  total_score: number;
-  best_score: number;
-  average_score: number;
-  total_questions_answered: number;
-  total_correct_answers: number;
-  last_played: number;
-}
-
-export interface QuestionAttempt {
-  session_id: string;
-  player_identity: string;
-  player_type: 'paid' | 'trial'; // Added player type tracking
-  audio_file_id: string;
-  selected_answer: number;
-  correct_answer: number;
-  is_correct: boolean;
-  time_taken: number;
-  answered_at: number;
-}
-
-// New data structures to replace Supabase tables
-export interface Player {
-  wallet_address: string;
-  username?: string;
-  avatar_url?: string;
-  total_score: number;
-  games_played: number;
-  best_score: number;
-  total_earnings: number;
-  trial_games_remaining: number;
-  trial_completed: boolean;
-  wallet_connected: boolean;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface GameEntry {
-  session_id: string;
-  wallet_address?: string;
-  anon_id?: string;
-  is_trial: boolean;
-  status: string;
-  paid_tx_hash?: string;
-  verified_at: number;
-  created_at: number;
-}
-
-export interface AnonymousSession {
-  session_id: string;
-  games_played: number;
-  total_score: number;
-  best_score: number;
-  created_at: number;
-  updated_at: number;
-}
-
-export interface PrizePool {
-  game_id: string;
-  total_amount: number;
-  entry_fee: number;
-  paid_players: number;
-  free_players: number;
-  winner_address?: string;
-  winner_score?: number;
-  claimed: boolean;
-  created_at: number;
-  expires_at: number;
-}
-
-export interface PendingClaim {
-  session_id: string;
-  wallet_address?: string;
-  game_id: string;
-  prize_amount: number;
-  score: number;
-  claimed: boolean;
-  claim_transaction_hash?: string;
-  created_at: number;
-  expires_at: number;
-}
-
-export interface Admin {
-  admin_identity: string;
-  admin_level: string; // "super_admin", "admin", "moderator"
-  granted_at: number;
-  granted_by: string;
-}
-
+/**
+ * SpacetimeDB Client - Singleton wrapper around DbConnection
+ */
 class SpacetimeDBClient {
+  private connection: DbConnectionImpl | null = null;
   private isConnected = false;
-  private mockSession: ActiveGameSession | null = null;
-  private serverToken: string | null = null;
-  private playerTokens: Map<string, string> = new Map();
+  private connectionPromise: Promise<void> | null = null;
 
+  /**
+   * Initialize the SpacetimeDB connection
+   */
   async initialize(): Promise<void> {
-    if (this.isConnected) return;
+    if (this.connectionPromise) {
+      return this.connectionPromise;
+    }
 
+    if (this.isConnected && this.connection) {
+      return Promise.resolve();
+    }
+
+    this.connectionPromise = this._doInitialize();
+    return this.connectionPromise;
+  }
+
+  private async _doInitialize(): Promise<void> {
     // Check if SpacetimeDB is configured
     if (!process.env.SPACETIME_HOST || !process.env.SPACETIME_DATABASE) {
       console.log('⚠️ SpacetimeDB not configured - using fallback mode');
@@ -158,166 +88,251 @@ class SpacetimeDBClient {
       console.log('🚀 Initializing SpacetimeDB client...');
       console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
       console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
-      
-      // First, try to ping without auth to check connectivity
-      const pingResponse = await fetch(`${SPACETIME_CONFIG.host}/v1/ping`);
-      if (!pingResponse.ok) {
-        console.warn(`⚠️ SpacetimeDB server not available (${pingResponse.status}) - using fallback mode`);
-        this.isConnected = false;
-        return;
-      }
-      
-      // If we have a server token, use it; otherwise generate a new identity
-      if (SPACETIME_CONFIG.token) {
-        this.serverToken = SPACETIME_CONFIG.token;
-      } else {
-        // Generate a server identity for this instance
-        const identityResponse = await fetch(`${SPACETIME_CONFIG.host}/v1/identity`, {
-          method: 'POST'
-        });
-        
-        if (!identityResponse.ok) {
-          console.warn('⚠️ Failed to generate SpacetimeDB identity - using fallback mode');
+
+      // Build WebSocket URI
+      const wsUri = `${SPACETIME_CONFIG.host.replace('https://', 'wss://').replace('http://', 'ws://')}/database/subscribe/${SPACETIME_CONFIG.database}`;
+
+      // Create connection builder
+      const builder = DbConnection.builder()
+        .withUri(wsUri)
+        .withModuleName(SPACETIME_CONFIG.module)
+        .onConnect((conn, identity, _token) => {
+          console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
+          this.connection = conn;
+          this.isConnected = true;
+          
+          // Subscribe to all tables for live updates
+          conn.subscriptionBuilder().subscribe([
+            'SELECT * FROM players',
+            'SELECT * FROM game_sessions',
+            'SELECT * FROM player_stats',
+            'SELECT * FROM active_game_sessions',
+            'SELECT * FROM pending_claims',
+            'SELECT * FROM prize_history',
+          ]);
+        })
+        .onDisconnect(() => {
+          console.log('🔌 Disconnected from SpacetimeDB');
           this.isConnected = false;
-          return;
-        }
-        
-        const { identity, token } = await identityResponse.json();
-        this.serverToken = token;
-        console.log(`🔑 Generated server identity: ${identity}`);
+        })
+        .onConnectError((error) => {
+          console.error('❌ SpacetimeDB connection error:', error);
+          this.isConnected = false;
+        });
+
+      // Add token if available
+      if (SPACETIME_CONFIG.token) {
+        builder.withToken(SPACETIME_CONFIG.token);
       }
-      
+
+      // Build and connect
+      this.connection = builder.build();
       this.isConnected = true;
-      
-      console.log('✅ Connected to SpacetimeDB successfully');
-      console.log(`📊 Database: ${SPACETIME_CONFIG.database}`);
+
+      console.log('✅ SpacetimeDB client initialized successfully');
       console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
-      console.log('⚠️ Trial players are excluded from prize pool distributions');
-      
     } catch (error) {
       console.warn('⚠️ SpacetimeDB connection failed - using fallback mode:', error);
       this.isConnected = false;
+      throw error;
+    } finally {
+      this.connectionPromise = null;
     }
   }
 
+  /**
+   * Check if configured and connected
+   */
   isConfigured(): boolean {
-    return this.isConnected;
+    return this.isConnected && this.connection !== null;
   }
 
-  // Create a new player identity
-  async createPlayerIdentity(): Promise<{ identity: string; token: string } | null> {
-    if (!this.isConnected) {
-      console.log('⚠️ SpacetimeDB not connected - cannot create player identity');
-      return null;
-    }
+  /**
+   * Get the active connection
+   */
+  getConnection(): DbConnectionImpl | null {
+    return this.connection;
+  }
 
-    try {
-      const response = await fetch(`${SPACETIME_CONFIG.host}/v1/identity`, {
-        method: 'POST'
-      });
-
-      if (!response.ok) {
-        console.warn('Failed to create player identity');
-        return null;
-      }
-
-      const { identity, token } = await response.json();
-      this.playerTokens.set(identity, token);
-      return { identity, token };
-    } catch (error) {
-      console.error('Error creating player identity:', error);
-      return null;
+  /**
+   * Disconnect from SpacetimeDB
+   */
+  async disconnect(): Promise<void> {
+    if (this.connection) {
+      this.connection.disconnect();
+      this.connection = null;
+      this.isConnected = false;
+      console.log('🔌 Disconnected from SpacetimeDB');
     }
   }
 
-  // Store player identity mapping
-  async storePlayerIdentity(identity: string, playerType: 'trial' | 'paid', walletAddress?: string): Promise<void> {
-    await this.callReducer('store_player_identity', [identity, playerType, walletAddress || null], identity);
+  /**
+   * Generic call method for reducers (legacy compatibility)
+   */
+  async call(reducerName: string, args: any[]): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+
+    // @ts-ignore - Dynamic reducer call
+    if (typeof this.connection.reducers[reducerName] === 'function') {
+      // @ts-ignore
+      await this.connection.reducers[reducerName](...args);
+    } else {
+      throw new Error(`Reducer ${reducerName} not found`);
+    }
   }
 
-  // Get player identity info
-  async getPlayerIdentity(identity: string): Promise<Player | null> {
-    // This would be implemented as a query in SpacetimeDB
-    // For now, return null as we're in fallback mode
-    return null;
+  /**
+   * Generic query method (legacy compatibility)
+   */
+  async query(sql: string, args: any[] = []): Promise<any[]> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+
+    // Note: This is a placeholder. SpacetimeDB SDK may not support raw SQL queries
+    // You may need to implement specific query methods for each table
+    console.warn('⚠️ Generic query method is not fully implemented');
+    return [];
   }
 
-  // Update player to paid status
-  async updatePlayerToPaid(identity: string, walletAddress: string): Promise<void> {
-    await this.callReducer('update_player_to_paid', [identity, walletAddress], identity);
-  }
+  // ============================================================================
+  // PLAYER MANAGEMENT
+  // ============================================================================
 
-  // Helper method for making SpaceTimeDB HTTP calls
-  private async callReducer(reducerName: string, args: any[] = [], playerIdentity?: string): Promise<void> {
-    if (!this.isConnected) {
-      console.log(`⚠️ SpacetimeDB not connected - skipping ${reducerName} call`);
+  async createPlayer(walletAddress: string, username?: string): Promise<void> {
+    if (!this.connection) {
+      console.warn('⚠️ Not connected to SpacetimeDB');
       return;
     }
 
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-    };
-
-    // Use player token if provided, otherwise use server token
-    const token = playerIdentity ? this.playerTokens.get(playerIdentity) : this.serverToken;
-    if (token) {
-      headers['Authorization'] = `Bearer ${token}`;
-    }
-
-    const response = await fetch(`${SPACETIME_CONFIG.host}/v1/database/${SPACETIME_CONFIG.database}/call/${reducerName}`, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(args)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.warn(`⚠️ SpacetimeDB call failed (${reducerName}): ${response.status} - ${errorText}`);
-    }
-  }
-
-  async addAudioFile(
-    name: string,
-    artistName: string,
-    songTitle: string,
-    ipfsCid: string,
-    fileSize: number,
-    duration?: number
-  ): Promise<void> {
     try {
-      await this.callReducer('add_audio_file', [
-        name,
-        artistName,
-        songTitle,
-        ipfsCid,
-        fileSize,
-        duration || null
-      ]);
-      
-      console.log(`✅ Added audio file to SpacetimeDB: ${artistName} - ${songTitle}`);
+      await this.connection.reducers.createPlayer(walletAddress, username);
+      console.log(`✅ Created player: ${walletAddress}`);
     } catch (error) {
-      console.error('❌ Failed to add audio file to SpacetimeDB:', error);
+      console.error('❌ Failed to create player:', error);
       throw error;
     }
   }
+
+  async updatePlayerStats(
+    walletAddress: string,
+    totalScore: number,
+    gamesPlayed: number,
+    bestScore: number,
+    totalEarnings: number
+  ): Promise<void> {
+    if (!this.connection) return;
+
+    try {
+      await this.connection.reducers.updatePlayerStats(
+        walletAddress,
+        totalScore,
+        gamesPlayed,
+        bestScore,
+        totalEarnings
+      );
+      console.log(`✅ Updated player stats: ${walletAddress}`);
+    } catch (error) {
+      console.error('❌ Failed to update player stats:', error);
+      throw error;
+    }
+  }
+
+  async updateTrialStatus(
+    walletAddress: string,
+    trialGamesRemaining: number,
+    trialCompleted: boolean
+  ): Promise<void> {
+    if (!this.connection) return;
+
+    try {
+      await this.connection.reducers.updateTrialStatus(
+        walletAddress,
+        trialGamesRemaining,
+        trialCompleted
+      );
+      console.log(`✅ Updated trial status: ${walletAddress}`);
+    } catch (error) {
+      console.error('❌ Failed to update trial status:', error);
+      throw error;
+    }
+  }
+
+  getPlayerProfile(walletAddress: string): Player | null {
+    if (!this.connection) return null;
+
+    const players = this.connection.db.players.filter(
+      (p: Player) => p.walletAddress === walletAddress
+    );
+
+    return players.length > 0 ? players[0] : null;
+  }
+
+  getActivePlayers(limit: number = 50): Player[] {
+    if (!this.connection) return [];
+
+    return this.connection.db.players
+      .filter((p: Player) => p.gamesPlayed > 0)
+      .sort((a: Player, b: Player) => Number(b.updatedAt) - Number(a.updatedAt))
+      .slice(0, limit);
+  }
+
+  // ============================================================================
+  // GAME SESSION MANAGEMENT
+  // ============================================================================
 
   async startGameSession(
     sessionId: string,
     difficulty: string,
     gameMode: string,
-    playerType: 'paid' | 'trial' = 'trial' // Default to trial
+    playerType: 'paid' | 'trial' = 'trial'
   ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('start_game_session', [
+      await this.connection.reducers.startGameSession(
         sessionId,
         difficulty,
         gameMode,
         playerType
-      ]);
-      
+      );
       console.log(`🎮 Started game session: ${sessionId} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to start game session:', error);
+      throw error;
+    }
+  }
+
+  async endGameSession(sessionId: string): Promise<void> {
+    if (!this.connection) return;
+
+    try {
+      await this.connection.reducers.endGameSession(sessionId);
+      console.log(`🏁 Ended game session: ${sessionId}`);
+    } catch (error) {
+      console.error('❌ Failed to end game session:', error);
+      throw error;
+    }
+  }
+
+  async getActiveGameSession(): Promise<ActiveGameSession | null> {
+    if (!this.connection) return null;
+
+    const activeSessions = this.connection.db.activeGameSessions.toArray();
+    return activeSessions.length > 0 ? activeSessions[0] : null;
+  }
+
+  async joinActiveGameSession(): Promise<void> {
+    if (!this.connection) return;
+
+    try {
+      // This would typically call a reducer to join the active session
+      // For now, this is a placeholder - implement according to your SpacetimeDB schema
+      console.log('🎮 Joined active game session');
+    } catch (error) {
+      console.error('❌ Failed to join active game session:', error);
       throw error;
     }
   }
@@ -328,242 +343,181 @@ class SpacetimeDBClient {
     selectedAnswer: number,
     correctAnswer: number,
     timeTaken: number,
-    playerType: 'paid' | 'trial' = 'trial' // Default to trial
+    playerType: 'paid' | 'trial' = 'trial'
   ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('record_question_attempt', [
+      await this.connection.reducers.recordQuestionAttempt(
         sessionId,
         audioFileName,
         selectedAnswer,
         correctAnswer,
         timeTaken,
         playerType
-      ]);
-      
-      console.log(`📝 Recorded question attempt: ${audioFileName} (${playerType})`);
+      );
+      console.log(`📝 Recorded question attempt: ${audioFileName}`);
     } catch (error) {
       console.error('❌ Failed to record question attempt:', error);
       throw error;
     }
   }
 
-  async endGameSession(sessionId: string): Promise<void> {
+  // ============================================================================
+  // LEADERBOARD & STATS
+  // ============================================================================
+
+  getLeaderboard(limit: number = 10): PlayerStats[] {
+    if (!this.connection) return [];
+
+    return this.connection.db.playerStats
+    .filter((stats: PlayerStats) => stats.playerType === 'paid')      
+    .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+      .slice(0, limit);
+  }
+
+  getTrialLeaderboard(limit: number = 10): PlayerStats[] {
+    if (!this.connection) return [];
+
+    return this.connection.db.playerStats
+      .filter((stats: PlayerStats) => stats.playerType === 'trial')
+      .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
+      .slice(0, limit);
+  }
+
+  getTopEarners(limit: number = 10): TopEarner[] {
+    if (!this.connection) return [];
+
+    return this.connection.db.players
+      .filter((p: Player) => p.totalEarnings > 0)
+      .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
+      .slice(0, limit)
+      .map((p: Player) => ({
+        walletAddress: p.walletAddress,
+        username: p.username,
+        avatarUrl: p.avatarUrl,
+        totalEarnings: p.totalEarnings,
+        gamesPlayed: p.gamesPlayed,
+        bestScore: p.bestScore,
+      }));
+  }
+
+  // ============================================================================
+  // AUDIO FILES
+  // ============================================================================
+
+  async addAudioFile(
+    name: string,
+    artistName: string,
+    songTitle: string,
+    ipfsCid: string,
+    fileSize: number,
+    duration?: number
+  ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('end_game_session', [sessionId]);
-      
-      console.log(`🏁 Ended game session: ${sessionId}`);
+      await this.connection.reducers.addAudioFile(
+        name,
+        artistName,
+        songTitle,
+        ipfsCid,
+        fileSize,
+        duration || 0
+      );
+      console.log(`✅ Added audio file: ${artistName} - ${songTitle}`);
     } catch (error) {
-      console.error('❌ Failed to end game session:', error);
+      console.error('❌ Failed to add audio file:', error);
       throw error;
     }
   }
 
-  async getRandomAudioFiles(count: number): Promise<string[]> {
+  getAllAudioFiles(): AudioFile[] {
+    if (!this.connection) return [];
+    return this.connection.db.audioFiles.toArray();
+  }
+
+  // ============================================================================
+  // PRIZE & CLAIMS MANAGEMENT
+  // ============================================================================
+
+  async createPrizePool(gameId: string, entryFee: number): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('get_random_audio_files', [count]);
-      // Note: HTTP calls don't return data directly, this would need subscription-based approach
-      // For now, return empty array as placeholder
-      console.log(`✅ Retrieved ${count} random audio files`);
-      return [];
+      await this.connection.reducers.createPrizePool(gameId, entryFee);
+      console.log(`✅ Created prize pool: ${gameId}`);
     } catch (error) {
-      console.error('❌ Failed to get random audio files:', error);
+      console.error('❌ Failed to create prize pool:', error);
       throw error;
     }
   }
 
-  async getPlayerStats(): Promise<PlayerStats | null> {
+  async recordPrizeDistribution(
+    walletAddress: string,
+    sessionId: string,
+    prizeAmount: number,
+    rank: number
+  ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('get_player_stats', []);
-      // Note: HTTP calls don't return data directly, this would need subscription-based approach
-      // For now, return null as placeholder
-      console.log(`✅ Retrieved player stats`);
-      return null;
+      await this.connection.reducers.recordPrizeDistribution(
+        walletAddress,
+        sessionId,
+        prizeAmount,
+        rank
+      );
+      console.log(`💰 Recorded prize: ${prizeAmount} USDC for ${walletAddress}`);
     } catch (error) {
-      console.error('❌ Failed to get player stats:', error);
+      console.error('❌ Failed to record prize distribution:', error);
       throw error;
     }
   }
 
-  async getLeaderboard(limit: number): Promise<PlayerStats[]> {
-    try {
-      await this.callReducer('get_leaderboard', [limit]);
-      // Note: HTTP calls don't return data directly, this would need subscription-based approach
-      // For now, return empty array as placeholder
-      console.log(`✅ Retrieved leaderboard (limit: ${limit})`);
-      return [];
-    } catch (error) {
-      console.error('❌ Failed to get leaderboard:', error);
-      throw error;
+  getPendingClaims(walletAddress?: string): PendingClaim[] {
+    if (!this.connection) return [];
+
+    const claims = this.connection.db.pendingClaims
+      .filter((claim: PendingClaim) => !claim.claimed);
+
+    if (walletAddress) {
+      return claims.filter((claim: PendingClaim) => claim.walletAddress === walletAddress);
     }
+
+    return claims.toArray();
   }
 
-  async getTrialLeaderboard(limit: number): Promise<PlayerStats[]> {
+  getPrizeHistory(walletAddress: string, limit: number = 20): PrizeHistory[] {
+    if (!this.connection) return [];
+
+    return this.connection.db.prizeHistory
+      .filter((prize: PrizeHistory) => prize.walletAddress === walletAddress)
+      .sort((a: PrizeHistory, b: PrizeHistory) => Number(b.gameTimestamp) - Number(a.gameTimestamp))
+      .slice(0, limit);
+  }
+
+  // ============================================================================
+  // GAME ENTRIES
+  // ============================================================================
+
+  async createGameEntry(
+    sessionId: string,
+    walletAddress?: string,
+    anonId?: string,
+    isTrial: boolean = true,
+    paidTxHash?: string
+  ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('get_trial_leaderboard', [limit]);
-      // Note: HTTP calls don't return data directly, this would need subscription-based approach
-      // For now, return empty array as placeholder
-      console.log(`✅ Retrieved trial leaderboard (limit: ${limit})`);
-      return [];
-    } catch (error) {
-      console.error('❌ Failed to get trial leaderboard:', error);
-      throw error;
-    }
-  }
-
-  async getActiveGameSession(): Promise<ActiveGameSession | null> {
-    try {
-      await this.callReducer('get_active_game_session', []);
-      
-      // Initialize mock session if it doesn't exist
-      if (!this.mockSession) {
-        this.mockSession = {
-          session_id: 'mock-session',
-          status: 'waiting',
-          player_count: 0,
-          paid_player_count: 0,
-          trial_player_count: 0,
-          prize_pool: 0, // Start with 0 USDC - only accumulates from paid player entry fees
-          entry_fee: 1,
-          start_time: Date.now(),
-          created_at: Date.now(),
-        };
-      }
-      
-      return this.mockSession;
-    } catch (error) {
-      console.error('❌ Failed to get active game session:', error);
-      throw error;
-    }
-  }
-
-  async joinActiveGameSession(playerType: 'paid' | 'trial' = 'trial'): Promise<void> {
-    try {
-      await this.callReducer('join_active_game_session', [playerType]);
-      
-      // Update mock session when player joins
-      if (this.mockSession) {
-        const isFirst = this.mockSession.player_count === 0;
-        const now = Date.now();
-        
-        this.mockSession = {
-          ...this.mockSession,
-          player_count: this.mockSession.player_count + 1,
-          paid_player_count: playerType === 'paid' ? this.mockSession.paid_player_count + 1 : this.mockSession.paid_player_count,
-          trial_player_count: playerType === 'trial' ? this.mockSession.trial_player_count + 1 : this.mockSession.trial_player_count,
-          prize_pool: playerType === 'paid' ? this.mockSession.prize_pool + this.mockSession.entry_fee : this.mockSession.prize_pool,
-          status: isFirst ? 'active' : this.mockSession.status,
-          start_time: isFirst ? now : this.mockSession.start_time,
-        };
-      }
-      
-      console.log(`✅ Joined active game session (${playerType})`);
-    } catch (error) {
-      console.error('❌ Failed to join active game session:', error);
-      throw error;
-    }
-  }
-
-  async updatePlayerType(newType: 'paid' | 'trial'): Promise<void> {
-    try {
-      await this.callReducer('update_player_type', [newType]);
-      console.log(`🔄 Updated player type to: ${newType}`);
-    } catch (error) {
-      console.error('❌ Failed to update player type:', error);
-      throw error;
-    }
-  }
-
-  async disconnect(): Promise<void> {
-    this.isConnected = false;
-    console.log('🔌 Disconnected from SpacetimeDB');
-  }
-
-  // Generic call method for reducers
-  async call(reducer: string, args: unknown[]): Promise<unknown> {
-    try {
-      await this.callReducer(reducer, args);
-      return null; // HTTP calls don't return data directly
-    } catch (error) {
-      console.error(`❌ Failed to call reducer ${reducer}:`, error);
-      throw error;
-    }
-  }
-
-  // Generic query method for database queries
-  async query(query: string, params: unknown[] = []): Promise<unknown[]> {
-    try {
-      // For now, return empty array since HTTP calls don't support direct queries
-      // In a real implementation, this would query the database
-      console.log(`📊 Query: ${query} with params:`, params);
-      return [];
-    } catch (error) {
-      console.error(`❌ Failed to execute query:`, error);
-      throw error;
-    }
-  }
-
-  // Helper method to populate SpacetimeDB with audio files from Storacha
-  async populateAudioFilesFromStoracha(audioFiles: Array<{
-    name: string;
-    artistName: string;
-    songTitle: string;
-    cid: string;
-  }>): Promise<void> {
-    console.log(`📤 Populating SpacetimeDB with ${audioFiles.length} audio files...`);
-    
-    for (const file of audioFiles) {
-      try {
-        await this.addAudioFile(
-          file.name,
-          file.artistName,
-          file.songTitle,
-          file.cid,
-          0, // fileSize - would need to be calculated
-          undefined // duration - would need to be extracted from audio
-        );
-      } catch (error) {
-        console.warn(`⚠️ Failed to add audio file ${file.name}:`, error);
-      }
-    }
-    
-    console.log(`✅ Populated SpacetimeDB with ${audioFiles.length} audio files`);
-  }
-
-  // Player management methods
-  async createPlayer(walletAddress: string, username?: string): Promise<void> {
-    try {
-      await this.callReducer('create_player', [walletAddress, username || null]);
-      console.log(`✅ Created player: ${walletAddress}`);
-    } catch (error) {
-      console.error('❌ Failed to create player:', error);
-      throw error;
-    }
-  }
-
-  async updatePlayerStats(walletAddress: string, totalScore: number, gamesPlayed: number, bestScore: number, totalEarnings: number): Promise<void> {
-    try {
-      await this.callReducer('update_player_stats', [walletAddress, totalScore, gamesPlayed, bestScore, totalEarnings]);
-      console.log(`✅ Updated player stats: ${walletAddress}`);
-    } catch (error) {
-      console.error('❌ Failed to update player stats:', error);
-      throw error;
-    }
-  }
-
-  async updateTrialStatus(walletAddress: string, trialGamesRemaining: number, trialCompleted: boolean): Promise<void> {
-    try {
-      await this.callReducer('update_trial_status', [walletAddress, trialGamesRemaining, trialCompleted]);
-      console.log(`✅ Updated trial status: ${walletAddress}`);
-    } catch (error) {
-      console.error('❌ Failed to update trial status:', error);
-      throw error;
-    }
-  }
-
-  // Game entry management methods
-  async createGameEntry(sessionId: string, walletAddress?: string, anonId?: string, isTrial: boolean = true, paidTxHash?: string): Promise<void> {
-    try {
-      await this.callReducer('create_game_entry', [sessionId, walletAddress || null, anonId || null, isTrial, paidTxHash || null]);
+      await this.connection.reducers.createGameEntry(
+        sessionId,
+        walletAddress || '',
+        anonId || '',
+        isTrial,
+        paidTxHash || ''
+      );
       console.log(`✅ Created game entry: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to create game entry:', error);
@@ -572,8 +526,10 @@ class SpacetimeDBClient {
   }
 
   async markEntryConsumed(sessionId: string): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('mark_entry_consumed', [sessionId]);
+      await this.connection.reducers.markEntryConsumed(sessionId);
       console.log(`✅ Marked entry as consumed: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to mark entry as consumed:', error);
@@ -581,10 +537,15 @@ class SpacetimeDBClient {
     }
   }
 
-  // Anonymous session management methods
+  // ============================================================================
+  // ANONYMOUS SESSIONS
+  // ============================================================================
+
   async createAnonymousSession(sessionId: string): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('create_anonymous_session', [sessionId]);
+      await this.connection.reducers.createAnonymousSession(sessionId);
       console.log(`✅ Created anonymous session: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to create anonymous session:', error);
@@ -592,9 +553,21 @@ class SpacetimeDBClient {
     }
   }
 
-  async updateAnonymousSession(sessionId: string, gamesPlayed: number, totalScore: number, bestScore: number): Promise<void> {
+  async updateAnonymousSession(
+    sessionId: string,
+    gamesPlayed: number,
+    totalScore: number,
+    bestScore: number
+  ): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('update_anonymous_session', [sessionId, gamesPlayed, totalScore, bestScore]);
+      await this.connection.reducers.updateAnonymousSession(
+        sessionId,
+        gamesPlayed,
+        totalScore,
+        bestScore
+      );
       console.log(`✅ Updated anonymous session: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to update anonymous session:', error);
@@ -602,53 +575,16 @@ class SpacetimeDBClient {
     }
   }
 
-  // Prize pool management methods
-  async createPrizePool(gameId: string, entryFee: number): Promise<void> {
-    try {
-      await this.callReducer('create_prize_pool', [gameId, entryFee]);
-      console.log(`✅ Created prize pool: ${gameId}`);
-    } catch (error) {
-      console.error('❌ Failed to create prize pool:', error);
-      throw error;
-    }
-  }
+  // ============================================================================
+  // ADMIN FUNCTIONS
+  // ============================================================================
 
-  async updatePrizePool(gameId: string, totalAmount: number, paidPlayers: number, freePlayers: number, winnerAddress?: string, winnerScore?: number, claimed: boolean = false): Promise<void> {
-    try {
-      await this.callReducer('update_prize_pool', [gameId, totalAmount, paidPlayers, freePlayers, winnerAddress || null, winnerScore || null, claimed]);
-      console.log(`✅ Updated prize pool: ${gameId}`);
-    } catch (error) {
-      console.error('❌ Failed to update prize pool:', error);
-      throw error;
-    }
-  }
-
-  // Pending claims management methods
-  async createPendingClaim(sessionId: string, gameId: string, prizeAmount: number, score: number, walletAddress?: string): Promise<void> {
-    try {
-      await this.callReducer('create_pending_claim', [sessionId, walletAddress || null, gameId, prizeAmount, score]);
-      console.log(`✅ Created pending claim: ${sessionId}`);
-    } catch (error) {
-      console.error('❌ Failed to create pending claim:', error);
-      throw error;
-    }
-  }
-
-  async markClaimClaimed(sessionId: string, claimTransactionHash: string): Promise<void> {
-    try {
-      await this.callReducer('mark_claim_claimed', [sessionId, claimTransactionHash]);
-      console.log(`✅ Marked claim as claimed: ${sessionId}`);
-    } catch (error) {
-      console.error('❌ Failed to mark claim as claimed:', error);
-      throw error;
-    }
-  }
-
-  // Admin management methods
   async grantAdminPrivileges(targetIdentity: string, adminLevel: string): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('grant_admin_privileges', [targetIdentity, adminLevel]);
-      console.log(`✅ Granted ${adminLevel} admin privileges to ${targetIdentity}`);
+      await this.connection.reducers.grantAdminPrivileges(targetIdentity, adminLevel);
+      console.log(`✅ Granted ${adminLevel} privileges to ${targetIdentity}`);
     } catch (error) {
       console.error('❌ Failed to grant admin privileges:', error);
       throw error;
@@ -656,8 +592,10 @@ class SpacetimeDBClient {
   }
 
   async revokeAdminPrivileges(targetIdentity: string): Promise<void> {
+    if (!this.connection) return;
+
     try {
-      await this.callReducer('revoke_admin_privileges', [targetIdentity]);
+      await this.connection.reducers.revokeAdminPrivileges(targetIdentity);
       console.log(`✅ Revoked admin privileges from ${targetIdentity}`);
     } catch (error) {
       console.error('❌ Failed to revoke admin privileges:', error);
@@ -665,115 +603,24 @@ class SpacetimeDBClient {
     }
   }
 
-  async listAdmins(): Promise<void> {
-    try {
-      await this.callReducer('list_admins', []);
-      console.log(`✅ Listed admins`);
-    } catch (error) {
-      console.error('❌ Failed to list admins:', error);
-      throw error;
-    }
+  getAllPlayers(): Player[] {
+    if (!this.connection) return [];
+    return this.connection.db.players.toArray();
   }
 
-  // Admin data access methods
-  async getAllPlayerStatsAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_player_stats_admin');
-      console.log(`✅ Retrieved all player stats (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all player stats:', error);
-      throw error;
-    }
+  getAllGameSessions(): GameSession[] {
+    if (!this.connection) return [];
+    return this.connection.db.gameSessions.toArray();
   }
 
-  async getAllGameSessionsAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_game_sessions_admin');
-      console.log(`✅ Retrieved all game sessions (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all game sessions:', error);
-      throw error;
-    }
+  getAllPlayerStats(): PlayerStats[] {
+    if (!this.connection) return [];
+    return this.connection.db.playerStats.toArray();
   }
 
-  async getAllQuestionAttemptsAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_question_attempts_admin');
-      console.log(`✅ Retrieved all question attempts (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all question attempts:', error);
-      throw error;
-    }
-  }
-
-  async getAllPlayersAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_players_admin');
-      console.log(`✅ Retrieved all players (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all players:', error);
-      throw error;
-    }
-  }
-
-  async getAllGameEntriesAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_game_entries_admin');
-      console.log(`✅ Retrieved all game entries (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all game entries:', error);
-      throw error;
-    }
-  }
-
-  async getAllGuestPlayersAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_guest_players_admin');
-      console.log(`✅ Retrieved all guest players (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all guest players:', error);
-      throw error;
-    }
-  }
-
-  async getAllGuestGameSessionsAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_guest_game_sessions_admin');
-      console.log(`✅ Retrieved all guest game sessions (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all guest game sessions:', error);
-      throw error;
-    }
-  }
-
-  async getAllPendingClaimsAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_all_pending_claims_admin');
-      console.log(`✅ Retrieved all pending claims (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get all pending claims:', error);
-      throw error;
-    }
-  }
-
-  async getLeaderboardAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_leaderboard_admin');
-      console.log(`✅ Retrieved leaderboard (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get leaderboard:', error);
-      throw error;
-    }
-  }
-
-  async getTrialLeaderboardAdmin(): Promise<void> {
-    try {
-      await this.callReducer('get_trial_leaderboard_admin');
-      console.log(`✅ Retrieved trial leaderboard (admin)`);
-    } catch (error) {
-      console.error('❌ Failed to get trial leaderboard:', error);
-      throw error;
-    }
+  getAllAdmins(): Admin[] {
+    if (!this.connection) return [];
+    return this.connection.db.admins.toArray();
   }
 }
 
@@ -781,9 +628,7 @@ class SpacetimeDBClient {
 export const spacetimeClient = new SpacetimeDBClient();
 
 // Initialize on module load (only in production runtime, not during build)
-// Skip initialization during build time to prevent connection errors
 if (typeof window === 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PHASE) {
-  // Server-side initialization - only in production runtime, not during build
   spacetimeClient.initialize().catch((error) => {
     console.warn('⚠️ SpacetimeDB initialization failed during startup:', error.message);
   });
