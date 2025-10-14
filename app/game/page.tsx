@@ -21,6 +21,7 @@ import { useSocialShare } from '@/hooks/useSocialShare';
 import ComposeCastButton from '@/components/social/ComposeCastButton';
 import SocialProfileViewer from '@/components/social/SocialProfileViewer';
 import type { ActivePlayer } from '@/hooks/useActivePlayers';
+import { MiniAppActions } from '@/components/minikit/MiniAppActions';
 
 export default function Game() {
   const router = useRouter();
@@ -445,6 +446,9 @@ export default function Game() {
               )}
             </div>
           </div>
+
+          {/* Mini App Actions */}
+          <MiniAppActions />
 
           <div className="flex gap-3 justify-center flex-wrap">
             <button

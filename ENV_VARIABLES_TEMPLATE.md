@@ -45,8 +45,10 @@ ADMIN_API_SECRET=your_super_secret_admin_key_here
 # OPTIONAL CONFIGURATION
 ############################################
 
-# OnchainKit API Key (for enhanced wallet features)
-NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
+# OnchainKit API Key (for enhanced wallet features) - REQUIRED for OnchainKit
+NEXT_PUBLIC_CDP_API_KEY=your_onchainkit_api_key
+# Legacy name for backward compatibility (deprecated - use NEXT_PUBLIC_CDP_API_KEY)
+# NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
 
 # CDP Paymaster & Bundler Endpoint (for gasless transactions)
 # Get from: https://portal.cdp.coinbase.com/products/bundler-and-paymaster -> Configuration tab
