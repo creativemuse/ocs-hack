@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Inter, Source_Code_Pro } from "next/font/google";
 import localFont from "next/font/local";
 import { RootProvider } from "./rootProvider";
@@ -51,6 +52,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        {/* Load Farcaster MiniApp SDK before app renders */}
+        <Script
+          src="https://miniapp.farcaster.xyz/sdk.js"
+          strategy="beforeInteractive"
+        />
+      </head>
       <body className={`${inter.variable} ${sourceCodePro.variable} ${audiowide.variable} min-h-screen bg-gradient-to-br from-purple-50 via-blue-50 to-pink-50`}>
         <RootProvider>
           <MiniKitLayout>
