@@ -33,7 +33,16 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Safely check if Farcaster miniapp SDK is available
     if (typeof window !== "undefined" && window.sdk?.actions?.ready) {
+      console.log('[Farcaster] SDK detected, calling ready()');
       window.sdk.actions.ready();
+      console.log('[Farcaster] ready() called successfully');
+    } else {
+      console.log('[Farcaster] SDK not available:', {
+        hasWindow: typeof window !== "undefined",
+        hasSdk: typeof window !== "undefined" && !!window.sdk,
+        hasActions: typeof window !== "undefined" && !!window.sdk?.actions,
+        hasReady: typeof window !== "undefined" && typeof window.sdk?.actions?.ready === 'function'
+      });
     }
   }, []);
   return (
