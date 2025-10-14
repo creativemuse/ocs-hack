@@ -69,6 +69,7 @@ export default function ClaimWinningsButton({
       chainId={base.id}
       calls={contracts}
       onStatus={handleOnStatus}
+      isSponsored
     >
       {/* @ts-ignore - OnchainKit TransactionButton type issue */}
       <TransactionButton

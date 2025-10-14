@@ -8,12 +8,14 @@ import { coinbaseWallet } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 
-// Create wagmi config
+// Create wagmi config with MiniKit support
 const wagmiConfig = createConfig({
   chains: [base],
   connectors: [
     coinbaseWallet({
       appName: 'BEAT ME',
+      // Preference ensures smart wallet is default in Farcaster
+      preference: 'smartWalletOnly',
     }),
   ],
   ssr: true,
@@ -55,10 +57,13 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
   }, []);
   return (
     <OnchainKitProvider
-      apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
+      apiKey={process.env.NEXT_PUBLIC_CDP_API_KEY}
       chain={base}
       projectId={process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821"}
+      miniKit={{ enabled: true }}
       config={{
+        // Paymaster configuration for sponsored transactions - matches OnchainKit docs
+        paymaster: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT,
         appearance: {
           name: "BEAT ME",
           mode: "auto", // Change back to "auto" to allow theme switching
@@ -67,8 +72,6 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
           display: "modal",
           preference: "all",
         },
-        // Paymaster configuration for sponsored transactions
-        paymaster: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT,
         // Disable analytics to prevent 401 errors
         analytics: false,
       }}
