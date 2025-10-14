@@ -31,7 +31,7 @@ export const metadata: Metadata = {
       version: "next",
       imageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
       button: {
-        title: "Drop the Beat",
+        title: "Can you beat me?",
         action: {
           type: "launch_frame",
           name: "BEAT ME",
