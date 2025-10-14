@@ -21,6 +21,7 @@ export default function SponsoredTransaction({
 }: SponsoredTransactionProps) {
   return (
     <Transaction
+      isSponsored
       calls={calls}
       onSuccess={onSuccess}
       onError={onError}
