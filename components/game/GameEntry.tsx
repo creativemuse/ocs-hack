@@ -19,7 +19,14 @@ import SponsoredTransactionExample from '@/components/transaction/SponsoredTrans
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
-import { Transaction, TransactionButton, TransactionSponsor, TransactionStatus, TransactionStatusLabel, TransactionStatusAction } from '@coinbase/onchainkit/transaction';
+import { 
+  Transaction, 
+  TransactionButton, 
+  TransactionSponsor, 
+  TransactionStatus, 
+  TransactionStatusLabel, 
+  TransactionStatusAction 
+} from '@coinbase/onchainkit/transaction';
 import type { LifecycleStatus } from '@coinbase/onchainkit/transaction';
 import { createPaidGameCalls, createTrialGameCalls } from '@/lib/transaction/paidGameCalls';
 import { base } from 'wagmi/chains';
@@ -521,9 +528,20 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       <Transaction
                         chainId={base.id}
                         calls={createPaidGameCalls()}
-                        isSponsored={true}
+                        isSponsored
                         onStatus={handleTransactionStatus}
-                      />
+                      >
+                        {/* @ts-ignore */}
+                        <TransactionButton
+                          text="Start Paid Game"
+                          className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg"
+                        />
+                        <TransactionSponsor />
+                        <TransactionStatus>
+                          <TransactionStatusLabel />
+                          <TransactionStatusAction />
+                        </TransactionStatus>
+                      </Transaction>
                       <Button
                         onClick={() => setIsProcessingPayment(false)}
                         variant="outline"
