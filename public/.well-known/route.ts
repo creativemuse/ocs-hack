@@ -13,7 +13,7 @@ function withValidProperties(properties: Record<string, undefined | string | str
         "signature": "MHg4MTc0Y2YzNjdhMjM4YTdiNThlMWI2MTU0OWVhYTAzZWViYWQxMmY5MjkxNmE5YzMzNDU0OTlkNGQyZTg0ZjYwMDY4N2EyY2JiM2RjZTZkNjA2NWZkZmY2ZDg4MWRiOGMwNzUyMjM5MjdmYzgyNWQzM2QzNmMwYjhmNDNlZGZmYzFi"
       },
         "baseBuilder": {
-          "allowedAddresses": ["0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260", "0xc3118549B9bCd7Ed6672Ea2A5a3B26FfbE735F67"]
+          "allowedAddresses": ["0xc3118549B9bCd7Ed6672Ea2A5a3B26FfbE735F67"]
         },
         "frame": {
           "version": "1",
