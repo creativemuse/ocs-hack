@@ -1,4 +1,5 @@
 @import "tailwindcss";
+/* stylelint-disable-next-line at-rule-no-unknown */
 @plugin "tailwindcss-animate";
 
 @layer theme, base, components, utilities;

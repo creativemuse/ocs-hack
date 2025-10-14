@@ -1,13 +1,18 @@
 "use client";
-import { ReactNode } from "react";
+import { ReactNode, useEffect } from "react";
+import { sdk } from '@farcaster/miniapp-sdk';
 
 interface MiniKitLayoutProps {
   children: ReactNode;
 }
 
 export function MiniKitLayout({ children }: MiniKitLayoutProps) {
-  // Simple wrapper for MiniApp context
-  // TODO: Integrate proper MiniKit components when available in OnChainKit
+  useEffect(() => {
+    // Signal to Farcaster that the app is ready to display
+    // This hides the loading splash screen
+    sdk.actions.ready();
+  }, []);
+
   return (
     <div className="min-h-screen">
       {children}
