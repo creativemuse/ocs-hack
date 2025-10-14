@@ -1,0 +1,33 @@
+// const ROOT_URL =
+//   process.env.NEXT_PUBLIC_URL ||
+//   (process.env.VERCEL_PROJECT_PRODUCTION_URL ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}` : 'http://localhost:3000');
+
+export const minikitConfig = {
+    "accountAssociation": {
+      "header": "eyJmaWQiOjc5MzUsInR5cGUiOiJjdXN0b2R5Iiwia2V5IjoiMHg3RGYyQzk0MTJiRDY3NDk3ZmVhRWY3M0M2Zjc4YUY2NzFGYWM4Njc0In0",
+      "payload": "eyJkb21haW4iOiJiZWF0bWUuY3JlYXRpdmVwbGF0Zm9ybS54eXoifQ",
+      "signature": "MHg4MTc0Y2YzNjdhMjM4YTdiNThlMWI2MTU0OWVhYTAzZWViYWQxMmY5MjkxNmE5YzMzNDU0OTlkNGQyZTg0ZjYwMDY4N2EyY2JiM2RjZTZkNjA2NWZkZmY2ZDg4MWRiOGMwNzUyMjM5MjdmYzgyNWQzM2QzNmMwYjhmNDNlZGZmYzFi"
+    },
+    "baseBuilder": {
+      "allowedAddresses": ["0xc3118549B9bCd7Ed6672Ea2A5a3B26FfbE735F67"]
+    },
+    "miniapp": {
+      "version": "1",
+      "name": "BEAT ME",
+      "homeUrl": "https://beatme.creativeplatform.xyz",
+      "iconUrl": "https://beatme.creativeplatform.xyz/icon.png",
+      "splashImageUrl": "https://beatme.creativeplatform.xyz/splash.png",
+      "splashBackgroundColor": "#000000",
+      "webhookUrl": "https://beatme.creativeplatform.xyz/api/webhook",
+      "subtitle": "Can you BEAT ME?",
+      "description": "Name the tune, win a reward.",
+      "screenshotUrls": [],
+      "primaryCategory": "games",
+      "tags": ["music", "trivia", "earn"],
+      "heroImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "tagline": "Can you BEAT ME?",
+      "ogTitle": "BEAT ME",
+      "ogDescription": "Name the tune, win a reward.",
+      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png"
+    }
+  } as const;
