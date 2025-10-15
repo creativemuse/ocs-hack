@@ -28,7 +28,8 @@ export async function GET() {
       "tagline": "Can you beat me?",
       "ogTitle": "BEAT ME",
       "ogDescription": "Name that tune, win your reward.",
-      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png"
+      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "noindex": true
     }
   });
 }

@@ -31,7 +31,7 @@ NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT=https://api.developer.coinbase.com/rp
 ### 2. CDP Dashboard Configuration
 Add these contracts to your paymaster allowlist:
 
-**USDC Contract:** `0xd8dA6BF26964aF9D7eEd9e03E53415D37aA96045`
+**USDC Contract (Base Mainnet):** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 - Function: `approve(address,uint256)`
 
 **TriviaBattle Contract:** `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
@@ -68,14 +68,16 @@ Set appropriate limits in CDP Dashboard:
 
 ### 5. Verify Paymaster Integration
 
-Test the curl request to verify allowlist:
+Test the curl request to verify allowlist (replace YOUR_API_KEY with your actual key):
 ```bash
-curl -s https://api.developer.coinbase.com/rpc/v1/base/hRylc180nVLV1BADxHG9JF3LIIM5WDcu \
+curl -s https://api.developer.coinbase.com/rpc/v1/base/YOUR_API_KEY \
   -H "Content-Type: application/json" \
-  -d '{"id": 1, "method": "pm_getPaymasterStubData", "params": [{"callData": "0xb61d27f6000000000000000000000000d8da6bf26964af9d7eed9e03e53415d37aa960450000000000000000000000000000000000000000000000000de0b6b3a764000000000000000000000000000000000000000000000000000000000000000000600000000000000000000000000000000000000000000000000000000000000000","callGasLimit":"0x0","initCode":"0x","maxFeePerGas":"0x0","maxPriorityFeePerGas":"0x0","nonce":"0x192a01d5c9a0000000000000000","paymasterAndData":"0x","preVerificationGas":"0x0","sender":"0xF7DCa789B08Ed2F7995D9bC22c500A8CA715D0A8","signature":"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000041fffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c00000000000000000000000000000000000000000000000000000000000000","verificationGasLimit":"0x0"},"0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789","0x2105",{}],"jsonrpc": "2.0"}'
+  -d '{"id": 1, "method": "pm_getPaymasterStubData", "params": [{"callData": "0x095ea7b3000000000000000000000000c166a6fb38636e8430d6a2efb7a601c22665942500000000000000000000000000000000000000000000000000000000000f4240","callGasLimit":"0x0","initCode":"0x","maxFeePerGas":"0x0","maxPriorityFeePerGas":"0x0","nonce":"0x0","paymasterAndData":"0x","preVerificationGas":"0x0","sender":"YOUR_WALLET_ADDRESS","signature":"0x0000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000400000000000000000000000000000000000000000000000000000000000000041fffffffffffffffffffffffffffffff0000000000000000000000000000000007aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1c00000000000000000000000000000000000000000000000000000000000000","verificationGasLimit":"0x0"},"0x5ff137d4b0fdcd49dca30c7cf57e578a026d2789","0x2105",{}],"jsonrpc": "2.0"}'
 ```
 
 **Expected Response:** Should return paymaster stub data instead of "not in allowlist" error.
+
+**Note:** The callData above is for USDC approve() function calling the TriviaBattle contract with 1 USDC (1000000 wei).
 
 ## Troubleshooting
 
