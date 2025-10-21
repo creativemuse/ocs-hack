@@ -32,6 +32,7 @@
   "dependencies": {
     "@base-org/account": "^2.4.0",
     "@base-org/account-ui": "^1.0.1",
+    "@clockworklabs/spacetimedb-sdk": "^1.3.3",
     "@coinbase/cdp-sdk": "^1.38.2",
     "@coinbase/coinbase-sdk": "^0.25.0",
     "@coinbase/onchainkit": "^1.1.1",
