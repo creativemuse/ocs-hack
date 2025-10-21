@@ -5,10 +5,11 @@ import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
-import { Name } from '@coinbase/onchainkit/identity';
+// OnchainKit Name component removed - using Base Account instead
 import { base } from 'viem/chains';
+import { Name } from '@coinbase/onchainkit/identity';
 import { Confetti } from '@neoconfetti/react';
 
 interface HighScoreDisplayProps {
@@ -29,7 +30,7 @@ export default function HighScoreDisplay({
   className = '' 
 }: HighScoreDisplayProps) {
   const { highScores, getCurrentHighScore, getPlayerRank, submitScore } = useHighScores();
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<{

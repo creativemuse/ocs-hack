@@ -15,18 +15,18 @@ import AudioPlayer from '@/components/game/AudioPlayer';
 import ActivePlayers from '@/components/game/ActivePlayers';
 import type { TriviaQuestion } from '@/types/game';
 import { ScoringSystem } from '@/lib/game/scoring';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
 import { Trophy } from 'lucide-react';
-import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect } from '@coinbase/onchainkit/wallet';
-import { Avatar, Name, Identity, Address, EthBalance } from '@coinbase/onchainkit/identity';
+// OnchainKit imports removed - using Base Account instead
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import BaseAccountButton from '@/components/base-account/BaseAccountButton';
 
 export default function Home() {
   const router = useRouter();
@@ -59,8 +59,8 @@ export default function Home() {
   const [audioError, setAudioError] = useState(false);
   const timerTriggeredRef = useRef(false);
   // Add trial status hook
-  const { address } = useAccount();
-  const { trialStatus, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
+  const { address } = useBaseAccount();
+  const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
   const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError, refreshBalance } = useContractUSDCBalance();
@@ -422,32 +422,12 @@ export default function Home() {
             <p className="text-gray-600 text-lg mb-4">
               You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
             </p>
-            {/* OnchainKit Wallet Component */}
+            {/* Base Account Wallet Component */}
             <div className="flex justify-center">
-              <Wallet>
-                <ConnectWallet 
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
-                  disconnectedLabel="Connect Wallet to Continue"
-                >
-                  <Avatar className="h-6 w-6" />
-                  <Name />
-                </ConnectWallet>
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <Avatar />
-                    <Name />
-                    <Address className="text-gray-400" />
-                    <EthBalance />
-                  </Identity>
-                  <button
-                    onClick={() => setShowPayment(true)}
-                    className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    💳 Buy USDC
-                  </button>
-                  <WalletDropdownDisconnect />
-                </WalletDropdown>
-              </Wallet>
+              <BaseAccountButton
+                className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600 !text-white !px-8 !py-3 !rounded-lg !text-lg !font-semibold"
+                onConnect={() => setShowPayment(true)}
+              />
             </div>
             <p className="text-sm text-gray-500 mt-4">
               Connect your wallet to continue playing and earn rewards!
@@ -623,30 +603,18 @@ export default function Home() {
                       You've used all your free games. Connect your wallet to continue playing and earn rewards!
                     </p>
                     <div className="flex justify-center">
-                      <Wallet>
-                        <ConnectWallet 
-                          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-2 rounded-lg text-sm font-semibold"
-                          disconnectedLabel="Connect Wallet to Continue"
+                      <div className="flex flex-col items-center gap-2">
+                        <BaseAccountButton
+                          className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600 !text-white !px-6 !py-2 !rounded-lg !text-sm !font-semibold"
+                          onConnect={() => setShowPayment(true)}
+                        />
+                        <button
+                          onClick={() => setShowPayment(true)}
+                          className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors rounded-md"
                         >
-                          <Avatar className="h-4 w-4" />
-                          <Name />
-                        </ConnectWallet>
-                        <WalletDropdown>
-                          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                            <Avatar />
-                            <Name />
-                            <Address className="text-gray-400" />
-                            <EthBalance />
-                          </Identity>
-                          <button
-                            onClick={() => setShowPayment(true)}
-                            className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
-                          >
-                            💳 Buy USDC
-                          </button>
-                          <WalletDropdownDisconnect />
-                        </WalletDropdown>
-                      </Wallet>
+                          💳 Buy USDC
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -712,9 +680,7 @@ export default function Home() {
                   <span className="text-green-200/80">• Playing for real money</span>
                 </div>
                 <div className="text-green-200/60 text-xs mt-1 text-center">
-                  <Identity address={address}>
-                    <Name />
-                  </Identity>
+                  {address?.slice(0, 6)}...{address?.slice(-4)}
                 </div>
               </div>
             </div>

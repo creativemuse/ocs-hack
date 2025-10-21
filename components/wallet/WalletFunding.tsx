@@ -1,112 +1,133 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { BasePayButton } from '@base-org/account-ui/react';
+import { pay, getPaymentStatus } from '@base-org/account';
 import { Button } from '@/components/ui/button';
-import { useOneClickBuy } from '@/hooks/useOneClickBuy';
-import { Coins, ExternalLink, DollarSign } from 'lucide-react';
+import { Coins, ExternalLink, DollarSign, CheckCircle, Loader2 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 
 interface WalletFundingProps {
   className?: string;
 }
 
 export default function WalletFunding({ className = '' }: WalletFundingProps) {
-  const { address } = useAccount();
-  const { generateBuyUrl, openOnramp, isLoading, error, quoteData } = useOneClickBuy();
-  const [showQuote, setShowQuote] = useState(false);
+  const { address, isConnected } = useBaseAccount();
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
+  const [paymentId, setPaymentId] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleFundWallet = async () => {
+  const handleBasePay = async () => {
     if (!address) return;
     
+    setPaymentStatus('processing');
+    setError(null);
+    
     try {
-      const result = await generateBuyUrl(address, {
-        paymentAmount: '5.00',
-        paymentCurrency: 'USD',
-        purchaseCurrency: 'USDC',
-        purchaseNetwork: 'base',
-        paymentMethod: 'CARD',
-        country: 'US',
+      console.log('Initiating Base Pay for wallet:', address);
+      
+      // Use Base Pay to add USDC funds
+      const payment = await pay({
+        amount: '5.00',
+        to: address,
+        testnet: false, // Use mainnet for production
       });
       
-      if (result?.url) {
-        setShowQuote(true);
-        // Automatically open after showing quote preview
-        setTimeout(() => {
-          openOnramp(result.url);
-        }, 500);
-      }
+      setPaymentId(payment.id);
+      console.log('Base Pay initiated:', payment.id);
+      
+      // Poll for payment status
+      const checkStatus = async () => {
+        try {
+          const status = await getPaymentStatus({ id: payment.id, testnet: false });
+          console.log('Payment status:', status);
+          
+          if (status.status === 'completed') {
+            setPaymentStatus('completed');
+            setTimeout(() => setPaymentStatus('idle'), 3000);
+          } else if (status.status === 'failed') {
+            setPaymentStatus('failed');
+            setError('Payment failed');
+          } else {
+            // Still pending, check again in 2 seconds
+            setTimeout(checkStatus, 2000);
+          }
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+          setPaymentStatus('failed');
+          setError('Failed to check payment status');
+        }
+      };
+      
+      // Start polling
+      setTimeout(checkStatus, 2000);
+      
     } catch (err) {
-      console.error('Failed to generate buy URL:', err);
+      console.error('Base Pay failed:', err);
+      setPaymentStatus('failed');
+      setError(err instanceof Error ? err.message : 'Payment failed');
     }
   };
 
-  if (!address) {
+  if (!isConnected || !address) {
     return (
       <Card className={`bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30 ${className}`}>
         <CardContent className="p-4">
           <div className="text-center text-gray-400">
             <Coins className="h-8 w-8 mx-auto mb-2 opacity-50" />
-            <p className="text-sm">Connect your wallet to access funding options</p>
+            <p className="text-sm">Connect your Base Account to access funding options</p>
           </div>
         </CardContent>
       </Card>
     );
   }
 
-  if (showQuote && quoteData) {
+  if (paymentStatus === 'processing') {
     return (
-      <Card className={`bg-gradient-to-br from-green-900/20 to-blue-900/20 border-green-500/30 ${className}`}>
+      <Card className={`bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-500/30 ${className}`}>
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg text-white">
-            <Coins className="h-5 w-5 text-green-400" />
-            Buy USDC Quote
+            <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+            Processing Payment
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-300 text-center">
-            Opening Coinbase Onramp...
+            Your Base Pay transaction is being processed...
           </div>
           
-          <div className="space-y-3">
-            {/* Quote Preview */}
-            <div className="bg-black/30 rounded-lg p-4 space-y-2">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">You'll pay:</span>
-                <span className="text-white font-medium">
-                  ${quoteData.paymentTotal?.amount} {quoteData.paymentTotal?.currency}
-                </span>
+          {paymentId && (
+            <div className="bg-black/30 rounded-lg p-3">
+              <div className="text-xs text-gray-400 text-center">
+                Payment ID: {paymentId.slice(0, 8)}...{paymentId.slice(-8)}
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-gray-400">You'll receive:</span>
-                <span className="text-green-400 font-medium">
-                  {quoteData.purchaseAmount?.amount} {quoteData.purchaseAmount?.currency}
-                </span>
-              </div>
-              {quoteData.coinbaseFee && (
-                <div className="flex justify-between items-center text-xs pt-2 border-t border-gray-700">
-                  <span className="text-gray-500">Coinbase fee:</span>
-                  <span className="text-gray-400">
-                    ${quoteData.coinbaseFee.amount}
-                  </span>
-                </div>
-              )}
-            </div>
-            
-            <Button
-              variant="outline"
-              onClick={() => setShowQuote(false)}
-              className="w-full border-gray-600 text-gray-300 hover:bg-gray-800"
-            >
-              Back
-            </Button>
-          </div>
-          
-          {error && (
-            <div className="text-red-400 text-xs text-center">
-              {error}
             </div>
           )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (paymentStatus === 'completed') {
+    return (
+      <Card className={`bg-gradient-to-br from-green-900/20 to-blue-900/20 border-green-500/30 ${className}`}>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-lg text-white">
+            <CheckCircle className="h-5 w-5 text-green-400" />
+            Payment Successful
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="text-sm text-gray-300 text-center">
+            Your wallet has been funded with $5 USDC!
+          </div>
+          
+          <Badge variant="secondary" className="bg-green-500/20 text-green-400 w-full justify-center">
+            <CheckCircle className="h-3 w-3 mr-1" />
+            Payment Complete
+          </Badge>
         </CardContent>
       </Card>
     );
@@ -117,32 +138,19 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-lg text-white">
           <Coins className="h-5 w-5 text-yellow-400" />
-          Wallet Funding
+          Base Account Funding
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="text-sm text-gray-300 text-center">
-          Need funds to play? Add crypto to your wallet easily.
+          Need funds to play? Add USDC to your Base Account easily.
         </div>
         
         <div className="space-y-3">
-          <Button
-            onClick={handleFundWallet}
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
-          >
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Loading...
-              </>
-            ) : (
-              <>
-                <DollarSign className="h-4 w-4 mr-2" />
-                Buy $5 USDC
-              </>
-            )}
-          </Button>
+          <BasePayButton
+            colorScheme="light"
+            onClick={handleBasePay}
+          />
           
           {error && (
             <div className="text-red-400 text-xs text-center">
@@ -152,7 +160,7 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
         </div>
         
         <div className="text-xs text-gray-400 text-center">
-          Powered by Coinbase Onramp
+          Powered by Base Pay
         </div>
       </CardContent>
     </Card>

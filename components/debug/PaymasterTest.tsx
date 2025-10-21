@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 import { useSponsoredTriviaContract } from '@/hooks/useSponsoredTriviaContract';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
@@ -12,7 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Loader2, Zap, Trophy, Gift } from 'lucide-react';
 
 export default function PaymasterTest() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const [useGasless, setUseGasless] = useState(true);
   const [approvalCalls, setApprovalCalls] = useState<any[]>([]);
   const [joinBattleCalls, setJoinBattleCalls] = useState<any[]>([]);

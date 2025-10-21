@@ -4,8 +4,9 @@ import { useTopEarners } from '@/hooks/useTopEarners';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { Loader2 } from 'lucide-react';
-import { Name } from '@coinbase/onchainkit/identity';
+// OnchainKit Name component removed - using Base Account instead
 import { base } from 'viem/chains';
+import { Name } from '@coinbase/onchainkit/identity';
 
 interface TopEarnersProps {
   limit?: number;

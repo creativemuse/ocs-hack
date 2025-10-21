@@ -3,17 +3,10 @@
 import { useState } from 'react';
 import { Gift, CheckCircle, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import {
-  Transaction,
-  TransactionButton,
-  TransactionSponsor,
-  TransactionStatus,
-  TransactionStatusLabel,
-  TransactionStatusAction,
-} from '@coinbase/onchainkit/transaction';
+import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
 import { TRIVIA_CONTRACT_ADDRESS, TRIVIA_ABI } from '@/lib/blockchain/contracts';
-import { base } from 'wagmi/chains';
-import type { LifecycleStatus } from '@coinbase/onchainkit/transaction';
+import { base } from 'viem/chains';
+import { encodeFunctionData } from 'viem';
 
 interface ClaimWinningsButtonProps {
   winningAmount: string;
@@ -28,10 +21,10 @@ export default function ClaimWinningsButton({
 }: ClaimWinningsButtonProps) {
   const [hasClaimed, setHasClaimed] = useState(false);
 
-  const handleOnStatus = (status: LifecycleStatus) => {
-    console.log('Claim transaction status:', status);
+  const handleOnStatus = (status: 'pending' | 'success' | 'error', message?: string) => {
+    console.log('Claim transaction status:', status, message);
     
-    if (status.statusName === 'success') {
+    if (status === 'success') {
       console.log('✅ Claim successful!');
       setHasClaimed(true);
       if (onClaimSuccess) {
@@ -39,17 +32,20 @@ export default function ClaimWinningsButton({
       }
     }
     
-    if (status.statusName === 'error') {
-      console.error('❌ Claim failed:', status.statusData);
+    if (status === 'error') {
+      console.error('❌ Claim failed:', message);
     }
   };
 
-  const contracts = [
+  const calls = [
     {
-      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'claimWinnings',
-      args: [],
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: '0x0' as `0x${string}`,
+      data: encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'claimWinnings',
+        args: [],
+      }),
     },
   ];
 
@@ -65,24 +61,16 @@ export default function ClaimWinningsButton({
   }
 
   return (
-    <Transaction
-      chainId={base.id}
-      calls={contracts}
+    <BaseAccountTransaction
+      calls={calls}
       onStatus={handleOnStatus}
-      isSponsored
+      className="w-full"
     >
-      {/* @ts-ignore - OnchainKit TransactionButton type issue */}
-      <TransactionButton
-        text="Claim Winnings (Gasless)"
-        disabled={disabled}
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold"
-      />
-      <TransactionSponsor />
-      <TransactionStatus>
-        <TransactionStatusLabel />
-        <TransactionStatusAction />
-      </TransactionStatus>
-    </Transaction>
+      <div className="flex items-center justify-center gap-2">
+        <Gift className="h-4 w-4" />
+        Claim Winnings (Gasless)
+      </div>
+    </BaseAccountTransaction>
   );
 }
 

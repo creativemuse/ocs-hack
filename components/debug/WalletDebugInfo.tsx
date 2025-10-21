@@ -1,13 +1,13 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, AlertCircle, Loader2 } from 'lucide-react';
 
 export default function WalletDebugInfo() {
-  const { address, isConnected, chainId } = useAccount();
+  const { address, isConnected, chainId } = useBaseAccount();
   const { balance, hasEnoughForEntry, isLoading, error } = useUSDCBalance();
 
   const getStatusIcon = (condition: boolean, loading: boolean = false) => {

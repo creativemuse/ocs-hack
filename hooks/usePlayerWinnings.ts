@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount, useReadContract } from 'wagmi';
+import { useBaseAccount } from './useBaseAccount';
+import { createBaseAccountSDK } from '@base-org/account';
+import { base } from 'viem/chains';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 export interface PlayerWinnings {
@@ -16,7 +18,7 @@ export interface PlayerWinnings {
 }
 
 export function usePlayerWinnings() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const [winnings, setWinnings] = useState<PlayerWinnings>({
     hasWinnings: false,
     winningAmount: '0',
@@ -28,24 +30,67 @@ export function usePlayerWinnings() {
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const [playerScore, setPlayerScore] = useState<any>(null);
 
-  // Read session info to get prize pool and session status
-  const { data: sessionInfo, isLoading: sessionLoading } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'getSessionInfo',
-  });
+  // Initialize Base Account SDK client-side only
+  const [provider, setProvider] = useState<any>(null);
 
-  // Read player score (for paid players only)
-  const { data: playerScore, isLoading: scoreLoading } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'getPlayerScore',
-    args: address ? [address] : undefined,
-    query: {
-      enabled: !!address && isConnected,
-    },
-  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sdk = createBaseAccountSDK({
+          appName: 'BEAT ME',
+          appLogoUrl: 'https://base.org/logo.png',
+          appChainIds: [base.id],
+          subAccounts: {
+            creation: 'on-connect',
+            defaultAccount: 'sub',
+          },
+          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
+        });
+        setProvider(sdk.getProvider());
+      } catch (error) {
+        console.error('Failed to initialize Base Account SDK:', error);
+      }
+    }
+  }, []);
+
+  // Fetch session info using Base Account SDK
+  const fetchSessionInfo = useCallback(async () => {
+    if (!provider) return;
+    
+    try {
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data: '0x' + 'getSessionInfo()'.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join(''), // This is a simplified approach
+        }, 'latest']
+      });
+      setSessionInfo(result);
+    } catch (error) {
+      console.error('Error fetching session info:', error);
+    }
+  }, [provider]);
+
+  // Fetch player score using Base Account SDK
+  const fetchPlayerScore = useCallback(async () => {
+    if (!address || !isConnected || !provider) return;
+    
+    try {
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data: `0x${'getPlayerScore(address)'.split('').map(c => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')}${address.slice(2).padStart(64, '0')}`,
+        }, 'latest']
+      });
+      setPlayerScore(result);
+    } catch (error) {
+      console.error('Error fetching player score:', error);
+    }
+  }, [address, isConnected, provider]);
 
   // Calculate winnings based on score and prize pool
   const calculateWinnings = useCallback(async () => {
@@ -157,6 +202,14 @@ export function usePlayerWinnings() {
     }
   }, [address, isConnected, sessionInfo, playerScore]);
 
+  // Fetch data on mount and when dependencies change
+  useEffect(() => {
+    if (provider) {
+      fetchSessionInfo();
+      fetchPlayerScore();
+    }
+  }, [fetchSessionInfo, fetchPlayerScore, provider]);
+
   // Recalculate winnings when dependencies change
   useEffect(() => {
     calculateWinnings();
@@ -195,7 +248,7 @@ export function usePlayerWinnings() {
 
   return {
     winnings,
-    isLoading: isLoading || sessionLoading || scoreLoading,
+    isLoading,
     error,
     markAsClaimed,
     refreshWinnings,

@@ -1,8 +1,14 @@
 'use client';
 
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useState, useEffect } from 'react';
-import { clearBrowserCache } from '@/lib/utils/funding';
+import { BasePayButton } from '@base-org/account-ui/react';
+import { pay, getPaymentStatus } from '@base-org/account';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { DollarSign, CheckCircle, Loader2, AlertCircle, Shield, Zap } from 'lucide-react';
+import SpendPermissionManager from './SpendPermissionManager';
 
 interface GamePaymentProps {
   onPaymentComplete?: () => void;
@@ -10,245 +16,238 @@ interface GamePaymentProps {
 }
 
 export default function GamePayment({ onPaymentComplete, onBack }: GamePaymentProps) {
-  const { address } = useAccount();
-  const [isLoading, setIsLoading] = useState(false);
+  const { address, isConnected } = useBaseAccount();
+  const [paymentStatus, setPaymentStatus] = useState<'idle' | 'processing' | 'completed' | 'failed'>('idle');
+  const [paymentId, setPaymentId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [securityMode, setSecurityMode] = useState<'secure' | 'standard'>('standard');
-  const [onrampUrl, setOnrampUrl] = useState<string | null>(null);
-  const [isGeneratingToken, setIsGeneratingToken] = useState(false);
+  const [showSpendPermissions, setShowSpendPermissions] = useState(false);
 
-  // Generate fresh session token for each payment attempt
-  const generateFreshSessionToken = async () => {
-    if (!address) {
-      setError('Wallet not connected');
-      return null;
-    }
-
-    setIsGeneratingToken(true);
+  const handleBasePay = async () => {
+    if (!address) return;
+    
+    setPaymentStatus('processing');
     setError(null);
-
+    
     try {
-      // Add cache-busting to ensure fresh token generation
-      const cacheBuster = Date.now();
-      const response = await fetch(`/api/session-token?t=${cacheBuster}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache',
-          'Pragma': 'no-cache',
-        },
-        body: JSON.stringify({ 
-          walletAddress: address,
-          requestId: `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}_${address.slice(-6)}`,
-          component: 'GamePayment'
-        }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to generate session token');
-      }
-
-      const data = await response.json();
-      // Don't store the session token - use it immediately
-      setSecurityMode('secure');
+      console.log('Initiating Base Pay for wallet:', address);
       
-      console.log('Fresh session token generated for payment:', data.sessionToken.substring(0, 20) + '...');
-      
-      // Generate onramp URL with fresh session token
-      const onrampBaseUrl = 'https://pay.coinbase.com/buy/select-asset';
-      const urlParams = new URLSearchParams({
-        sessionToken: data.sessionToken,
-        defaultAsset: 'USDC',
-        defaultNetwork: 'base',
-        presetCryptoAmount: '10', // Default amount
-        defaultPaymentMethod: 'APPLE_PAY',
+      // Use Base Pay to add USDC funds
+      const payment = await pay({
+        amount: '10.00',
+        to: address,
+        testnet: false, // Use mainnet for production
       });
       
-      const fullOnrampUrl = `${onrampBaseUrl}?${urlParams.toString()}`;
-      setOnrampUrl(fullOnrampUrl);
+      setPaymentId(payment.id);
+      console.log('Base Pay initiated:', payment.id);
       
-      console.log('Fresh session token generated successfully - using secure initialization');
-      return fullOnrampUrl;
-    } catch (error) {
-      console.warn('Session token generation failed, falling back to standard mode:', error);
-      setError(error instanceof Error ? error.message : 'Unknown error');
-      setSecurityMode('standard');
+      // Poll for payment status
+      const checkStatus = async () => {
+        try {
+          const status = await getPaymentStatus({ id: payment.id, testnet: false });
+          console.log('Payment status:', status);
+          
+          if (status.status === 'completed') {
+            setPaymentStatus('completed');
+            onPaymentComplete?.();
+            setTimeout(() => setPaymentStatus('idle'), 3000);
+          } else if (status.status === 'failed') {
+            setPaymentStatus('failed');
+            setError('Payment failed');
+          } else {
+            // Still pending, check again in 2 seconds
+            setTimeout(checkStatus, 2000);
+          }
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+          setPaymentStatus('failed');
+          setError('Failed to check payment status');
+        }
+      };
       
-      // Fallback to standard mode (not recommended for production)
-      const projectId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821";
-      const fallbackUrl = `https://pay.coinbase.com/buy/select-asset?appId=${projectId}&addresses={"${address}":["base"]}&assets=["USDC"]&presetCryptoAmount=10&defaultPaymentMethod=APPLE_PAY`;
-      setOnrampUrl(fallbackUrl);
-      return fallbackUrl;
-    } finally {
-      setIsGeneratingToken(false);
+      // Start polling
+      setTimeout(checkStatus, 2000);
+      
+    } catch (err) {
+      console.error('Base Pay failed:', err);
+      setPaymentStatus('failed');
+      setError(err instanceof Error ? err.message : 'Payment failed');
     }
   };
 
-  // Initialize with fallback URL when wallet connects
-  useEffect(() => {
-    if (address) {
-      const projectId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821";
-      const fallbackUrl = `https://pay.coinbase.com/buy/select-asset?appId=${projectId}&addresses={"${address}":["base"]}&assets=["USDC"]&presetCryptoAmount=10&defaultPaymentMethod=APPLE_PAY`;
-      setOnrampUrl(fallbackUrl);
-      setSecurityMode('standard');
-    } else {
-      setOnrampUrl(null);
-      setSecurityMode('standard');
-    }
-  }, [address]);
+  if (!isConnected || !address) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
+            <CardContent className="p-6">
+              <div className="text-center text-gray-400">
+                <Shield className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                <p className="text-sm">Connect your Base Account to access payment options</p>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentStatus === 'processing') {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <Loader2 className="h-5 w-5 text-blue-400 animate-spin" />
+                Processing Payment
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-gray-300 text-center">
+                Your Base Pay transaction is being processed...
+              </div>
+              
+              {paymentId && (
+                <div className="bg-black/30 rounded-lg p-3">
+                  <div className="text-xs text-gray-400 text-center">
+                    Payment ID: {paymentId.slice(0, 8)}...{paymentId.slice(-8)}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentStatus === 'completed') {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <Card className="bg-gradient-to-br from-green-900/20 to-blue-900/20 border-green-500/30">
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg text-white">
+                <CheckCircle className="h-5 w-5 text-green-400" />
+                Payment Successful
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-gray-300 text-center">
+                Your wallet has been funded with $10 USDC!
+              </div>
+              
+              <Badge variant="secondary" className="bg-green-500/20 text-green-400 w-full justify-center">
+                <CheckCircle className="h-3 w-3 mr-1" />
+                Payment Complete
+              </Badge>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-      <div className="w-full max-w-[390px] md:max-w-[428px]">
+      <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-white text-2xl font-bold mb-2">Purchase USDC</h1>
-          <p className="text-gray-400 text-sm">
-            Buy USDC to join the game and compete for prizes
-          </p>
-        </div>
-
-        {/* Security Mode Indicator */}
-        <div className="mb-4">
-          <div className={`text-center p-3 rounded-lg ${
-            securityMode === 'secure' 
-              ? 'bg-green-900/20 border border-green-500/30' 
-              : 'bg-yellow-900/20 border border-yellow-500/30'
-          }`}>
-            <div className="flex items-center justify-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${
-                securityMode === 'secure' ? 'bg-green-500' : 'bg-yellow-500'
-              }`}></div>
-              <span className={`text-sm font-medium ${
-                securityMode === 'secure' ? 'text-green-400' : 'text-yellow-400'
-              }`}>
-                {securityMode === 'secure' ? 'Secure Mode Active' : 'Standard Mode'}
-              </span>
+        <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg text-white">
+              <DollarSign className="h-5 w-5 text-yellow-400" />
+              Base Account Payment
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-gray-300 text-center">
+              Add USDC to your Base Account to join the game and compete for prizes
             </div>
-            <p className={`text-xs mt-1 ${
-              securityMode === 'secure' ? 'text-green-300' : 'text-yellow-300'
-            }`}>
-              {securityMode === 'secure' 
-                ? 'Enhanced security with session tokens' 
-                : 'Using standard authentication'
-              }
-            </p>
-          </div>
-        </div>
+            
+            <div className="flex items-center justify-center gap-2 text-sm">
+              <Zap className="h-4 w-4 text-blue-400" />
+              <span className="text-gray-300">Gasless Transactions</span>
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
+                Enabled
+              </Badge>
+            </div>
+          </CardContent>
+        </Card>
 
         {/* Error Display */}
         {error && (
-          <div className="mb-4 p-3 bg-red-900/20 border border-red-500/30 rounded-lg">
-            <p className="text-red-400 text-sm text-center">
-              {error}
-            </p>
-          </div>
+          <Card className="bg-red-900/20 border-red-500/30">
+            <CardContent className="p-4">
+              <div className="text-red-400 text-sm text-center flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                {error}
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Buy Component */}
-        <div className="bg-gray-900 rounded-lg p-6 mb-6">
-          <div className="text-center mb-4">
-            <h3 className="text-white text-lg font-semibold mb-2">
-              {isGeneratingToken ? 'Generating secure token...' : 'USDC Purchase'}
-            </h3>
-            <p className="text-gray-400 text-sm">
-              Purchase USDC using Apple Pay, debit card, or your Coinbase account
-            </p>
-          </div>
-          
-          {isGeneratingToken ? (
-            <div className="flex items-center justify-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-              <span className="ml-3 text-white">Generating fresh session token...</span>
+        {/* Base Pay Component */}
+        <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg text-white">
+              <DollarSign className="h-5 w-5 text-blue-400" />
+              Add USDC Funds
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-gray-300 text-center">
+              Use Base Pay to add $10 USDC to your account
             </div>
-          ) : address && onrampUrl ? (
-            <div className="space-y-4">
-              <div className="bg-gray-800 p-4 rounded-lg border border-gray-600">
-                <div className="flex items-center justify-between mb-4">
-                  <div>
-                    <h4 className="text-white font-medium">Purchase USDC</h4>
-                    <p className="text-gray-400 text-sm">Amount: ~$10 USDC</p>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-white text-lg font-bold">USDC</div>
-                    <div className="text-gray-400 text-xs">on Base</div>
-                  </div>
-                </div>
-                
-                <button
-                  onClick={async () => {
-                    // Clear any cached data and generate fresh session token
-                    console.log('🔄 Payment button clicked - generating fresh session token...');
-                    console.log('Current wallet address:', address);
-                    
-                    // Clear browser cache and storage to prevent token reuse
-                    await clearBrowserCache();
-                    
-                    // Generate fresh session token for each payment attempt
-                    const freshUrl = await generateFreshSessionToken();
-                    if (freshUrl) {
-                      console.log('✅ Opening payment modal with fresh token');
-                      console.log('Payment URL:', freshUrl);
-                      window.open(freshUrl, '_blank', 'width=460,height=720,scrollbars=yes,resizable=yes');
-                    } else {
-                      console.error('❌ Failed to generate fresh payment URL');
-                    }
-                  }}
-                  disabled={isGeneratingToken}
-                  className="w-full bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 disabled:cursor-not-allowed text-white font-bold py-3 px-6 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2"
-                >
-                  {isGeneratingToken ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
-                      <span>Generating Token...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Buy with Coinbase</span>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                      </svg>
-                    </>
-                  )}
-                </button>
-              </div>
-              
-              <div className="text-center">
-                <p className="text-gray-400 text-sm">
-                  {securityMode === 'secure' 
-                    ? 'Secure session token will be generated for each purchase'
-                    : 'A new window will open with Coinbase Pay'
-                  }
-                </p>
-              </div>
+            
+            <BasePayButton
+              colorScheme="light"
+              onClick={handleBasePay}
+            />
+            
+            <div className="text-xs text-gray-400 text-center">
+              Powered by Base Pay
             </div>
-          ) : !address ? (
-            <div className="text-center py-8">
-              <p className="text-gray-400 mb-4">Please connect your wallet to continue</p>
-              <button
-                onClick={() => window.location.reload()}
-                className="bg-gray-600 hover:bg-gray-500 text-white px-6 py-3 rounded-lg transition-colors"
-              >
-                Refresh Page
-              </button>
+          </CardContent>
+        </Card>
+
+        {/* Spend Permissions Section */}
+        <Card className="bg-gradient-to-br from-purple-900/20 to-pink-900/20 border-purple-500/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-lg text-white">
+              <Shield className="h-5 w-5 text-purple-400" />
+              Spend Permissions
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="text-sm text-gray-300 text-center">
+              Enable gasless transactions by granting spend permissions
             </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-red-400">Unable to initialize payment system</p>
-            </div>
-          )}
-        </div>
+            
+            <Button
+              onClick={() => setShowSpendPermissions(!showSpendPermissions)}
+              variant="outline"
+              className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+            >
+              {showSpendPermissions ? 'Hide' : 'Manage'} Spend Permissions
+            </Button>
+            
+            {showSpendPermissions && (
+              <SpendPermissionManager />
+            )}
+          </CardContent>
+        </Card>
 
         {/* Back Button */}
         {onBack && (
           <div className="text-center">
-            <button
+            <Button
               onClick={onBack}
-              className="bg-gray-700 hover:bg-gray-600 text-white px-6 py-3 rounded-lg transition-colors"
+              variant="outline"
+              className="bg-white/10 border-white/20 text-white hover:bg-white/20"
             >
               Back to Game Entry
-            </button>
+            </Button>
           </div>
         )}
       </div>

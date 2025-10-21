@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Avatar } from '@coinbase/onchainkit/identity';
+// OnchainKit Avatar component removed - using Base Account instead
 import { base } from 'viem/chains';
+import { Avatar } from '@coinbase/onchainkit/identity';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';

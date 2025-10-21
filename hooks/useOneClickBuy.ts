@@ -62,12 +62,16 @@ export function useOneClickBuy(): UseOneClickBuyReturn {
       const popup = window.open(
         url,
         'CoinbaseOnramp',
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes`
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes,noopener,noreferrer`
       );
 
       if (!popup) {
         setError('Failed to open onramp window. Please allow popups for this site.');
+        return;
       }
+
+      // Set proper opener reference for security
+      popup.opener = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to open onramp window';
       setError(errorMessage);

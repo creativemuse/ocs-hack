@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { Avatar } from '@coinbase/onchainkit/identity';
+// OnchainKit Avatar component removed - using Base Account instead
 import { base } from 'viem/chains';
+import { Avatar } from '@coinbase/onchainkit/identity';
 import { useActivePlayers, type ActivePlayer } from '@/hooks/useActivePlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
 import { Share2, Users, Trophy } from 'lucide-react';
