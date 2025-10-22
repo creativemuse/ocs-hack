@@ -484,28 +484,58 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                 </div>
               ) : (
                 <>
-                  {/* USDC Balance Status */}
-                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                    <div className="flex items-center justify-between mb-2">
-                      <div className="flex items-center gap-2">
-                        <Image src="/tokens/usdc-logo.svg" alt="USDC" width={20} height={20} />
-                        <span className="text-sm text-gray-300">USDC Balance</span>
+                  {/* Enhanced Balance Display - Show both ETH and USDC for EOA, USDC only for Smart Accounts */}
+                  <div className="mb-4 space-y-3">
+                    {/* ETH Balance - Only show for EOA wallets */}
+                    {isEOA && (
+                      <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <div className="w-5 h-5 rounded-full flex items-center justify-center">
+                              <Image src="/tokens/eth-logo.svg" alt="ETH" width={20} height={20} />
+                            </div>
+                            <span className="text-sm text-gray-300">ETH Balance</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {balanceLoading ? (
+                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                            ) : (
+                              <CheckCircle className="h-4 w-4 text-blue-400" />
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-lg font-bold text-white">
+                          <EthBalance address={address} />
+                        </div>
+                        <div className="text-xs text-gray-400 mt-1">
+                          For gas fees
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        {balanceLoading ? (
-                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                        ) : hasEnoughForEntry ? (
-                          <CheckCircle className="h-4 w-4 text-green-400" />
-                        ) : (
-                          <AlertCircle className="h-4 w-4 text-yellow-400" />
-                        )}
+                    )}
+
+                    {/* USDC Balance - Always show */}
+                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                          <Image src="/tokens/usdc-logo.svg" alt="USDC" width={20} height={20} />
+                          <span className="text-sm text-gray-300">USDC Balance</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {balanceLoading ? (
+                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                          ) : hasEnoughForEntry ? (
+                            <CheckCircle className="h-4 w-4 text-green-400" />
+                          ) : (
+                            <AlertCircle className="h-4 w-4 text-yellow-400" />
+                          )}
+                        </div>
                       </div>
-                    </div>
-                    <div className="text-lg font-bold text-white">
-                      {balanceLoading ? '...' : balance.toFixed(2)} USDC
-                    </div>
-                    <div className="text-xs text-gray-400 mt-1">
-                      {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
+                      <div className="text-lg font-bold text-white">
+                        {balanceLoading ? '...' : balance.toFixed(2)} USDC
+                      </div>
+                      <div className="text-xs text-gray-400 mt-1">
+                        {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
+                      </div>
                     </div>
                   </div>
 
