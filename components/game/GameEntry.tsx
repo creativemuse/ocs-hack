@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,13 +9,10 @@ import { useSessionToken } from '@/hooks/useSessionToken';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 import { useAccount } from 'wagmi';
+import { useWriteContract } from 'wagmi';
 import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
-import WalletWithBalance from '@/components/wallet/WalletWithBalance';
-import WalletDebugInfo from '@/components/debug/WalletDebugInfo';
-import PaymasterTest from '@/components/debug/PaymasterTest';
-import SponsoredTransactionExample from '@/components/transaction/SponsoredTransactionExample';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
@@ -44,6 +41,17 @@ interface GameEntryProps {
 export default function GameEntry({ onGameStart, entryToken, className = '', playerModeChoice = 'trial' }: GameEntryProps) {
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
   const { address, isConnected } = useAccount();
+  
+  const { writeContract } = useWriteContract({
+    mutation: {
+      onSuccess: (hash) => {
+        console.log('Transaction submitted:', hash);
+      },
+      onError: (error) => {
+        console.error('Transaction failed:', error);
+      },
+    },
+  });
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -104,10 +112,12 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
 
   // Handle transaction status updates
   const handleTransactionStatus = useCallback((status: LifecycleStatus) => {
-    console.log('Transaction status:', status);
+    console.log('🔄 Transaction status update:', status);
+    console.log('📊 Status name:', status.statusName);
+    console.log('📋 Status data:', JSON.stringify(status.statusData, null, 2));
     
     if (status.statusName === 'success') {
-      console.log('Paid game transaction successful!');
+      console.log('✅ Paid game transaction successful!');
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
@@ -244,20 +254,10 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     setIsProcessingPayment(true);
     setError(null);
 
-    try {
-      console.log('Starting paid game entry - session will be created automatically by the contract...');
-      // The contract now automatically starts sessions when players join
-      // No need for manual session management
-      
-      // The actual game start will be handled by the transaction success callback
-      console.log('Proceeding with paid game entry...');
-      
-    } catch (error) {
-      console.error('Error in paid game entry:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start game session');
-      setIsProcessingPayment(false);
-    }
+    // The actual transaction will be handled by the OnchainKit Transaction component
+    // which will be rendered when isProcessingPayment is true
   };
+
 
   const handlePaymentSuccess = () => {
     setError(null);
@@ -473,6 +473,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
               {/* <WalletDebugInfo /> */}
               {/* <PaymasterTest /> */}
               {/* <SponsoredTransactionExample /> */}
+              
 
               {/* USDC Purchase Info */}
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
@@ -533,7 +534,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       >
                         {/* @ts-ignore */}
                         <TransactionButton
-                          text="Start Paid Game"
+                          text="Confirm"
                           className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg"
                         />
                         <TransactionSponsor />
@@ -545,7 +546,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       <Button
                         onClick={() => setIsProcessingPayment(false)}
                         variant="outline"
-                        className="w-full"
+                        className="w-full border-red-400 text-white hover:bg-red-500/10 cursor-pointer"
                       >
                         Cancel
                       </Button>
