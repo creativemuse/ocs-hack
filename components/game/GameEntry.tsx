@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo } from 'react';
+import Image from 'next/image';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,24 +9,14 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useSessionToken } from '@/hooks/useSessionToken';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
+import { usePaidGameEntry } from '@/hooks/usePaidGameEntry';
 import { useAccount } from 'wagmi';
-import { useWriteContract } from 'wagmi';
 import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
-import { 
-  Transaction, 
-  TransactionButton, 
-  TransactionSponsor, 
-  TransactionStatus, 
-  TransactionStatusLabel, 
-  TransactionStatusAction 
-} from '@coinbase/onchainkit/transaction';
-import type { LifecycleStatus } from '@coinbase/onchainkit/transaction';
-import { createPaidGameCalls, createTrialGameCalls } from '@/lib/transaction/paidGameCalls';
 import { base } from 'wagmi/chains';
 import { parseTransactionError, logTransactionError, type TransactionError, type ErrorContext } from '@/lib/utils/errorHandling';
 import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
@@ -42,16 +33,12 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
   const { address, isConnected } = useAccount();
   
-  const { writeContract } = useWriteContract({
-    mutation: {
-      onSuccess: (hash) => {
-        console.log('Transaction submitted:', hash);
-      },
-      onError: (error) => {
-        console.error('Transaction failed:', error);
-      },
-    },
-  });
+  // Clear any existing errors on component mount
+  useEffect(() => {
+    setError(null);
+    setTransactionError(null);
+  }, []);
+  
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -65,6 +52,16 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     isStartingSession,
     error: contractError 
   } = useTriviaContract(true, false); // Sessions now start automatically
+  
+  // New paymaster implementation
+  const { 
+    joinGameUniversal, 
+    result: gameResult, 
+    error: gameError, 
+    isSmartAccount, 
+    isEOA 
+  } = usePaidGameEntry();
+  
   const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
@@ -72,6 +69,14 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
+
+  // Clear errors when wallet connects
+  useEffect(() => {
+    if (address) {
+      setError(null);
+      setTransactionError(null);
+    }
+  }, [address]);
 
   // Auto-generate funding URL with CDP session token when address is available
   useEffect(() => {
@@ -110,97 +115,46 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     generateInitialFundingUrl();
   }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
 
-  // Handle transaction status updates
-  const handleTransactionStatus = useCallback((status: LifecycleStatus) => {
-    console.log('🔄 Transaction status update:', status);
-    console.log('📊 Status name:', status.statusName);
-    console.log('📋 Status data:', JSON.stringify(status.statusData, null, 2));
-    
-    if (status.statusName === 'success') {
+  // Handle game result updates
+  useEffect(() => {
+    if (gameResult.success) {
       console.log('✅ Paid game transaction successful!');
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
       onGameStart({ isTrial: false });
-    } else if (status.statusName === 'error') {
+    } else if (gameResult.error) {
       setIsProcessingPayment(false);
+      console.error('Transaction failed:', gameResult.error);
       
-      // Check if user cancelled/rejected the transaction
-      const errorString = JSON.stringify(status.statusData || {});
-      const isUserRejection = 
-        errorString.includes('User rejected') ||
-        errorString.includes('User cancelled') ||
-        errorString.includes('Request denied') ||
-        errorString.includes('UserRejectedRequestError') ||
-        errorString.includes('"code":4001');
-      
-      if (isUserRejection) {
-        console.log('ℹ️ User cancelled transaction - no error to display');
-        // User cancelled - just reset state without showing error
-        setTransactionError(null);
-        setError(null);
-        return;
-      }
-      
-      // Only log errors if it's not a user rejection
-      console.error('Transaction failed:', status.statusData);
-      console.error('Full transaction status:', JSON.stringify(status, null, 2));
-      
-      // Check if error object is empty - this often means paymaster/bundler rejection
-      const isEmptyError = !status.statusData || Object.keys(status.statusData).length === 0;
-      
-      if (isEmptyError) {
-        console.error('⚠️ Empty error object detected - likely paymaster/bundler issue');
-        console.error('Common causes:');
-        console.error('1. Contracts not in paymaster allowlist');
-        console.error('2. Paymaster out of funds');
-        console.error('3. Smart wallet capabilities not supported');
-        
-        // Provide helpful error message
-        const paymasterError: TransactionError = {
-          code: 'PAYMASTER_ERROR',
-          message: 'Transaction rejected by paymaster',
-          userMessage: 'Unable to sponsor transaction. Please ensure contracts are allowlisted in CDP Dashboard.',
-          recoverable: true,
-          retryable: false,
-          details: {
-            suggestion: 'Check CDP Dashboard > Paymaster > Contract Allowlist',
-            contracts: [
-              'USDC: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
-              `TriviaBattle: ${TRIVIA_CONTRACT_ADDRESS}`
-            ],
-            link: 'https://portal.cdp.coinbase.com/products/bundler-and-paymaster'
-          }
-        };
-        
-        setTransactionError(paymasterError);
-        setError(paymasterError.userMessage);
-        logTransactionError(paymasterError, {
-          operation: 'paid_game_entry',
-          contractAddress: TRIVIA_CONTRACT_ADDRESS,
-          functionName: 'joinBattle',
-          userAddress: address,
-          chainId: base.id,
-        }, { status, emptyError: true });
-        return;
-      }
-      
-      // Parse the error with enhanced handling
-      const errorContext: ErrorContext = {
-        operation: 'paid_game_entry',
-        contractAddress: TRIVIA_CONTRACT_ADDRESS,
-        functionName: 'joinBattle',
-        userAddress: address,
-        chainId: base.id,
+      const paymasterError: TransactionError = {
+        code: 'TRANSACTION_ERROR',
+        message: gameResult.error,
+        userMessage: gameResult.error,
+        recoverable: true,
+        retryable: true,
+        details: {
+          suggestion: isSmartAccount ? 'Smart Account transaction failed' : 'EOA transaction failed',
+          accountType: isSmartAccount ? 'Smart Account' : 'EOA',
+          paymasterSupported: isSmartAccount
+        }
       };
       
-      const parsedError = parseTransactionError(status.statusData || {}, errorContext);
-      logTransactionError(parsedError, errorContext, { status });
-      
-      setTransactionError(parsedError);
-      setError(parsedError.userMessage);
+      setTransactionError(paymasterError);
+      setError(paymasterError.userMessage);
     }
-  }, [onGameStart, address]);
+  }, [gameResult, onGameStart, isSmartAccount]);
+
+  // Handle game errors - only show errors when processing payment
+  useEffect(() => {
+    if (gameError && isProcessingPayment) {
+      setIsProcessingPayment(false);
+      console.error('Game entry error:', gameError);
+      
+      const errorMessage = gameError.message || 'Unknown error occurred';
+      setError(errorMessage);
+    }
+  }, [gameError, isProcessingPayment]);
 
   const handleStartGame = async () => {
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
@@ -251,11 +205,17 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     
     console.log('Starting paid game entry process for wallet:', address);
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
+    console.log('Account type:', isSmartAccount ? 'Smart Account (Paymaster)' : 'EOA');
     setIsProcessingPayment(true);
     setError(null);
 
-    // The actual transaction will be handled by the OnchainKit Transaction component
-    // which will be rendered when isProcessingPayment is true
+    try {
+      await joinGameUniversal();
+    } catch (err) {
+      console.error('Failed to join game:', err);
+      setIsProcessingPayment(false);
+      setError('Failed to join game. Please try again.');
+    }
   };
 
 
@@ -475,13 +435,42 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
               {/* <SponsoredTransactionExample /> */}
               
 
+              {/* Account Type and Gas Sponsorship Info - Only show when wallet is connected */}
+              {address && (
+                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-blue-400" />
+                      <span className="text-sm text-gray-300">Account Type</span>
+                    </div>
+                    <Badge 
+                      variant="secondary" 
+                      className={isSmartAccount 
+                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
+                        : "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                      }
+                    >
+                      {isSmartAccount ? 'Smart Account' : 'EOA'}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    {isSmartAccount 
+                      ? '✅ Gas sponsored by Creative Organization DAO' 
+                      : '⚠️ You will pay gas fees'
+                    }
+                  </div>
+                </div>
+              )}
+
               {/* USDC Purchase Info */}
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30 ml-2">
-                  Gasless
-                </Badge>
+                {address && (
+                  <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30 ml-2">
+                    {isSmartAccount ? 'Gasless' : 'Gas Required'}
+                  </Badge>
+                )}
               </div>
 
               {!address ? (
@@ -499,7 +488,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                   <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
                     <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <DollarSign className="h-4 w-4 text-blue-400" />
+                        <Image src="/tokens/usdc-logo.svg" alt="USDC" width={20} height={20} />
                         <span className="text-sm text-gray-300">USDC Balance</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -526,23 +515,12 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                   
                   {isProcessingPayment ? (
                     <div className="space-y-4">
-                      <Transaction
-                        chainId={base.id}
-                        calls={createPaidGameCalls()}
-                        isSponsored
-                        onStatus={handleTransactionStatus}
-                      >
-                        {/* @ts-ignore */}
-                        <TransactionButton
-                          text="Confirm"
-                          className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg"
-                        />
-                        <TransactionSponsor />
-                        <TransactionStatus>
-                          <TransactionStatusLabel />
-                          <TransactionStatusAction />
-                        </TransactionStatus>
-                      </Transaction>
+                      <div className="flex items-center justify-center gap-2 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+                        <span className="text-yellow-400 text-sm">
+                          {isSmartAccount ? 'Processing with Paymaster...' : 'Processing transaction...'}
+                        </span>
+                      </div>
                       <Button
                         onClick={() => setIsProcessingPayment(false)}
                         variant="outline"
@@ -559,7 +537,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
                     >
                       <Play className="h-4 w-4 mr-2" />
-                      Start Paid Game
+                      {isSmartAccount ? 'Start Gasless Game' : 'Start Paid Game'}
                     </Button>
                   )}
                   
