@@ -65,6 +65,7 @@ async function testTrialPlayerFlow() {
     console.log(`   Session ID: ${TEST_SESSION_ID}`);
     await spacetimeClient.startGameSession(
       TEST_SESSION_ID,
+      'test-game-2',   // NEW: Add gameId parameter
       'easy',
       'solo',
       'trial',

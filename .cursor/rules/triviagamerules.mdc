@@ -1,0 +1,983 @@
+# On-Demand Games with Chainlink Custom Logic Automation
+
+## Perfect for Your On-Demand Use Case!
+
+**Your Game Flow:**
+- ✅ Games start **when you want** (on-demand)
+- ✅ Each game lasts exactly 5 minutes (10 songs × 10 sec × 3 rounds)
+- ✅ Games can start at ANY time (3:17 PM, 7:42 PM, etc.)
+- ✅ Automatic finalization via Chainlink when game ends
+
+**Why Custom Logic is Perfect:**
+- Monitors YOUR contract state (not the clock)
+- Finalizes games whenever they end (regardless of time)
+- Works for unpredictable start times
+- Only triggers when YOUR conditions are met
+
+## On-Demand Game Flow
+
+```
+Step 1: You (owner) call createGame()
+        ↓
+        Game starts NOW (e.g., 3:17:23 PM)
+        endTime = NOW + 5 minutes (3:22:23 PM)
+        
+Step 2: Players enter during 5-minute window
+        ↓
+        Players pay 1 USDC each to join
+        
+Step 3: Game ends at 3:22:23 PM
+        ↓
+        Your backend calculates scores
+        
+Step 4: Your backend calls submitRankings()
+        ↓
+        Contract sets rankingsSubmitted = true
+        
+Step 5: Chainlink Automation detects via checkUpkeep
+        ↓
+        Within ~30 seconds, Chainlink calls performUpkeep
+        
+Step 6: Game finalized! Players claim prizes
+```
+
+## Setup Instructions
+
+### 1. Deploy Contract
+
+```bash
+source .env
+
+# Deploy to Base Sepolia
+forge script script/Deploy.s.sol:DeployScript \
+    --rpc-url $BASE_SEPOLIA_RPC_URL \
+    --broadcast \
+    --verify \
+    --etherscan-api-key $BASESCAN_API_KEY
+
+CONTRACT_ADDRESS=0xYourContractAddress
+```
+
+### 2. Register Chainlink Custom Logic Upkeep
+
+Go to: **https://automation.chain.link/**
+
+1. **Click "Register new Upkeep"**
+2. **Select "Custom logic"** trigger type
+3. **Target Contract:** Your TriviaGame address
+4. **Upkeep Name:** "Trivia Game Auto-Finalizer"
+5. **Gas Limit:** `500000`
+6. **Starting Balance:** 
+   - Testnet: 1-2 LINK
+   - Mainnet: 5-10 LINK
+7. **Check Data:** Leave empty
+8. **Register and Fund**
+
+That's it! Chainlink will now monitor your contract.
+
+## How It Works
+
+### Chainlink's Monitoring Loop
+
+```javascript
+// Chainlink nodes continuously run (every ~10-15 seconds):
+
+checkUpkeep() → {
+    Is there a current game?
+    Has the game ended? (block.timestamp >= endTime)
+    Have rankings been submitted?
+    Is the game not finalized yet?
+    
+    IF ALL TRUE:
+        return (true, gameId)
+    ELSE:
+        return (false, "")
+}
+
+// When checkUpkeep returns true:
+performUpkeep(gameId) → {
+    Finalize the game ✅
+}
+```
+
+### Your Contract's Logic
+
+```solidity
+function checkUpkeep(bytes calldata)
+    external view returns (bool, bytes memory)
+{
+    Game storage game = games[currentGameId];
+    
+    // Check if game is ready to finalize
+    if (game.isActive && 
+        block.timestamp >= game.endTime && 
+        game.rankingsSubmitted && 
+        !game.isFinalized) {
+        
+        return (true, abi.encode(currentGameId));
+    }
+    
+    return (false, "");
+}
+```
+
+## Creating Games On-Demand
+
+### Option 1: Manual Creation via UI/Backend
+
+```javascript
+// In your admin dashboard or backend
+async function startNewGame() {
+    // Check if we can create a new game
+    const canCreate = await triviaGame.canCreateNewGame();
+    
+    if (!canCreate) {
+        console.log("A game is already active!");
+        return;
+    }
+    
+    // Create the game
+    const tx = await triviaGame.createGame();
+    await tx.wait();
+    
+    const gameId = await triviaGame.currentGameId();
+    console.log(`🎮 Game ${gameId} created!`);
+    console.log(`⏰ Will end in 5 minutes`);
+    
+    return gameId;
+}
+```
+
+### Option 2: Auto-Create When Enough Players Ready
+
+```javascript
+// Queue system: Players indicate they want to play
+const playerQueue = [];
+
+// When queue reaches threshold (e.g., 10 players)
+async function checkAndCreateGame() {
+    if (playerQueue.length >= 10) {
+        const canCreate = await triviaGame.canCreateNewGame();
+        
+        if (canCreate) {
+            await triviaGame.createGame();
+            console.log("Auto-created game for waiting players!");
+            
+            // Notify players game is starting
+            playerQueue.forEach(player => {
+                notifyPlayer(player, "Game starting now! You have 5 minutes to enter.");
+            });
+            
+            playerQueue.length = 0; // Clear queue
+        }
+    }
+}
+```
+
+### Option 3: Schedule with Your Backend (Hybrid Approach)
+
+```javascript
+// Create games at specific times, but only if needed
+// E.g., every hour during peak times
+
+const PEAK_HOURS = [18, 19, 20, 21, 22]; // 6 PM - 10 PM
+
+setInterval(async () => {
+    const now = new Date();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    
+    // On the hour during peak times
+    if (PEAK_HOURS.includes(hour) && minute === 0) {
+        const canCreate = await triviaGame.canCreateNewGame();
+        if (canCreate) {
+            await triviaGame.createGame();
+            console.log("Peak hour game created!");
+        }
+    }
+}, 60000); // Check every minute
+```
+
+## Complete Backend Integration
+
+```javascript
+// trivia-backend/gameManager.js
+
+const { ethers } = require('ethers');
+
+class TriviaGameManager {
+    constructor(contractAddress, provider, signer) {
+        this.contract = new ethers.Contract(
+            contractAddress,
+            TRIVIA_ABI,
+            signer
+        );
+        this.activeGames = new Map(); // Track active games
+    }
+    
+    // Start a new game on-demand
+    async createGame() {
+        try {
+            // Verify no active game
+            const canCreate = await this.contract.canCreateNewGame();
+            if (!canCreate) {
+                throw new Error("Cannot create game - one is already active");
+            }
+            
+            // Create the game
+            const tx = await this.contract.createGame();
+            const receipt = await tx.wait();
+            
+            // Get gameId from event
+            const event = receipt.events.find(e => e.event === 'GameCreated');
+            const gameId = event.args.gameId;
+            const endTime = event.args.endTime;
+            
+            console.log(`✅ Game ${gameId} created`);
+            console.log(`⏰ Ends at: ${new Date(endTime * 1000).toLocaleString()}`);
+            
+            // Schedule ranking submission
+            this.scheduleRankingSubmission(gameId, endTime);
+            
+            return gameId;
+            
+        } catch (error) {
+            console.error("Failed to create game:", error);
+            throw error;
+        }
+    }
+    
+    // Schedule ranking submission for when game ends
+    scheduleRankingSubmission(gameId, endTime) {
+        const now = Math.floor(Date.now() / 1000);
+        const delay = (endTime - now + 5) * 1000; // 5 seconds after game ends
+        
+        setTimeout(async () => {
+            await this.submitGameResults(gameId);
+        }, delay);
+        
+        console.log(`📅 Scheduled ranking submission for game ${gameId}`);
+    }
+    
+    // Submit results after game ends
+    async submitGameResults(gameId) {
+        try {
+            // Get final scores from your game database
+            const playerScores = await this.getPlayerScores(gameId);
+            
+            if (playerScores.length === 0) {
+                console.log(`No players in game ${gameId}`);
+                // Still submit empty rankings to allow finalization
+                await this.contract.submitRankings(gameId, []);
+                return;
+            }
+            
+            // Sort by score (highest first) and take top 10
+            const rankedPlayers = playerScores
+                .sort((a, b) => b.score - a.score)
+                .slice(0, 10)
+                .map(p => p.address);
+            
+            console.log(`Submitting rankings for game ${gameId}...`);
+            console.log("Winners:", rankedPlayers);
+            
+            // Submit to contract
+            const tx = await this.contract.submitRankings(gameId, rankedPlayers);
+            await tx.wait();
+            
+            console.log(`✅ Rankings submitted for game ${gameId}`);
+            console.log(`⏳ Chainlink will finalize within ~1 minute`);
+            
+            // Optional: Wait for finalization
+            await this.waitForFinalization(gameId);
+            
+        } catch (error) {
+            console.error(`Failed to submit rankings for game ${gameId}:`, error);
+            // Alert your team
+            await this.sendAlert(`Rankings failed for game ${gameId}`);
+        }
+    }
+    
+    // Wait for Chainlink to finalize
+    async waitForFinalization(gameId, maxWaitSeconds = 120) {
+        const startTime = Date.now();
+        const maxWait = maxWaitSeconds * 1000;
+        
+        while (Date.now() - startTime < maxWait) {
+            const gameInfo = await this.contract.getGameInfo(gameId);
+            
+            if (gameInfo.isFinalized) {
+                console.log(`🎉 Game ${gameId} finalized by Chainlink!`);
+                // Notify players they can claim prizes
+                await this.notifyWinners(gameId);
+                return true;
+            }
+            
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Check every 10s
+        }
+        
+        console.warn(`⚠️ Game ${gameId} not finalized after ${maxWaitSeconds}s`);
+        await this.sendAlert(`Game ${gameId} finalization delayed`);
+        return false;
+    }
+    
+    // Get player scores from your database
+    async getPlayerScores(gameId) {
+        // Your implementation: query your database for final scores
+        // Example:
+        // return await db.query('SELECT address, score FROM game_results WHERE game_id = ?', [gameId]);
+        
+        // Mock implementation:
+        return [
+            { address: '0x123...', score: 850 },
+            { address: '0x456...', score: 720 },
+            // ...
+        ];
+    }
+    
+    async notifyWinners(gameId) {
+        // Send notifications to winners that prizes are claimable
+        console.log(`Notifying winners of game ${gameId}...`);
+    }
+    
+    async sendAlert(message) {
+        // Your alerting system (email, Slack, etc.)
+        console.error("ALERT:", message);
+    }
+}
+
+// Usage
+const manager = new TriviaGameManager(
+    process.env.CONTRACT_ADDRESS,
+    provider,
+    signer
+);
+
+// Create game on-demand
+await manager.createGame();
+```
+
+## Monitoring & Costs
+
+### Gas Costs (Base Mainnet)
+
+**Per Game:**
+- `checkUpkeep` (offchain): **FREE** - Called every ~10-15 seconds
+- `performUpkeep` (onchain): ~$0.01-0.05 per game
+
+**Monthly Costs (estimate based on usage):**
+- 10 games/day: ~$3-15/month
+- 50 games/day: ~$15-75/month
+- 100 games/day: ~$30-150/month
+
+### Monitoring Dashboard
+
+Visit: **https://automation.chain.link/**
+
+**Check:**
+- ✅ Upkeep status: Should be "Active"
+- 💰 LINK balance: Keep above 1 LINK
+- 📊 Success rate: Should be ~100%
+- ⏱️ Last execution: Recent activity
+- 📈 Gas usage: Track per-game costs
+
+### Set Up Alerts
+
+```javascript
+// Monitor upkeep balance
+async function monitorUpkeepBalance() {
+    const balance = await getUpkeepLINKBalance(UPKEEP_ID);
+    
+    if (balance < 1) {
+        await sendAlert("🚨 Upkeep needs LINK! Balance: " + balance);
+    }
+}
+
+// Run daily
+setInterval(monitorUpkeepBalance, 24 * 60 * 60 * 1000);
+```
+
+## Testing Flow
+
+```javascript
+// Complete test of on-demand game
+async function testCompleteFlow() {
+    console.log("=== Testing On-Demand Game Flow ===");
+    
+    // 1. Create game on-demand
+    console.log("\n1. Creating game...");
+    await triviaGame.createGame();
+    const gameId = await triviaGame.currentGameId();
+    console.log(`Game ${gameId} created!`);
+    
+    // 2. Players enter
+    console.log("\n2. Players entering...");
+    for (let i = 0; i < 5; i++) {
+        await triviaGame.connect(players[i]).enterGame();
+        console.log(`Player ${i + 1} entered`);
+    }
+    
+    // 3. Wait for game to end
+    console.log("\n3. Waiting for game to end...");
+    const gameInfo = await triviaGame.getGameInfo(gameId);
+    const endTime = gameInfo.endTime;
+    const waitTime = (endTime - Math.floor(Date.now() / 1000)) * 1000;
+    
+    if (waitTime > 0) {
+        console.log(`Waiting ${waitTime / 1000} seconds for game to end...`);
+        await new Promise(resolve => setTimeout(resolve, waitTime + 1000));
+    }
+    
+    // 4. Submit rankings
+    console.log("\n4. Submitting rankings...");
+    const rankedPlayers = [
+        players[0].address, // 1st place
+        players[1].address, // 2nd place
+        players[2].address, // 3rd place
+        players[3].address, // 4th place
+        players[4].address  // 5th place
+    ];
+    
+    await triviaGame.submitRankings(gameId, rankedPlayers);
+    console.log("Rankings submitted!");
+    
+    // 5. Wait for Chainlink finalization
+    console.log("\n5. Waiting for Chainlink finalization...");
+    let finalized = false;
+    let attempts = 0;
+    const maxAttempts = 12; // 2 minutes max wait
+    
+    while (!finalized && attempts < maxAttempts) {
+        const gameInfo = await triviaGame.getGameInfo(gameId);
+        finalized = gameInfo.isFinalized;
+        
+        if (!finalized) {
+            console.log(`Attempt ${attempts + 1}: Still waiting...`);
+            await new Promise(resolve => setTimeout(resolve, 10000)); // Wait 10 seconds
+            attempts++;
+        }
+    }
+    
+    if (finalized) {
+        console.log("✅ Game finalized by Chainlink!");
+        
+        // 6. Test prize claiming
+        console.log("\n6. Testing prize claims...");
+        for (let i = 0; i < 5; i++) {
+            const balanceBefore = await usdc.balanceOf(players[i].address);
+            await triviaGame.connect(players[i]).claimPrize(gameId);
+            const balanceAfter = await usdc.balanceOf(players[i].address);
+            const prize = balanceAfter.sub(balanceBefore);
+            console.log(`Player ${i + 1} claimed ${ethers.utils.formatUnits(prize, 6)} USDC`);
+        }
+        
+        console.log("\n🎉 Complete flow test successful!");
+    } else {
+        console.log("❌ Game not finalized within 2 minutes");
+    }
+}
+
+// Run the test
+testCompleteFlow().catch(console.error);
+```
+
+## Contract Enhancements for Production
+
+### 1. Emergency Pause Functionality
+
+```solidity
+// Add to your contract
+bool public paused;
+
+modifier whenNotPaused() {
+    require(!paused, "Contract is paused");
+    _;
+}
+
+function pause() external onlyOwner {
+    paused = true;
+    emit GamePaused(currentGameId, "Emergency pause activated");
+}
+
+function unpause() external onlyOwner {
+    paused = false;
+    emit GameUnpaused("Contract unpaused");
+}
+
+// Update enterGame function
+function enterGame() external nonReentrant whenNotPaused {
+    // ... existing code
+}
+```
+
+### 2. Minimum Player Threshold
+
+```solidity
+uint256 public constant MIN_PLAYERS = 2;
+uint256 public constant MAX_PLAYERS = 100;
+
+function createGame() external onlyOwner {
+    // Add minimum player check
+    require(
+        currentGameId == 0 || games[currentGameId].playerCount >= MIN_PLAYERS,
+        "Previous game had insufficient players"
+    );
+    // ... rest of function
+}
+```
+
+### 3. Platform Fee Collection
+
+```solidity
+uint256 public constant PLATFORM_FEE_PERCENTAGE = 5; // 5% platform fee
+address public platformTreasury;
+
+function claimPrize(uint256 gameId) external nonReentrant {
+    Game storage game = games[gameId];
+    
+    if (!game.isFinalized) revert GameNotActive();
+    if (game.hasClaimed[msg.sender]) revert AlreadyClaimed();
+    
+    uint256 ranking = game.playerRanking[msg.sender];
+    if (ranking == 0) revert NotRanked();
+    
+    uint256 prize = calculatePrize(gameId, ranking);
+    if (prize == 0) return;
+    
+    game.hasClaimed[msg.sender] = true;
+    
+    // Calculate platform fee
+    uint256 platformFee = (prize * PLATFORM_FEE_PERCENTAGE) / 100;
+    uint256 playerPrize = prize - platformFee;
+    
+    // Send platform fee to treasury
+    if (platformFee > 0) {
+        usdc.safeTransfer(platformTreasury, platformFee);
+        emit PlatformFeeCollected(gameId, platformFee);
+    }
+    
+    // Send prize to player
+    usdc.safeTransfer(msg.sender, playerPrize);
+    
+    emit PrizeClaimed(gameId, msg.sender, playerPrize, ranking);
+}
+```
+
+### 4. Enhanced Events for Monitoring
+
+```solidity
+// Add these events to your contract
+event GamePaused(uint256 indexed gameId, string reason);
+event GameUnpaused(string reason);
+event PlatformFeeCollected(uint256 indexed gameId, uint256 amount);
+event EmergencyWithdraw(address indexed token, uint256 amount);
+event UpkeepFailed(uint256 indexed gameId, string reason);
+event PlayerLimitReached(uint256 indexed gameId, uint256 playerCount);
+```
+
+### 5. Time-based Game Restrictions
+
+```solidity
+uint256 public constant GAME_COOLDOWN = 1 hours;
+uint256 public lastGameEndTime;
+
+function createGame() external onlyOwner {
+    // Check cooldown period
+    require(
+        block.timestamp >= lastGameEndTime + GAME_COOLDOWN,
+        "Cooldown period not met"
+    );
+    
+    // ... existing game creation logic
+    
+    // Update last game end time
+    lastGameEndTime = block.timestamp + GAME_DURATION;
+}
+```
+
+## Deployment Scripts
+
+### 1. Hardhat Deployment Script
+
+```javascript
+// scripts/deploy.js
+const { ethers } = require("hardhat");
+
+async function main() {
+    console.log("Deploying TriviaGame contract...");
+    
+    // Get the contract factory
+    const TriviaGame = await ethers.getContractFactory("TriviaGame");
+    
+    // Contract constructor parameters
+    const USDC_ADDRESS = "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"; // Base USDC
+    const GAME_ORACLE = "0xYourOracleAddress"; // Your backend oracle address
+    
+    // Deploy the contract
+    const triviaGame = await TriviaGame.deploy(USDC_ADDRESS, GAME_ORACLE);
+    await triviaGame.waitForDeployment();
+    
+    const contractAddress = await triviaGame.getAddress();
+    console.log("✅ TriviaGame deployed to:", contractAddress);
+    
+    // Verify contract on BaseScan
+    console.log("Verifying contract...");
+    try {
+        await hre.run("verify:verify", {
+            address: contractAddress,
+            constructorArguments: [USDC_ADDRESS, GAME_ORACLE],
+        });
+        console.log("✅ Contract verified on BaseScan");
+    } catch (error) {
+        console.log("❌ Verification failed:", error.message);
+    }
+    
+    // Save deployment info
+    const deploymentInfo = {
+        network: hre.network.name,
+        contractAddress: contractAddress,
+        usdcAddress: USDC_ADDRESS,
+        oracleAddress: GAME_ORACLE,
+        deployer: await triviaGame.owner(),
+        deploymentTime: new Date().toISOString()
+    };
+    
+    const fs = require('fs');
+    fs.writeFileSync(
+        `deployments/${hre.network.name}.json`,
+        JSON.stringify(deploymentInfo, null, 2)
+    );
+    
+    console.log("📄 Deployment info saved to deployments/");
+}
+
+main()
+    .then(() => process.exit(0))
+    .catch((error) => {
+        console.error(error);
+        process.exit(1);
+    });
+```
+
+### 2. Environment Setup
+
+```bash
+# .env file
+BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
+BASE_MAINNET_RPC_URL=https://mainnet.base.org
+BASESCAN_API_KEY=your_basescan_api_key
+PRIVATE_KEY=your_private_key
+GAME_ORACLE_ADDRESS=0xYourOracleAddress
+USDC_ADDRESS_BASE=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
+```
+
+### 3. Deployment Commands
+
+```bash
+# Deploy to Base Sepolia (testnet)
+npx hardhat run scripts/deploy.js --network baseSepolia
+
+# Deploy to Base Mainnet
+npx hardhat run scripts/deploy.js --network baseMainnet
+
+# Verify contract
+npx hardhat verify --network baseMainnet CONTRACT_ADDRESS USDC_ADDRESS ORACLE_ADDRESS
+```
+
+## Frontend Integration
+
+### 1. React Hook for Game State
+
+```typescript
+// hooks/useTriviaGame.ts
+import { useState, useEffect } from 'react';
+import { useContract, useContractRead, useContractWrite } from 'wagmi';
+
+export function useTriviaGame(contractAddress: string) {
+    const [gameState, setGameState] = useState({
+        currentGameId: 0,
+        timeRemaining: 0,
+        playerCount: 0,
+        prizePool: 0,
+        isActive: false
+    });
+
+    // Read current game info
+    const { data: currentGameId } = useContractRead({
+        address: contractAddress,
+        abi: TRIVIA_ABI,
+        functionName: 'currentGameId',
+        watch: true
+    });
+
+    const { data: timeRemaining } = useContractRead({
+        address: contractAddress,
+        abi: TRIVIA_ABI,
+        functionName: 'getTimeRemaining',
+        watch: true
+    });
+
+    // Enter game function
+    const { write: enterGame, isLoading: isEntering } = useContractWrite({
+        address: contractAddress,
+        abi: TRIVIA_ABI,
+        functionName: 'enterGame'
+    });
+
+    // Claim prize function
+    const { write: claimPrize, isLoading: isClaiming } = useContractWrite({
+        address: contractAddress,
+        abi: TRIVIA_ABI,
+        functionName: 'claimPrize'
+    });
+
+    return {
+        gameState,
+        enterGame,
+        claimPrize,
+        isEntering,
+        isClaiming
+    };
+}
+```
+
+### 2. Game UI Component
+
+```tsx
+// components/TriviaGameUI.tsx
+import { useTriviaGame } from '../hooks/useTriviaGame';
+import { useAccount, useBalance } from 'wagmi';
+
+export function TriviaGameUI({ contractAddress }: { contractAddress: string }) {
+    const { address } = useAccount();
+    const { gameState, enterGame, claimPrize, isEntering, isClaiming } = useTriviaGame(contractAddress);
+    
+    const { data: usdcBalance } = useBalance({
+        address,
+        token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913' // Base USDC
+    });
+
+    const formatTime = (seconds: number) => {
+        const mins = Math.floor(seconds / 60);
+        const secs = seconds % 60;
+        return `${mins}:${secs.toString().padStart(2, '0')}`;
+    };
+
+    return (
+        <div className="trivia-game-container">
+            <h2>🎮 Trivia Battle</h2>
+            
+            {gameState.isActive ? (
+                <div className="active-game">
+                    <div className="game-info">
+                        <p>⏰ Time Remaining: {formatTime(gameState.timeRemaining)}</p>
+                        <p>👥 Players: {gameState.playerCount}</p>
+                        <p>💰 Prize Pool: {gameState.prizePool} USDC</p>
+                    </div>
+                    
+                    <button 
+                        onClick={() => enterGame()}
+                        disabled={isEntering}
+                        className="enter-game-btn"
+                    >
+                        {isEntering ? 'Entering...' : 'Enter Game (1 USDC)'}
+                    </button>
+                </div>
+            ) : (
+                <div className="no-active-game">
+                    <p>No active game. Check back soon!</p>
+                </div>
+            )}
+        </div>
+    );
+}
+```
+
+## Monitoring & Alerting
+
+### 1. Health Check Script
+
+```javascript
+// scripts/healthCheck.js
+const { ethers } = require('ethers');
+
+async function healthCheck() {
+    const provider = new ethers.JsonRpcProvider(process.env.BASE_MAINNET_RPC_URL);
+    const contract = new ethers.Contract(
+        process.env.CONTRACT_ADDRESS,
+        TRIVIA_ABI,
+        provider
+    );
+    
+    console.log("🔍 Running health check...");
+    
+    // Check contract state
+    const currentGameId = await contract.currentGameId();
+    const canCreateNewGame = await contract.canCreateNewGame();
+    
+    console.log(`Current Game ID: ${currentGameId}`);
+    console.log(`Can create new game: ${canCreateNewGame}`);
+    
+    if (currentGameId > 0) {
+        const gameInfo = await contract.getGameInfo(currentGameId);
+        const timeRemaining = await contract.getTimeRemaining();
+        
+        console.log(`Game Active: ${gameInfo.isActive}`);
+        console.log(`Game Finalized: ${gameInfo.isFinalized}`);
+        console.log(`Rankings Submitted: ${gameInfo.rankingsSubmitted}`);
+        console.log(`Time Remaining: ${timeRemaining} seconds`);
+        
+        // Check if game is stuck
+        if (gameInfo.isActive && timeRemaining === 0 && !gameInfo.rankingsSubmitted) {
+            console.log("⚠️ WARNING: Game appears to be stuck!");
+            await sendAlert("Game stuck - rankings not submitted");
+        }
+    }
+    
+    // Check Chainlink upkeep balance
+    const upkeepBalance = await getUpkeepLINKBalance(UPKEEP_ID);
+    console.log(`Chainlink Upkeep Balance: ${upkeepBalance} LINK`);
+    
+    if (upkeepBalance < 1) {
+        console.log("🚨 CRITICAL: Upkeep balance low!");
+        await sendAlert("Chainlink upkeep needs funding!");
+    }
+}
+
+// Run health check every 5 minutes
+setInterval(healthCheck, 5 * 60 * 1000);
+```
+
+### 2. Alert System
+
+```javascript
+// utils/alerts.js
+const nodemailer = require('nodemailer');
+const { Webhook } = require('discord.js');
+
+const transporter = nodemailer.createTransporter({
+    service: 'gmail',
+    auth: {
+        user: process.env.EMAIL_USER,
+        pass: process.env.EMAIL_PASS
+    }
+});
+
+const discordWebhook = new Webhook({ url: process.env.DISCORD_WEBHOOK_URL });
+
+async function sendAlert(message) {
+    console.error(`🚨 ALERT: ${message}`);
+    
+    // Send email
+    await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: process.env.ALERT_EMAIL,
+        subject: 'Trivia Game Alert',
+        text: message
+    });
+    
+    // Send Discord notification
+    await discordWebhook.send({
+        content: `🚨 **Trivia Game Alert**\n${message}`,
+        username: 'Trivia Game Monitor'
+    });
+}
+```
+
+## Production Checklist
+
+### Pre-Deployment
+- [ ] Contract audited by security firm
+- [ ] All tests passing (unit + integration)
+- [ ] Gas optimization completed
+- [ ] Emergency pause functionality tested
+- [ ] Oracle address configured and tested
+- [ ] USDC address verified for target network
+
+### Deployment
+- [ ] Deploy to testnet first
+- [ ] Verify contract on BaseScan
+- [ ] Register Chainlink upkeep
+- [ ] Fund upkeep with sufficient LINK
+- [ ] Test complete game flow on testnet
+
+### Post-Deployment
+- [ ] Monitor first few games manually
+- [ ] Set up health check monitoring
+- [ ] Configure alert system
+- [ ] Document all contract addresses
+- [ ] Create admin dashboard
+- [ ] Train team on emergency procedures
+
+### Ongoing Operations
+- [ ] Monitor upkeep balance daily
+- [ ] Check game finalization success rate
+- [ ] Review gas costs monthly
+- [ ] Update oracle address if needed
+- [ ] Monitor for failed transactions
+- [ ] Keep emergency procedures updated
+
+## Troubleshooting Common Issues
+
+### 1. Game Not Finalizing
+```javascript
+// Check if rankings were submitted
+const gameInfo = await contract.getGameInfo(gameId);
+if (!gameInfo.rankingsSubmitted) {
+    console.log("Issue: Rankings not submitted");
+    // Submit rankings manually
+    await contract.submitRankings(gameId, rankedPlayers);
+}
+
+// Check if Chainlink upkeep is working
+const isReady = await contract.isGameReadyToFinalize(gameId);
+if (isReady) {
+    console.log("Game ready but not finalized - Chainlink issue");
+    // Use manual finalization as backup
+    await contract.manuallyFinalizeGame(gameId);
+}
+```
+
+### 2. Players Can't Enter Game
+```javascript
+// Check game state
+const gameInfo = await contract.getGameInfo(currentGameId);
+if (!gameInfo.isActive) {
+    console.log("Game not active");
+}
+
+// Check if game has ended
+const timeRemaining = await contract.getTimeRemaining();
+if (timeRemaining === 0) {
+    console.log("Game has ended");
+}
+
+// Check player has sufficient USDC
+const usdcBalance = await usdc.balanceOf(playerAddress);
+if (usdcBalance < ENTRY_FEE) {
+    console.log("Insufficient USDC balance");
+}
+```
+
+### 3. Prize Claiming Issues
+```javascript
+// Check if game is finalized
+const gameInfo = await contract.getGameInfo(gameId);
+if (!gameInfo.isFinalized) {
+    console.log("Game not finalized yet");
+}
+
+// Check if player was ranked
+const ranking = await contract.getPlayerRanking(gameId, playerAddress);
+if (ranking === 0) {
+    console.log("Player was not ranked");
+}
+
+// Check if already claimed
+const hasClaimed = await contract.hasPlayerClaimed(gameId, playerAddress);
+if (hasClaimed) {
+    console.log("Prize already claimed");
+}
+```
+
+This completes the comprehensive guide for your on-demand trivia game system! 🎮

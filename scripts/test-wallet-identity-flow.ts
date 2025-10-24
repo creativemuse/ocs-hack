@@ -49,6 +49,7 @@ async function testWalletIdentityFlow() {
     console.log(`   Session ID: ${TEST_SESSION_ID}`);
     await spacetimeClient.startGameSession(
       TEST_SESSION_ID,
+      'test-game-1',  // NEW: Add gameId parameter
       'medium',
       'battle',
       'paid',

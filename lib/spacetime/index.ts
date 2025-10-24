@@ -795,19 +795,19 @@ export class RemoteReducers {
     this.connection.offReducer("revoke_admin_privileges", callback);
   }
 
-  startGameSession(sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) {
-    const __args = { sessionId, difficulty, gameMode, playerType, walletAddress, guestId };
+  startGameSession(sessionId: string, gameId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) {
+    const __args = { sessionId, gameId, difficulty, gameMode, playerType, walletAddress, guestId };
     let __writer = new __BinaryWriter(1024);
     StartGameSession.serialize(__writer, __args);
     let __argsBuffer = __writer.getBuffer();
     this.connection.callReducer("start_game_session", __argsBuffer, this.setCallReducerFlags.startGameSessionFlags);
   }
 
-  onStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
+  onStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, gameId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
     this.connection.onReducer("start_game_session", callback);
   }
 
-  removeOnStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
+  removeOnStartGameSession(callback: (ctx: ReducerEventContext, sessionId: string, gameId: string, difficulty: string, gameMode: string, playerType: string, walletAddress: string | undefined, guestId: string | undefined) => void) {
     this.connection.offReducer("start_game_session", callback);
   }
 

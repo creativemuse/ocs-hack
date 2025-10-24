@@ -56,6 +56,11 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'walletAddress is required' }, { status: 400 });
     }
 
+    // Validate wallet address format
+    if (!/^0x[a-fA-F0-9]{40}$/.test(walletAddress)) {
+      return NextResponse.json({ error: 'Invalid wallet address format' }, { status: 400 });
+    }
+
     const cdpApiKeyName = process.env.CDP_API_KEY_NAME;
     const cdpApiPrivateKey = process.env.CDP_API_KEY_PRIVATE_KEY;
     const cdpApiKey = process.env.CDP_API_KEY;
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${jwt}`,
+        'User-Agent': 'OCS-Alpha/1.0',
       },
       body: JSON.stringify(quoteRequestBody),
     });
@@ -99,7 +105,17 @@ export async function POST(req: NextRequest) {
     if (!response.ok) {
       const errorText = await response.text();
       console.error('Buy quote failed:', errorText);
-      return NextResponse.json({ error: `Failed to create buy quote: ${response.status} ${response.statusText}` }, { status: response.status });
+      
+      // Handle specific session token errors
+      if (errorText.includes('sessionToken') || errorText.includes('session token')) {
+        return NextResponse.json({ 
+          error: 'Session token error. Please try again - each quote can only be used once.' 
+        }, { status: 400 });
+      }
+      
+      return NextResponse.json({ 
+        error: `Failed to create buy quote: ${response.status} ${response.statusText}` 
+      }, { status: response.status });
     }
 
     const data = await response.json();

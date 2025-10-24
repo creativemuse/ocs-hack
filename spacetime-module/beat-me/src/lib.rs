@@ -72,6 +72,9 @@ pub struct GameSession {
     #[unique]
     pub session_id: String,
     
+    // Game relationship - links to contract gameId
+    pub game_id: String,
+    
     // HYBRID APPROACH: Track both wallet and identity
     pub wallet_address: Option<String>,     // PRIMARY for paid players
     pub guest_id: Option<String>,           // PRIMARY for trial/guest
@@ -505,6 +508,7 @@ pub fn add_audio_file(
 pub fn start_game_session(
     ctx: &ReducerContext,
     session_id: String,
+    game_id: String,                 // NEW: Links to contract gameId
     difficulty: String,
     game_mode: String,
     player_type: String,
@@ -517,6 +521,7 @@ pub fn start_game_session(
     ctx.db.game_sessions().insert(GameSession {
         id: 0,
         session_id: session_id.clone(),
+        game_id: game_id.clone(),    // NEW: Store the game_id
         wallet_address: wallet_address.clone(),
         guest_id: guest_id.clone(),
         spacetime_identity: identity,
@@ -533,7 +538,7 @@ pub fn start_game_session(
     let player_id = wallet_address.as_deref()
         .or(guest_id.as_deref())
         .unwrap_or("unknown");
-    log::info!("🎮 Started game session: {} for {} ({:?})", session_id, player_id, ptype);
+    log::info!("🎮 Started game session: {} for game {} and player {} ({:?})", session_id, game_id, player_id, ptype);
 }
 
 #[spacetimedb::reducer]

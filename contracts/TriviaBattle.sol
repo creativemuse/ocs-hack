@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title TriviaBattle
@@ -20,7 +20,7 @@ import "@openzeppelin/contracts/access/Ownable.sol";
  */
 contract TriviaBattle is ReentrancyGuard, Ownable {
     // USDC token contract
-    IERC20 public immutable usdcToken;
+    IERC20 public immutable USDC_TOKEN;
     
     // Entry fee in USDC (1 USDC = 1,000,000 wei for 6 decimals)
     uint256 public constant ENTRY_FEE = 1_000_000; // 1 USDC
@@ -83,19 +83,27 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     
     // Modifiers
     modifier onlyActiveSession() {
-        require(currentSession.isActive, "No active session");
-        require(block.timestamp >= currentSession.startTime, "Session not started");
-        require(block.timestamp <= currentSession.endTime, "Session ended");
+        _onlyActiveSession();
         _;
     }
     
     modifier onlySessionEnded() {
-        require(!currentSession.isActive || block.timestamp > currentSession.endTime, "Session still active");
+        _onlySessionEnded();
         _;
     }
     
+    function _onlyActiveSession() internal view {
+        require(currentSession.isActive, "No active session");
+        require(block.timestamp >= currentSession.startTime, "Session not started");
+        require(block.timestamp <= currentSession.endTime, "Session ended");
+    }
+    
+    function _onlySessionEnded() internal view {
+        require(!currentSession.isActive || block.timestamp > currentSession.endTime, "Session still active");
+    }
+    
     constructor(address _usdcToken, address _platformFeeRecipient) Ownable(msg.sender) {
-        usdcToken = IERC20(_usdcToken);
+        USDC_TOKEN = IERC20(_usdcToken);
         platformFeeRecipient = _platformFeeRecipient;
     }
     
@@ -142,14 +150,14 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         
         // Transfer USDC entry fee
         require(
-            usdcToken.transferFrom(msg.sender, address(this), ENTRY_FEE),
+            USDC_TOKEN.transferFrom(msg.sender, address(this), ENTRY_FEE),
             "USDC transfer failed"
         );
         
         // Transfer platform fee to recipient
         if (platformFee > 0 && platformFeeRecipient != address(0)) {
             require(
-                usdcToken.transfer(platformFeeRecipient, platformFee),
+                USDC_TOKEN.transfer(platformFeeRecipient, platformFee),
                 "Platform fee transfer failed"
             );
             emit PlatformFeeCollected(platformFee, platformFeeRecipient);
@@ -327,7 +335,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         hasClaimed[msg.sender] = true;
         
         require(
-            usdcToken.transfer(msg.sender, amount),
+            USDC_TOKEN.transfer(msg.sender, amount),
             "Claim transfer failed"
         );
         
@@ -396,9 +404,9 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * @dev Emergency function to withdraw USDC (only owner)
      */
     function emergencyWithdraw() external onlyOwner {
-        uint256 balance = usdcToken.balanceOf(address(this));
+        uint256 balance = USDC_TOKEN.balanceOf(address(this));
         require(balance > 0, "No USDC to withdraw");
-        require(usdcToken.transfer(owner(), balance), "Withdrawal failed");
+        require(USDC_TOKEN.transfer(owner(), balance), "Withdrawal failed");
     }
     
     // Internal functions

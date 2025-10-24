@@ -182,7 +182,7 @@ CDP_API_KEY=organizations/your-org/apiKeys/your-key
 CDP_API_SECRET=your-secret-here
 
 # Contract Addresses (Already set)
-NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0xc166a6FB38636e8430d6A2Efb7A601c226659425
+NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 NEXT_PUBLIC_USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 ```
 
@@ -286,12 +286,12 @@ The foundational architecture is complete. Remaining integration work:
    // When starting games, ensure you pass:
    if (walletAddress) {
      await spacetimeClient.startGameSession(
-       sessionId, difficulty, gameMode, 
+       sessionId, gameId, difficulty, gameMode, 
        'paid', walletAddress, undefined
      );
    } else if (guestId) {
      await spacetimeClient.startGameSession(
-       sessionId, difficulty, gameMode,
+       sessionId, gameId, difficulty, gameMode,
        'trial', undefined, guestId
      );
    }
