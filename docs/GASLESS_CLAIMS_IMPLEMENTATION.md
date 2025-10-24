@@ -156,7 +156,7 @@ Go to: https://portal.cdp.coinbase.com/products/bundler-and-paymaster
    - Functions: `approve`
 
 2. **New TriviaBattle Contract** (ADD THIS):
-   - Address: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+   - Address: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
    - Functions:
      - `joinBattle`
      - `joinTrialBattle`
@@ -236,7 +236,7 @@ onStatus={(status: LifecycleStatus) => {
 ### Transaction Details
 
 **Chain**: Base Mainnet (8453)
-**Contract**: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+**Contract**: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 **Function**: `claimWinnings()`
 **Args**: None (reads from `playerWinnings[msg.sender]`)
 **Gas**: Sponsored by Coinbase paymaster
@@ -255,7 +255,7 @@ Prize claims automatically update the leaderboard:
 
 ### Check Player Winnings
 ```bash
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "playerWinnings(address)(uint256)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
@@ -263,7 +263,7 @@ cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
 
 ### Check Claim Status
 ```bash
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "hasClaimed(address)(bool)" \
   <player-address> \
   --rpc-url https://mainnet.base.org

@@ -3,11 +3,11 @@
 ## ✅ Successfully Deployed!
 
 ### New Smart Contract
-- **Address**: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+- **Address**: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - **Network**: Base Mainnet (Chain ID: 8453)
 - **Deployed**: October 13, 2025
 - **Status**: ✅ Deployed and verified (functional)
-- **View on Basescan**: https://basescan.org/address/0xc166a6FB38636e8430d6A2Efb7A601c226659425
+- **View on Basescan**: https://basescan.org/address/0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 
 ### Contract Details Verified
 - ✅ Owner: `0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260`
@@ -70,7 +70,7 @@
 
 #### Contract 2: TriviaBattle (UPDATE TO NEW ADDRESS)
 - **Old Address** (REMOVE): `0x231240B1d776a8F72785FE3707b74Ed9C3048B3a`
-- **New Address** (ADD): `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+- **New Address** (ADD): `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - Network: Base Mainnet
 - Functions to allowlist:
   - `joinBattle`
@@ -87,7 +87,7 @@ The automated verification failed due to API version issues, but you can verify 
 
 **Option A: Manual Verification**
 1. Go to: https://basescan.org/verifyContract
-2. Enter contract address: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+2. Enter contract address: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 3. Compiler: Solidity 0.8.25
 4. Optimization: Yes (200 runs)
 5. Copy contract source from `contracts/TriviaBattle.sol`
@@ -160,13 +160,13 @@ npm run dev
 ### 3. Verify Contract Functions
 ```bash
 # Check if player has claimable winnings
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "playerWinnings(address)(uint256)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
 
 # Check if player has claimed
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "hasClaimed(address)(bool)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
@@ -204,7 +204,7 @@ cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
 ### Immediate (Required for Gasless Claims)
 1. **Update Paymaster Allowlist** on CDP Dashboard
    - Remove old contract: `0x231240B1d776a8F72785FE3707b74Ed9C3048B3a`
-   - Add new contract: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+   - Add new contract: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
    - Add `claimWinnings` function to allowlist
 
 ### Optional (For Better UX)
@@ -245,7 +245,7 @@ spacetime logs beat-me --server https://maincloud.spacetimedb.com
 # See how much USDC is in the contract
 cast call 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913 \
   "balanceOf(address)(uint256)" \
-  0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+  0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   --rpc-url https://mainnet.base.org
 ```
 

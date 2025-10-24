@@ -4,7 +4,7 @@
 
 ### 1. **Contract Address Confusion Resolved**
 - **USDC Address:** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` (Base Mainnet - VERIFIED ✅)
-- **TriviaBattle Address:** `0xc166a6FB38636e8430d6A2Efb7A601c226659425` (VERIFIED ✅)
+- **TriviaBattle Address:** `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13` (VERIFIED ✅)
 - Updated all documentation to use correct addresses
 
 ### 2. **Enhanced Debug Logging Added**
@@ -125,7 +125,7 @@ Based on console output, verify:
 2. **CDP Dashboard Configuration**
    - [ ] Contract Allowlist includes both contracts
    - [ ] USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-   - [ ] TriviaBattle: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+   - [ ] TriviaBattle: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
    - [ ] Functions: `approve(address,uint256)` and `joinBattle()`
 
 3. **Paymaster Settings**

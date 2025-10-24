@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useAccount } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { useOneClickBuy } from '@/hooks/useOneClickBuy';
-import { Coins, ExternalLink, DollarSign } from 'lucide-react';
+import { Coins, ExternalLink, DollarSign, RefreshCw } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 interface WalletFundingProps {
@@ -13,11 +13,17 @@ interface WalletFundingProps {
 
 export default function WalletFunding({ className = '' }: WalletFundingProps) {
   const { address } = useAccount();
-  const { generateBuyUrl, openOnramp, isLoading, error, quoteData } = useOneClickBuy();
+  const { generateBuyUrl, openOnramp, isLoading, error, quoteData, clearError } = useOneClickBuy();
   const [showQuote, setShowQuote] = useState(false);
+  const [isOpening, setIsOpening] = useState(false);
 
-  const handleFundWallet = async () => {
+  const handleFundWallet = useCallback(async () => {
     if (!address) return;
+    
+    // Clear any previous errors and reset state
+    clearError();
+    setShowQuote(false);
+    setIsOpening(false);
     
     try {
       const result = await generateBuyUrl(address, {
@@ -31,15 +37,27 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
       
       if (result?.url) {
         setShowQuote(true);
-        // Automatically open after showing quote preview
+        setIsOpening(true);
+        
+        // Open the onramp immediately - no delay needed
+        openOnramp(result.url);
+        
+        // Reset opening state after a short delay
         setTimeout(() => {
-          openOnramp(result.url);
-        }, 500);
+          setIsOpening(false);
+        }, 2000);
       }
     } catch (err) {
       console.error('Failed to generate buy URL:', err);
+      setIsOpening(false);
     }
-  };
+  }, [address, generateBuyUrl, openOnramp, clearError]);
+
+  const handleRetry = useCallback(() => {
+    setShowQuote(false);
+    setIsOpening(false);
+    clearError();
+  }, [clearError]);
 
   if (!address) {
     return (
@@ -65,7 +83,7 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="text-sm text-gray-300 text-center">
-            Opening Coinbase Onramp...
+            {isOpening ? 'Opening Coinbase Onramp...' : 'Quote generated successfully'}
           </div>
           
           <div className="space-y-3">
@@ -93,13 +111,23 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
               )}
             </div>
             
-            <Button
-              variant="outline"
-              onClick={() => setShowQuote(false)}
-              className="w-full border-gray-600 text-gray-300 hover:bg-gray-800"
-            >
-              Back
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={handleRetry}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Try Again
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowQuote(false)}
+                className="flex-1 border-gray-600 text-gray-300 hover:bg-gray-800"
+              >
+                Back
+              </Button>
+            </div>
           </div>
           
           {error && (
@@ -128,13 +156,18 @@ export default function WalletFunding({ className = '' }: WalletFundingProps) {
         <div className="space-y-3">
           <Button
             onClick={handleFundWallet}
-            disabled={isLoading}
-            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
+            disabled={isLoading || isOpening}
+            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white disabled:opacity-50"
           >
             {isLoading ? (
               <>
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                Loading...
+                Generating quote...
+              </>
+            ) : isOpening ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Opening onramp...
               </>
             ) : (
               <>

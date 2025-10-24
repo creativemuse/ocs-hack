@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    // Prevent ESLint option incompatibilities from failing production builds
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       {
@@ -28,6 +24,16 @@ const nextConfig: NextConfig = {
       // },
     ],
   },
+  // Turbopack configuration for Next.js 16
+  turbopack: {
+    rules: {
+      '*.js': {
+        loaders: ['swc-loader'],
+        as: '*.js',
+      },
+    },
+  },
+  // Webpack configuration (fallback for compatibility)
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
     

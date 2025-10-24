@@ -357,6 +357,7 @@ class SpacetimeDBClient {
 
   async startGameSession(
     sessionId: string,
+    gameId: string,              // NEW: Links to contract gameId
     difficulty: string,
     gameMode: string,
     playerType: 'paid' | 'trial' = 'trial',
@@ -368,6 +369,7 @@ class SpacetimeDBClient {
     try {
       this.connection.reducers.startGameSession(
         sessionId,
+        gameId,                 // NEW: Pass the gameId
         difficulty,
         gameMode,
         playerType,
@@ -375,7 +377,7 @@ class SpacetimeDBClient {
         guestId || undefined
       );
       const playerId = walletAddress || guestId || 'unknown';
-      console.log(`🎮 Started game session: ${sessionId} for ${playerId} (${playerType})`);
+      console.log(`🎮 Started game session: ${sessionId} for game ${gameId} and player ${playerId} (${playerType})`);
     } catch (error) {
       console.error('❌ Failed to start game session:', error);
       throw error;

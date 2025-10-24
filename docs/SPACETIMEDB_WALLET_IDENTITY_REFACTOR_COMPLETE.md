@@ -283,6 +283,7 @@ if (address) {
   // Paid player
   await spacetimeClient.startGameSession(
     sessionId,
+    'game-123',    // gameId ✅
     'medium',      // difficulty
     'battle',      // gameMode
     'paid',        // playerType
@@ -301,6 +302,7 @@ const guestId = localStorage.getItem('guest_id') || generateGuestId();
 
 await spacetimeClient.startGameSession(
   sessionId,
+  'game-456',    // gameId ✅
   'easy',        // difficulty
   'solo',        // gameMode
   'trial',       // playerType
@@ -527,8 +529,11 @@ Result: ✅ Stats persist across devices!
 // Before
 startGameSession(sessionId, difficulty, gameMode, playerType)
 
-// After
+// After (with wallet/guest support)
 startGameSession(sessionId, difficulty, gameMode, playerType, walletAddress, guestId)
+
+// Latest (with gameId support)
+startGameSession(sessionId, gameId, difficulty, gameMode, playerType, walletAddress, guestId)
 ```
 
 #### `getLeaderboard` return type changed:
