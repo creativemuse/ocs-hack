@@ -27,6 +27,18 @@ const nextConfig: NextConfig = {
   // Turbopack configuration for Next.js 16
   turbopack: {},
   transpilePackages: ['spacetimedb'],
+  // Optimize bundle size
+  serverExternalPackages: ['@spacetimedb/client'],
+  // Exclude large directories from build
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'lib/chainlink': 'commonjs lib/chainlink',
+      });
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createCDPSQLClient } from '@/lib/cdp/sql-api';
 
 // Contract addresses from environment
 const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
