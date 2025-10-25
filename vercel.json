@@ -5,11 +5,14 @@
     },
     "app/api/spacetime-questions/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/active-players-live/route.ts": {
+      "maxDuration": 10
     }
   },
   "build": {
     "env": {
       "NODE_OPTIONS": "--max-old-space-size=4096"
     }
-  }
+  },
 }

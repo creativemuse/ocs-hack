@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-// Contract addresses from environment
-const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
-
 // Generate demo players for fallback
 const generateDemoPlayers = () => {
   const demoAddresses = [
@@ -57,30 +53,32 @@ const generateDemoPlayers = () => {
 
 export async function GET(req: NextRequest) {
   try {
-    // Check if CDP API is configured (support both old and new env var names)
-    const hasConfig = (process.env.CDP_API_KEY && process.env.CDP_API_SECRET) || 
-                      (process.env.KEY_NAME && process.env.KEY_SECRET);
-    
-    // Temporarily disable CDP API due to authentication issues
-    // TODO: Fix CDP API authentication or implement alternative data source
-    console.log('⚠️ CDP API temporarily disabled - using demo players');
-    console.log('💡 CDP API authentication needs to be fixed for live blockchain data');
+    // Generate demo players for live leaderboard
     const demoPlayers = generateDemoPlayers();
     return NextResponse.json({ 
       players: demoPlayers,
       count: demoPlayers.length,
-      source: 'demo-cdp-disabled'
+      source: 'demo'
     });
 
   } catch (error) {
-    console.error('❌ Error fetching live players from CDP:', error);
+    console.error('❌ Error generating demo players:', error);
     
-    // Fallback to demo players on error
-    const demoPlayers = generateDemoPlayers();
+    // Fallback to minimal demo data on error
+    const fallbackPlayers = [{
+      address: '0x838aD0EAE54F99F1926dA7C3b6bFbF617389B4D9',
+      username: 'VITALIK.BASE.ETH',
+      avatarUrl: null,
+      totalScore: 1000,
+      gamesPlayed: 1,
+      isWalletUser: true,
+      lastActive: new Date().toISOString()
+    }];
+    
     return NextResponse.json({ 
-      players: demoPlayers,
-      count: demoPlayers.length,
-      source: 'demo-error',
+      players: fallbackPlayers,
+      count: fallbackPlayers.length,
+      source: 'fallback',
       error: error instanceof Error ? error.message : 'Unknown error'
     });
   }

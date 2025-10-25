@@ -58,3 +58,4 @@ Thumbs.db
 # Large contract directories
 ############################################
 lib/chainlink
+sponsored_transactions/node_modules
