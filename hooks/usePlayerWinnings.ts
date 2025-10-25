@@ -29,27 +29,37 @@ export function usePlayerWinnings() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Read session info to get prize pool and session status
+  // Read current game info to get prize pool and session status
+  const { data: currentGameId } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'currentGameId',
+  });
+
   const { data: sessionInfo, isLoading: sessionLoading } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getSessionInfo',
+    functionName: 'getGameInfo',
+    args: currentGameId ? [currentGameId] : undefined,
+    query: {
+      enabled: !!currentGameId,
+    },
   });
 
-  // Read player score (for paid players only)
-  const { data: playerScore, isLoading: scoreLoading } = useReadContract({
+  // Read player ranking (for paid players only)
+  const { data: playerRanking, isLoading: scoreLoading } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getPlayerScore',
-    args: address ? [address] : undefined,
+    functionName: 'getPlayerRanking',
+    args: currentGameId && address ? [currentGameId, address] : undefined,
     query: {
-      enabled: !!address && isConnected,
+      enabled: !!currentGameId && !!address && isConnected,
     },
   });
 
   // Calculate winnings based on score and prize pool
   const calculateWinnings = useCallback(async () => {
-    if (!address || !isConnected || !sessionInfo || !playerScore) {
+    if (!address || !isConnected || !sessionInfo || !playerRanking) {
       return;
     }
 
@@ -57,18 +67,18 @@ export function usePlayerWinnings() {
     setError(null);
 
     try {
-      const [startTime, endTime, prizePool, paidPlayerCount, trialPlayerCount, isActive, prizesDistributed] = sessionInfo as readonly [bigint, bigint, bigint, bigint, bigint, boolean, boolean];
+      const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted] = sessionInfo as readonly [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean];
       
       // Check if session is active and prizes have been distributed
       const sessionActive = isActive;
       const totalPrizePool = prizePool.toString();
       
-      // Get player's score
-      const [score, hasSubmitted, submissionTime] = playerScore as readonly [bigint, boolean, bigint];
+      // Get player's ranking (0 means not ranked)
+      const ranking = playerRanking as bigint;
       
-      // Check if player is a paid player (has submitted a score in paid battle)
+      // Check if player is ranked (ranking > 0 means they participated and are ranked)
       // Trial players should never be able to claim winnings
-      if (!hasSubmitted || score === BigInt(0)) {
+      if (ranking === BigInt(0)) {
         setWinnings({
           hasWinnings: false,
           winningAmount: '0',
@@ -76,13 +86,13 @@ export function usePlayerWinnings() {
           isEligible: false,
           totalPrizePool,
           sessionActive,
-          isPaidPlayer: false, // No score = not a paid player
+          isPaidPlayer: false, // No ranking = not a paid player
         });
         return;
       }
 
-      // If player has a score, they must be a paid player (trial scores are separate)
-      const isPaidPlayer = hasSubmitted && score > BigInt(0);
+      // If player has a ranking, they must be a paid player (trial players are not ranked)
+      const isPaidPlayer = ranking > BigInt(0);
       
       // Trial players are completely excluded from winnings
       if (!isPaidPlayer) {
@@ -99,38 +109,33 @@ export function usePlayerWinnings() {
       }
 
       // Prize distribution logic for paid players only
-      const playerScoreNum = Number(score);
-      const totalPaidPlayers = Number(paidPlayerCount);
+      const playerRankingNum = Number(ranking);
+      const totalPlayers = Number(playerCount);
       const totalPrizePoolNum = Number(prizePool);
       
       // Prize distribution tiers for paid players
       let winningAmount = '0';
-      let rank = 0;
+      let rank = playerRankingNum;
       let isEligible = false;
       
       // For paid players, show potential winnings even if prizes haven't been distributed yet
       // This gives them a preview of what they might win
-      if (playerScoreNum > 0 && totalPaidPlayers > 0 && totalPrizePoolNum > 0) {
+      if (playerRankingNum > 0 && totalPlayers > 0 && totalPrizePoolNum > 0) {
         
         // Prize distribution tiers (customize these based on your game rules)
-        if (playerScoreNum >= 90) { // Top tier - 1st place
-          rank = 1;
+        if (playerRankingNum === 1) { // Top tier - 1st place
           winningAmount = Math.floor(totalPrizePoolNum * 0.5).toString(); // 50% of total prize pool
           isEligible = true;
-        } else if (playerScoreNum >= 80) { // Second tier - 2nd place
-          rank = 2;
+        } else if (playerRankingNum === 2) { // Second tier - 2nd place
           winningAmount = Math.floor(totalPrizePoolNum * 0.3).toString(); // 30% of total prize pool
           isEligible = true;
-        } else if (playerScoreNum >= 70) { // Third tier - 3rd place
-          rank = 3;
+        } else if (playerRankingNum === 3) { // Third tier - 3rd place
           winningAmount = Math.floor(totalPrizePoolNum * 0.15).toString(); // 15% of total prize pool
           isEligible = true;
-        } else if (playerScoreNum >= 60) { // Fourth tier - participation prize
-          rank = 4;
+        } else if (playerRankingNum <= 10) { // Fourth tier - participation prize
           winningAmount = Math.floor(totalPrizePoolNum * 0.05).toString(); // 5% of total prize pool
           isEligible = true;
-        } else if (playerScoreNum >= 50) { // Fifth tier - small participation prize
-          rank = 5;
+        } else if (playerRankingNum <= 20) { // Fifth tier - small participation prize
           winningAmount = Math.floor(totalPrizePoolNum * 0.01).toString(); // 1% of total prize pool
           isEligible = true;
         }
@@ -159,7 +164,7 @@ export function usePlayerWinnings() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, isConnected, sessionInfo, playerScore]);
+  }, [address, isConnected, sessionInfo, playerRanking]);
 
   // Recalculate winnings when dependencies change
   useEffect(() => {

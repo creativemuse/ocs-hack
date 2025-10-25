@@ -13,10 +13,10 @@ import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { gameId: string } }
+  { params }: { params: Promise<{ gameId: string }> }
 ) {
   try {
-    const { gameId } = params;
+    const { gameId } = await params;
     
     // Validate gameId parameter
     if (!gameId || isNaN(Number(gameId))) {
@@ -128,10 +128,11 @@ export async function GET(
   } catch (error) {
     console.error('Error fetching game rankings:', error);
     
+    const resolvedParams = await params;
     return NextResponse.json(
       { 
         error: 'Internal server error',
-        gameId: parseInt(params.gameId, 10),
+        gameId: parseInt(resolvedParams.gameId, 10),
         timestamp: Date.now(),
         details: error instanceof Error ? error.message : 'Unknown error'
       },

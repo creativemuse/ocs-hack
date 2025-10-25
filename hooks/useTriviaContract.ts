@@ -39,11 +39,22 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     hash,
   });
 
+  // Read current game ID
+  const { data: currentGameId } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'currentGameId',
+  });
+
   // Read contract to check session status
   const { data: sessionInfo, refetch: refetchSession } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getSessionInfo',
+    functionName: 'getGameInfo',
+    args: currentGameId ? [currentGameId] : undefined,
+    query: {
+      enabled: !!currentGameId,
+    },
   });
 
   // Read contract owner
@@ -74,8 +85,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'startSession',
-        args: [BigInt(duration)],
+        functionName: 'createGame',
       });
       
       // Wait for transaction to be confirmed
@@ -103,7 +113,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.log('Session refetch result:', result);
       
       if (result.data) {
-        const [startTime, endTime, prizePool, paidPlayerCount, trialPlayerCount, isActive, prizesDistributed] = result.data as [bigint, bigint, bigint, bigint, bigint, boolean, boolean];
+        const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted] = result.data as [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean];
         const now = BigInt(Math.floor(Date.now() / 1000));
         
         // More lenient session validation - just check if isActive is true
@@ -116,8 +126,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
           startTime: startTime.toString(), 
           endTime: endTime.toString(), 
           now: now.toString(),
-          paidPlayers: paidPlayerCount.toString(),
-          trialPlayers: trialPlayerCount.toString()
+          playerCount: playerCount.toString(),
+          prizePool: prizePool.toString()
         });
         return sessionActive;
       } else {
@@ -291,8 +301,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'joinTrialBattle',
-        args: [sessionId],
+        functionName: 'enterGame',
       });
     } catch (error) {
       console.error('Error joining trial battle:', error);
@@ -318,8 +327,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'submitScore',
-        args: [BigInt(score)],
+        functionName: 'enterGame',
       });
     } catch (error) {
       console.error('Error submitting score:', error);
@@ -345,8 +353,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'submitTrialScore',
-        args: [sessionId, BigInt(score)],
+        functionName: 'enterGame',
       });
     } catch (error) {
       console.error('Error submitting trial score:', error);
@@ -370,12 +377,12 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     try {
       console.log(`Claiming ${winningAmount} USDC for player ${address}`);
       
-      // Call the smart contract claimWinnings function
+      // Call the smart contract claimPrize function
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'claimWinnings',
-        args: [],
+        functionName: 'claimPrize',
+        args: [currentGameId || BigInt(0)],
       });
       
       console.log('✅ Claim winnings transaction submitted');

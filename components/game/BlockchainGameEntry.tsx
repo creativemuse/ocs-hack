@@ -74,8 +74,8 @@ export default function BlockchainGameEntry({
   };
 
   // Check if player can join (simplified since we don't have player scores)
-  const canJoinPaid = sessionInfo?.[5]; // sessionInfo[5] is isActive
-  const canJoinTrial = sessionInfo?.[5]; // sessionInfo[5] is isActive
+  const canJoinPaid = (sessionInfo as any)?.[5]; // sessionInfo[5] is isActive
+  const canJoinTrial = (sessionInfo as any)?.[5]; // sessionInfo[5] is isActive
   const hasJoined = false; // We'll need to track this differently
 
   if (hasJoined) {
@@ -124,15 +124,15 @@ export default function BlockchainGameEntry({
             </div>
             <div className="flex items-center gap-2">
               <DollarSign className="w-4 h-4 text-green-400" />
-              <span>Prize Pool: {(Number(sessionInfo[2]) / 1e6).toFixed(3)} USDC</span>
+              <span>Prize Pool: {(Number((sessionInfo as any)[2]) / 1e6).toFixed(3)} USDC</span>
             </div>
             <div className="flex items-center gap-2">
               <Users className="w-4 h-4 text-purple-400" />
-              <span>Players: {Number(sessionInfo[3]) + Number(sessionInfo[4])}</span>
+              <span>Players: {Number((sessionInfo as any)[3]) + Number((sessionInfo as any)[4])}</span>
             </div>
             <div className="flex items-center gap-2">
               <Trophy className="w-4 h-4 text-yellow-400" />
-              <span>Status: {sessionInfo[5] ? 'Active' : 'Inactive'}</span>
+              <span>Status: {(sessionInfo as any)[5] ? 'Active' : 'Inactive'}</span>
             </div>
           </div>
         )}
@@ -147,7 +147,7 @@ export default function BlockchainGameEntry({
         )}
 
         {/* No Active Session */}
-        {sessionInfo && !sessionInfo[5] && (
+        {sessionInfo && !(sessionInfo as any)[5] && (
           <Alert className="border-yellow-500/20 bg-yellow-500/10">
             <AlertDescription className="text-yellow-300">
               No active session. Please wait for the next battle to begin.
@@ -156,7 +156,7 @@ export default function BlockchainGameEntry({
         )}
 
         {/* Join Options */}
-        {sessionInfo?.[5] && (
+        {(sessionInfo as any)?.[5] && (
           <div className="space-y-4">
             {/* Paid Player Option */}
             <div className="border border-purple-500/20 rounded-lg p-4 bg-purple-500/5">
