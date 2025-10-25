@@ -129,6 +129,10 @@ export function usePlayerWinnings() {
           rank = 4;
           winningAmount = Math.floor(totalPrizePoolNum * 0.05).toString(); // 5% of total prize pool
           isEligible = true;
+        } else if (playerScoreNum >= 50) { // Fifth tier - small participation prize
+          rank = 5;
+          winningAmount = Math.floor(totalPrizePoolNum * 0.01).toString(); // 1% of total prize pool
+          isEligible = true;
         }
       }
       
