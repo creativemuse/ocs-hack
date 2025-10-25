@@ -1,7 +1,7 @@
 const { ethers } = require('hardhat');
 
 async function main() {
-  const NEW_CONTRACT_ADDRESS = '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
+  const NEW_CONTRACT_ADDRESS = '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
   const USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
   
   console.log('🔍 Checking new TriviaBattle contract...\n');

@@ -1,10 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  eslint: {
-    // Prevent ESLint option incompatibilities from failing production builds
-    ignoreDuringBuilds: true,
-  },
   images: {
     remotePatterns: [
       {
@@ -28,18 +24,63 @@ const nextConfig: NextConfig = {
       // },
     ],
   },
-  webpack: (config) => {
-    config.externals.push("pino-pretty", "lokijs", "encoding");
+  // Turbopack configuration for Next.js 16
+  turbopack: {},
+  transpilePackages: ['spacetimedb'],
+  // Optimize bundle size
+  serverExternalPackages: ['@spacetimedb/client'],
+  // Exclude music files and other large assets from serverless function bundles
+  experimental: {
+    // @ts-expect-error - outputFileTracingExcludes exists at runtime but not in Next.js 16 types yet
+    outputFileTracingExcludes: {
+      '*': [
+        'public/music/**/*',
+        'public/music',
+        'node_modules/@swc/core-linux-x64-gnu',
+        'node_modules/@swc/core-linux-x64-musl',
+        'node_modules/esbuild-linux-64',
+        'node_modules/webpack',
+        '.git/**',
+      ],
+    },
+  },
+  // Exclude large directories from build
+  webpack: (config, { isServer, dev }) => {
+    if (isServer) {
+      config.externals = config.externals || [];
+      config.externals.push({
+        'lib/chainlink': 'commonjs lib/chainlink',
+      });
+    }
     
-    // Handle SpaceTimeDB compilation issues
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'spacetimedb/src/lib/algebraic_type': false,
-    };
+    // Optimize for production builds
+    if (!dev) {
+      // Enable tree shaking
+      config.optimization = config.optimization || {};
+      config.optimization.usedExports = true;
+      config.optimization.sideEffects = false;
+      
+      // Split chunks for better caching
+      config.optimization.splitChunks = {
+        chunks: 'all',
+        cacheGroups: {
+          vendor: {
+            test: /[\\/]node_modules[\\/]/,
+            name: 'vendors',
+            chunks: 'all',
+          },
+          common: {
+            name: 'common',
+            minChunks: 2,
+            chunks: 'all',
+            enforce: true,
+          },
+        },
+      };
+    }
     
     return config;
   },
-  transpilePackages: ['spacetimedb'],
 };
 
 export default nextConfig;

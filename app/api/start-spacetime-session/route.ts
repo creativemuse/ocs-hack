@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
   try {
     const { 
       sessionId, 
+      gameId,         // NEW: Required gameId parameter
       difficulty = 'medium', 
       gameMode = 'battle',
       playerType,  // 'paid' or 'trial'
@@ -18,6 +19,10 @@ export async function POST(req: NextRequest) {
 
     if (!sessionId) {
       return NextResponse.json({ error: 'sessionId required' }, { status: 400 });
+    }
+
+    if (!gameId) {
+      return NextResponse.json({ error: 'gameId required' }, { status: 400 });
     }
 
     if (!playerType) {
@@ -55,6 +60,7 @@ export async function POST(req: NextRequest) {
     // Start SpacetimeDB game session
     await spacetimeClient.startGameSession(
       sessionId,
+      gameId,         // NEW: Pass the gameId parameter
       difficulty,
       gameMode,
       playerType,

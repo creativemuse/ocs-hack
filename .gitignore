@@ -31,6 +31,7 @@ pnpm-debug.log*
 .env
 .env.local
 .env*.local
+.env.jwt
 .env.development.local
 .env.test.local
 .env.production.local
@@ -52,3 +53,9 @@ Thumbs.db
 # Package manager stores
 ############################################
 .pnpm-store
+
+############################################
+# Large contract directories
+############################################
+lib/chainlink
+sponsored_transactions/node_modules

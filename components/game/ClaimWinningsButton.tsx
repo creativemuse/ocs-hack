@@ -73,9 +73,13 @@ export default function ClaimWinningsButton({
     >
       {/* @ts-ignore - OnchainKit TransactionButton type issue */}
       <TransactionButton
-        text="Claim Winnings (Gasless)"
+        text={disabled ? "Waiting for Game to End..." : "Claim Winnings (Gasless)"}
         disabled={disabled}
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white font-semibold"
+        className={`w-full font-semibold ${
+          disabled 
+            ? 'bg-gray-400 text-gray-600 cursor-not-allowed' 
+            : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-600 hover:to-emerald-600 text-white'
+        }`}
       />
       <TransactionSponsor />
       <TransactionStatus>

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useReadContract } from 'wagmi';
 
 // Contract addresses (Base Mainnet)
-const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
+const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
 const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
 // USDC ABI for balance checking
@@ -118,6 +118,19 @@ export function useContractUSDCBalance() {
       }));
     }
   }, [balanceWei, decimals, symbol, balanceLoading, balanceError, decimalsError, symbolError]);
+
+  // Debug logging
+  useEffect(() => {
+    if (balanceError) {
+      console.error('Contract USDC Balance Error:', balanceError);
+    }
+    if (decimalsError) {
+      console.error('USDC Decimals Error:', decimalsError);
+    }
+    if (symbolError) {
+      console.error('USDC Symbol Error:', symbolError);
+    }
+  }, [balanceError, decimalsError, symbolError]);
 
   const refreshBalance = useCallback(() => {
     refetchBalance();

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
+import { Trophy, Medal, Award, Crown, Coins, CheckCircle, Info } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
@@ -59,8 +59,8 @@ export default function HighScoreDisplay({
             rank: result.rank
           });
           
-          // Trigger confetti for new high scores
-          if (result.isNewHighScore) {
+          // Trigger confetti for new high scores OR if this is the highest score
+          if (result.isNewHighScore || currentScore >= currentHighScore) {
             setShowConfetti(true);
             // Auto-hide confetti after animation completes
             setTimeout(() => setShowConfetti(false), 4000);
@@ -227,9 +227,43 @@ export default function HighScoreDisplay({
                       Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
                     </span>
                   </div>
+                ) : !isTrialGame && winnings.isEligible ? (
+                  <div className="space-y-3">
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Trophy className="h-4 w-4 text-green-600" />
+                        <span className="text-sm font-medium text-green-800">Prize Pool Entry</span>
+                      </div>
+                      <p className="text-xs text-green-700 mb-2">
+                        Your score qualifies for prizes! You'll be entered into the prize pool distribution.
+                      </p>
+                      <div className="text-xs text-gray-600">
+                        <p>🤖 Chainlink Automation will finalize the game and distribute prizes automatically.</p>
+                        <p>💰 You can claim your winnings once the game session ends.</p>
+                      </div>
+                    </div>
+                    <ClaimWinningsButton
+                      winningAmount={winnings.winningAmount}
+                      onClaimSuccess={handleClaimSuccess}
+                      disabled={winnings.hasClaimed || winnings.sessionActive}
+                    />
+                  </div>
                 ) : !isTrialGame ? (
-                  <div className="text-sm text-gray-600">
-                    {winnings.sessionActive ? 'Session still active - winnings will be calculated after completion' : 'No winnings to claim for this session'}
+                  <div className="flex items-center gap-2 text-sm text-gray-600">
+                    <span>
+                      {winnings.sessionActive ? 'Session still active - winnings will be calculated after completion' : 'No winnings to claim for this session'}
+                    </span>
+                    <div className="group relative">
+                      <Info className="h-4 w-4 text-gray-400 cursor-help" />
+                      <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none whitespace-nowrap z-10">
+                        <div className="text-center">
+                          <p className="font-semibold mb-1">Prize Distribution</p>
+                          <p>1st: 50% • 2nd: 30% • 3rd: 15%</p>
+                          <p>4th-10th: 5% shared</p>
+                          <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"></div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 ) : (
                   <div className="text-sm text-gray-600">
@@ -251,27 +285,19 @@ export default function HighScoreDisplay({
           </div>
         )}
 
-        {/* Current High Score */}
-        {currentHighScore > 0 && (
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center">
-                <Crown className="h-5 w-5 text-yellow-600 mr-2" />
-                <span className="text-sm font-medium text-yellow-800">Current High Score</span>
-              </div>
-              <span className="text-lg font-bold text-yellow-900">
-                {formatScore(currentHighScore)}
-              </span>
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Top Scores List */}
       <div>
         <h4 className="text-sm font-semibold text-gray-700 mb-2">Top Scores</h4>
         <div className="space-y-2">
-          {highScores.slice(0, 5).map((score, index) => (
+          {highScores
+            .slice(0, 5)
+            .filter((score, index, array) => {
+              // Remove duplicates by checking if this score/player combination already appeared
+              return array.findIndex(s => s.playerName === score.playerName && s.score === score.score) === index;
+            })
+            .map((score, index) => (
             <div 
               key={score.id}
               className={`flex items-center justify-between p-2 rounded ${

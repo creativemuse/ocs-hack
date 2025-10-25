@@ -1,39 +1,89 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-onchain`](https://www.npmjs.com/package/create-onchain).
+# OCS Alpha - Blockchain Gaming Platform
 
+This project combines blockchain gaming with automated smart contract functionality using Chainlink Automation.
 
-## Getting Started
+## 📚 Documentation
 
-First, install dependencies:
+### Deployment Guides
+- **[Chainlink Automation Guide](docs/CHAINLINK_AUTOMATION_GUIDE.md)** - Complete guide for deploying automation-compatible contracts
+- **[Quick Reference](docs/AUTOMATION_QUICK_REFERENCE.md)** - Quick commands and cheat sheet
+- **[Foundry Deployment Guide](docs/FOUNDRY_DEPLOYMENT_GUIDE.md)** - General Foundry deployment instructions
 
-```bash
-npm install
-# or
-yarn install
-# or
-pnpm install
-# or
-bun install
-```
-
-Next, run the development server:
+### Quick Start: Deploy Automation Contract
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Deploy to Sepolia testnet
+./deploy-automation-sepolia.sh 60
+
+# Deploy to Ethereum mainnet
+./deploy-automation-mainnet.sh 3600
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Then register your upkeep at https://automation.chain.link/
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Foundry
 
+**Foundry is a blazing fast, portable and modular toolkit for Ethereum application development written in Rust.**
 
-## Learn More
+Foundry consists of:
 
-To learn more about OnchainKit, see our [documentation](https://docs.base.org/onchainkit).
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
-To learn more about Next.js, see the [Next.js documentation](https://nextjs.org/docs).
+## Documentation
+
+https://book.getfoundry.sh/
+
+## Usage
+
+### Build
+
+```shell
+$ forge build
+```
+
+### Test
+
+```shell
+$ forge test
+```
+
+### Format
+
+```shell
+$ forge fmt
+```
+
+### Gas Snapshots
+
+```shell
+$ forge snapshot
+```
+
+### Anvil
+
+```shell
+$ anvil
+```
+
+### Deploy
+
+```shell
+$ forge script script/Counter.s.sol:CounterScript --rpc-url <your_rpc_url> --private-key <your_private_key>
+```
+
+### Cast
+
+```shell
+$ cast <subcommand>
+```
+
+### Help
+
+```shell
+$ forge --help
+$ anvil --help
+$ cast --help
+```

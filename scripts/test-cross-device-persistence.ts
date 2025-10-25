@@ -61,6 +61,7 @@ async function testCrossDevicePersistence() {
     console.log('4️⃣ Playing first game on Device 1...');
     await spacetimeClient.startGameSession(
       SESSION_1,
+      'test-game-3',   // NEW: Add gameId parameter
       'medium',
       'battle',
       'paid',
@@ -155,6 +156,7 @@ async function testCrossDevicePersistence() {
     console.log('🔟 Playing second game on Device 2...');
     await spacetimeClient.startGameSession(
       SESSION_2,
+      'test-game-4',   // NEW: Add gameId parameter
       'hard',
       'battle',
       'paid',

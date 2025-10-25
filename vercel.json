@@ -5,6 +5,12 @@
     },
     "app/api/spacetime-questions/route.ts": {
       "maxDuration": 30
+    },
+    "app/api/active-players-live/route.ts": {
+      "maxDuration": 10
+    },
+    "app/api/spacetime-player/route.ts": {
+      "maxDuration": 10
     }
   },
   "build": {

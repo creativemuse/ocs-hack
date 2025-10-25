@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { lighthouseStorage } from '@/lib/apis/lighthouse';
 import type { DifficultyLevel } from '@/types/game';
 
 type Mode = 'name-that-tune' | 'artist-match';
@@ -163,40 +162,50 @@ export async function GET(req: NextRequest) {
     let files: Array<{ name: string; path: string; artistName: string; songTitle: string }> = [];
     let source = 'local';
 
-    // Check Lighthouse configuration first
-    if (lighthouseStorage.isConfigured()) {
-      try {
-        // Initialize Lighthouse storage
-        await lighthouseStorage.initialize();
-        
-        // Try to refresh manifest from uploaded files first
-        await lighthouseStorage.refreshManifest();
-        
-        // If no files found, populate with local files as fallback
-        const manifestFiles = await lighthouseStorage.listAudioFiles(prefix);
-        if (manifestFiles.length === 0) {
-          console.log('📝 No uploaded files found, populating manifest with local files for testing');
-          await lighthouseStorage.populateManifestFromLocalFiles();
-        }
-        
-        files = await lighthouseStorage.listAudioFiles(prefix);
-        if (files.length === 0) {
-          console.log(`📁 Lighthouse manifest is empty, falling back to local files`);
+    // Dynamically import Lighthouse storage only when needed
+    try {
+      const { lighthouseStorage } = await import('@/lib/apis/lighthouse');
+      
+      // Check Lighthouse configuration first
+      if (lighthouseStorage.isConfigured()) {
+        try {
+          // Initialize Lighthouse storage
+          await lighthouseStorage.initialize();
+          
+          // Try to refresh manifest from uploaded files first
+          await lighthouseStorage.refreshManifest();
+          
+          // If no files found, populate with local files as fallback
+          const manifestFiles = await lighthouseStorage.listAudioFiles(prefix);
+          if (manifestFiles.length === 0) {
+            console.log('📝 No uploaded files found, populating manifest with local files for testing');
+            await lighthouseStorage.populateManifestFromLocalFiles();
+          }
+          
+          files = await lighthouseStorage.listAudioFiles(prefix);
+          if (files.length === 0) {
+            console.log(`📁 Lighthouse manifest is empty, falling back to local files`);
+            files = getLocalAudioFiles();
+            source = 'local';
+            console.log(`📁 Found ${files.length} local audio files`);
+          } else {
+            console.log(`📁 Found ${files.length} audio files in Lighthouse manifest`);
+            source = 'lighthouse';
+          }
+        } catch (lighthouseError) {
+          console.warn('⚠️ Lighthouse storage failed, falling back to local files:', lighthouseError);
           files = getLocalAudioFiles();
           source = 'local';
           console.log(`📁 Found ${files.length} local audio files`);
-        } else {
-          console.log(`📁 Found ${files.length} audio files in Lighthouse manifest`);
-          source = 'lighthouse';
         }
-      } catch (lighthouseError) {
-        console.warn('⚠️ Lighthouse storage failed, falling back to local files:', lighthouseError);
+      } else {
+        console.log('ℹ️ Lighthouse not configured, using local files');
         files = getLocalAudioFiles();
         source = 'local';
         console.log(`📁 Found ${files.length} local audio files`);
       }
-    } else {
-      console.log('ℹ️ Lighthouse not configured, using local files');
+    } catch (importError) {
+      console.warn('⚠️ Failed to import Lighthouse storage, using local files:', importError);
       files = getLocalAudioFiles();
       source = 'local';
       console.log(`📁 Found ${files.length} local audio files`);

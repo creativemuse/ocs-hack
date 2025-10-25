@@ -9,7 +9,7 @@
 
 **TriviaBattle Contract:**
 ```
-0xc166a6FB38636e8430d6A2Efb7A601c226659425
+0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 ```
 
 ## 🔍 Debug Features Added
@@ -54,7 +54,7 @@ Look for these logs:
 - CDP_PROJECT_ID: [your-project-id]
 - Chain ID: 8453
 - USDC Address: 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-- TriviaBattle Address: 0xc166a6FB38636e8430d6A2Efb7A601c226659425
+- TriviaBattle Address: 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 ```
 
 ### Step 3: Wait for Paymaster Test
@@ -94,7 +94,7 @@ Click "Start Paid Game" and watch for:
 2. Click "Contract Allowlist" tab
 3. Add both contracts:
    - `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913` with function `approve(address,uint256)`
-   - `0xc166a6FB38636e8430d6A2Efb7A601c226659425` with function `joinBattle()`
+   - `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13` with function `joinBattle()`
 
 ### Error 2: Paymaster Out of Funds
 **Console Output:**
@@ -140,7 +140,7 @@ Before testing transactions, verify:
   - `NEXT_PUBLIC_CDP_PROJECT_ID`
 - [ ] CDP Dashboard Contract Allowlist includes:
   - USDC: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-  - TriviaBattle: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+  - TriviaBattle: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - [ ] Paymaster has sufficient balance
 - [ ] Paymaster limits are set:
   - Per User Operation: $2-3 USD

@@ -34,7 +34,7 @@ Add these contracts to your paymaster allowlist:
 **USDC Contract (Base Mainnet):** `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
 - Function: `approve(address,uint256)`
 
-**TriviaBattle Contract:** `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+**TriviaBattle Contract:** `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - Function: `joinBattle()`
 
 ### 3. Paymaster Limits

@@ -10,7 +10,7 @@
 
 ### TriviaBattle
 ```
-0xc166a6FB38636e8430d6A2Efb7A601c226659425
+0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 ```
 **Function:** `joinBattle()`
 
@@ -94,7 +94,7 @@ curl -s https://api.developer.coinbase.com/rpc/v1/base/YOUR_API_KEY \
 - **CDP Dashboard:** https://portal.cdp.coinbase.com/products/bundler-and-paymaster
 - **Base Mainnet Explorer:** https://basescan.org
 - **USDC Contract:** https://basescan.org/address/0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
-- **TriviaBattle Contract:** https://basescan.org/address/0xc166a6FB38636e8430d6A2Efb7A601c226659425
+- **TriviaBattle Contract:** https://basescan.org/address/0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 
 ## 📝 Testing Workflow
 

@@ -14,7 +14,7 @@ The TriviaBattle contract has been updated to use a **claim-based prize distribu
 - ✅ Modified `distributePrizes()` to SET winnings instead of TRANSFER
 
 ### New Contract Deployment
-- **Contract Address**: `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+- **Contract Address**: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - **Network**: Base Mainnet (Chain ID: 8453)
 - **Deployed**: October 13, 2025
 - **Features**: Claim-based prize distribution with gasless support
@@ -47,7 +47,7 @@ The TriviaBattle contract has been updated to use a **claim-based prize distribu
    - Functions: `approve`
 
    **Contract 2: TriviaBattle Game Contract (NEW - ADD THIS)**
-   - Address: `0xc166a6FB38636e8430d6A2Efb7A601c226659425` ← **NEW ADDRESS**
+   - Address: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13` ← **NEW ADDRESS**
    - Network: Base Mainnet (Chain ID: 8453)
    - Functions: `joinBattle`, `joinTrialBattle`, `submitScore`, `submitTrialScore`, `claimWinnings` ← **ADD claimWinnings**
 
@@ -115,7 +115,7 @@ npm run dev
 
 ### 3. Verify on Basescan
 Check the transaction at:
-https://basescan.org/address/0xc166a6FB38636e8430d6A2Efb7A601c226659425
+https://basescan.org/address/0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 
 ## Smart Contract Functions
 
@@ -152,7 +152,7 @@ The prize distribution automatically syncs to SpaceTimeDB via `PayoutSystem.dist
 ### Check Player Winnings
 ```bash
 # Using cast (Foundry)
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "playerWinnings(address)(uint256)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
@@ -162,7 +162,7 @@ cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
 
 ### Check Claim Status
 ```bash
-cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
+cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "hasClaimed(address)(bool)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
@@ -202,7 +202,7 @@ cast call 0xc166a6FB38636e8430d6A2Efb7A601c226659425 \
 ## Quick Reference
 
 - **Old Contract** (DO NOT USE): `0x231240B1d776a8F72785FE3707b74Ed9C3048B3a`
-- **New Contract** (ACTIVE): `0xc166a6FB38636e8430d6A2Efb7A601c226659425`
+- **New Contract** (ACTIVE): `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - **Paymaster Dashboard**: https://portal.cdp.coinbase.com/products/bundler-and-paymaster
-- **Basescan**: https://basescan.org/address/0xc166a6FB38636e8430d6A2Efb7A601c226659425
+- **Basescan**: https://basescan.org/address/0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
 

@@ -228,7 +228,7 @@ export default function BlockchainTriviaGame({
               </div>
               <div className="flex items-center gap-1">
                 <DollarSign className="w-4 h-4" />
-                <span>{(Number(sessionInfo?.[2] || BigInt(0)) / 1e6).toFixed(3)} USDC</span>
+                <span>{(Number((sessionInfo as any)?.[2] || BigInt(0)) / 1e6).toFixed(3)} USDC</span>
               </div>
             </div>
           </CardTitle>

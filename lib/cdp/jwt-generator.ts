@@ -1,5 +1,5 @@
 import jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
+import { randomBytes } from 'crypto';
 
 // CDP API Configuration
 interface CDPConfig {
@@ -55,7 +55,7 @@ export class CDPJWTGenerator {
     const header: JWTHeader = {
       alg: this.algorithm,
       kid: keyName,
-      nonce: crypto.randomBytes(16).toString('hex'),
+      nonce: randomBytes(16).toString('hex'),
     };
 
     // Use the key directly for HMAC-SHA256

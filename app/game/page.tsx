@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import type { KeyboardEvent } from 'react';
 import Image from 'next/image';
@@ -18,10 +18,10 @@ import { ScoringSystem } from '@/lib/game/scoring';
 import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
 import { useGameSession } from '@/hooks/useGameSession';
 import { useSocialShare } from '@/hooks/useSocialShare';
-import ComposeCastButton from '@/components/social/ComposeCastButton';
-import SocialProfileViewer from '@/components/social/SocialProfileViewer';
 import type { ActivePlayer } from '@/hooks/useActivePlayers';
+import ComposeCastButton from '@/components/social/ComposeCastButton';
 import { MiniAppActions } from '@/components/minikit/MiniAppActions';
+import SocialProfileViewer from '@/components/social/SocialProfileViewer';
 
 export default function Game() {
   const router = useRouter();
@@ -674,14 +674,24 @@ export default function Game() {
       </div>
       
       {/* Social Profile Viewer Modal */}
-      <SocialProfileViewer
-        player={selectedPlayer}
-        isOpen={showPlayerProfile}
-        onClose={() => {
-          setShowPlayerProfile(false);
-          setSelectedPlayer(null);
-        }}
-      />
+      <Suspense fallback={<div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+          <div className="animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mb-4"></div>
+            <div className="h-4 bg-gray-200 rounded w-1/2 mb-4"></div>
+            <div className="h-8 bg-gray-200 rounded"></div>
+          </div>
+        </div>
+      </div>}>
+        <SocialProfileViewer
+          player={selectedPlayer}
+          isOpen={showPlayerProfile}
+          onClose={() => {
+            setShowPlayerProfile(false);
+            setSelectedPlayer(null);
+          }}
+        />
+      </Suspense>
     </div>
   );
 }

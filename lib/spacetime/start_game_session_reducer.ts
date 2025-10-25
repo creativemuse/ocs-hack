@@ -29,6 +29,7 @@ import {
 
 export type StartGameSession = {
   sessionId: string,
+  gameId: string,
   difficulty: string,
   gameMode: string,
   playerType: string,
@@ -47,6 +48,7 @@ export const StartGameSession = {
     return __AlgebraicTypeValue.Product({
       elements: [
         { name: "sessionId", algebraicType: __AlgebraicTypeValue.String},
+        { name: "gameId", algebraicType: __AlgebraicTypeValue.String},
         { name: "difficulty", algebraicType: __AlgebraicTypeValue.String},
         { name: "gameMode", algebraicType: __AlgebraicTypeValue.String},
         { name: "playerType", algebraicType: __AlgebraicTypeValue.String},

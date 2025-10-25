@@ -3,7 +3,7 @@ import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CON
 
 /**
  * Creates the transaction calls for joining a paid game
- * This includes both USDC approval and joinBattle calls
+ * This includes both USDC approval and enterGame calls
  */
 export function createPaidGameCalls() {
   const entryFeeWei = parseUnits(ENTRY_FEE_USDC, 6); // USDC has 6 decimals
@@ -16,11 +16,11 @@ export function createPaidGameCalls() {
       functionName: 'approve',
       args: [TRIVIA_CONTRACT_ADDRESS, entryFeeWei],
     },
-    // Step 2: Join the battle
+    // Step 2: Enter the game
     {
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'joinBattle',
+      functionName: 'enterGame',
       args: [],
     },
   ];

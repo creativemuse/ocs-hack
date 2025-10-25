@@ -1,14 +1,14 @@
 #!/usr/bin/env ts-node
 
 // Load environment variables from .env.local
-import * as dotenv from 'dotenv';
-import * as path from 'path';
+import { config } from 'dotenv';
+import { resolve } from 'path';
 
 // Load .env.local file
-dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
+config({ path: resolve(process.cwd(), '.env.local') });
 
 import jwt from 'jsonwebtoken';
-import * as crypto from 'crypto';
+import { createSign } from 'crypto';
 
 const keySecret = process.env.KEY_SECRET!;
 const keyName = process.env.KEY_NAME!;
@@ -62,7 +62,7 @@ for (const format of keyFormats) {
 console.log('\n🔧 Testing with Node.js crypto module...');
 try {
   const privateKey = Buffer.from(keySecret, 'base64');
-  const sign = crypto.createSign('SHA256');
+  const sign = createSign('SHA256');
   sign.update(JSON.stringify(payload));
   const signature = sign.sign(privateKey, 'base64');
   console.log(`  ✅ Direct crypto: SUCCESS (${signature.length} chars)`);
