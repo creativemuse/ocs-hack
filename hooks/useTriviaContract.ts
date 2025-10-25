@@ -255,7 +255,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'joinBattle',
+        functionName: 'enterGame',
       });
     } catch (error) {
       console.error('Error joining battle:', error);

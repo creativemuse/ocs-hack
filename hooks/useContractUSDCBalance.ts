@@ -119,6 +119,19 @@ export function useContractUSDCBalance() {
     }
   }, [balanceWei, decimals, symbol, balanceLoading, balanceError, decimalsError, symbolError]);
 
+  // Debug logging
+  useEffect(() => {
+    if (balanceError) {
+      console.error('Contract USDC Balance Error:', balanceError);
+    }
+    if (decimalsError) {
+      console.error('USDC Decimals Error:', decimalsError);
+    }
+    if (symbolError) {
+      console.error('USDC Symbol Error:', symbolError);
+    }
+  }, [balanceError, decimalsError, symbolError]);
+
   const refreshBalance = useCallback(() => {
     refetchBalance();
   }, [refetchBalance]);

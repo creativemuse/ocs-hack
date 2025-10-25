@@ -49,7 +49,7 @@ export function useSponsoredTriviaContract() {
     return {
       contractAddress: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'joinBattle',
+      functionName: 'enterGame',
       args: [],
     };
   }, [address, isConnected]);

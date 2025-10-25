@@ -1,39 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
-import { TRIVIA_CONTRACT_ADDRESS, TRIVIA_ABI } from '@/lib/blockchain/contracts';
-import { createPublicClient, http } from 'viem';
-import { base } from 'viem/chains';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
 
-// Create public client for contract calls
-const publicClient = createPublicClient({
-  chain: base,
-  transport: http()
-});
-
 // Helper function to check if a session ID has been used in the smart contract
+// Note: TriviaBattlev4 contract doesn't have trial functionality, so we always return false
 async function checkTrialSessionUsed(sessionId: string): Promise<boolean> {
   try {
-    const result = await publicClient.readContract({
-      address: TRIVIA_CONTRACT_ADDRESS,
-      abi: TRIVIA_ABI,
-      functionName: 'getTrialPlayerScore',
-      args: [sessionId]
-    });
-    
-    // If the session has a score > 0, it means it was used
-    return result[1]; // hasSubmitted field
+    // The current TriviaBattlev4 contract doesn't have trial functionality
+    // Trial sessions are now managed entirely through SpacetimeDB
+    console.log(`Trial session ${sessionId} - contract check skipped (v4 has no trial functions)`);
+    return false;
   } catch (error) {
     console.warn('Failed to check trial session in contract:', error);
-    
-    // If it's a function execution error (no data returned), 
-    // it likely means the session hasn't been used yet
-    if (error instanceof Error && error.message.includes('returned no data')) {
-      console.log(`Session ${sessionId} not found in contract - treating as unused`);
-      return false;
-    }
-    
-    // For other errors, also treat as unused to be safe
     return false;
   }
 }

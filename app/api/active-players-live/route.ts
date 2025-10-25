@@ -62,16 +62,16 @@ export async function GET(req: NextRequest) {
     const hasConfig = (process.env.CDP_API_KEY && process.env.CDP_API_SECRET) || 
                       (process.env.KEY_NAME && process.env.KEY_SECRET);
     
-    if (!hasConfig) {
-      console.log('⚠️ CDP API not configured - using demo players');
-      console.log('💡 Add CDP_API_KEY and CDP_API_SECRET to .env.local to use live blockchain data');
-      const demoPlayers = generateDemoPlayers();
-      return NextResponse.json({ 
-        players: demoPlayers,
-        count: demoPlayers.length,
-        source: 'demo-no-config'
-      });
-    }
+    // Temporarily disable CDP API due to authentication issues
+    // TODO: Fix CDP API authentication or implement alternative data source
+    console.log('⚠️ CDP API temporarily disabled - using demo players');
+    console.log('💡 CDP API authentication needs to be fixed for live blockchain data');
+    const demoPlayers = generateDemoPlayers();
+    return NextResponse.json({ 
+      players: demoPlayers,
+      count: demoPlayers.length,
+      source: 'demo-cdp-disabled'
+    });
 
     console.log('🔍 Fetching active players from CDP SQL API...');
     
@@ -91,11 +91,24 @@ export async function GET(req: NextRequest) {
     }
     
     // Get active players from blockchain data (last 24 hours)
-    const rawPlayers = await sqlClient.getActivePlayers(
-      TRIVIA_CONTRACT_ADDRESS,
-      USDC_ADDRESS,
-      24 // 24 hour window
-    );
+    let rawPlayers;
+    try {
+      rawPlayers = await sqlClient.getActivePlayers(
+        TRIVIA_CONTRACT_ADDRESS,
+        USDC_ADDRESS,
+        24 // 24 hour window
+      );
+    } catch (cdpError) {
+      console.error('❌ CDP API error:', cdpError);
+      // Fallback to demo players if CDP API fails
+      const demoPlayers = generateDemoPlayers();
+      return NextResponse.json({ 
+        players: demoPlayers,
+        count: demoPlayers.length,
+        source: 'demo-cdp-error',
+        error: cdpError instanceof Error ? cdpError.message : 'CDP API request failed'
+      });
+    }
 
     console.log(`✅ Found ${rawPlayers.length} active players from blockchain`);
 

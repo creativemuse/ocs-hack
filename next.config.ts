@@ -25,26 +25,7 @@ const nextConfig: NextConfig = {
     ],
   },
   // Turbopack configuration for Next.js 16
-  turbopack: {
-    rules: {
-      '*.js': {
-        loaders: ['swc-loader'],
-        as: '*.js',
-      },
-    },
-  },
-  // Webpack configuration (fallback for compatibility)
-  webpack: (config) => {
-    config.externals.push("pino-pretty", "lokijs", "encoding");
-    
-    // Handle SpaceTimeDB compilation issues
-    config.resolve.alias = {
-      ...config.resolve.alias,
-      'spacetimedb/src/lib/algebraic_type': false,
-    };
-    
-    return config;
-  },
+  turbopack: {},
   transpilePackages: ['spacetimedb'],
 };
 

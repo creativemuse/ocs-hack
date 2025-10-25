@@ -26,33 +26,85 @@ interface CDPSQLResponse {
 
 export class CDPSQLClient {
   private jwtGenerator: CDPJWTGenerator;
-  private baseUrl = 'https://api.cdp.coinbase.com/platform/v2/data/query';
+  private baseUrl = 'https://api.testnet-dataengine.chain.link/api/v1';
+  private apiKey: string;
+  private apiSecret: string;
 
   constructor(jwtGenerator: CDPJWTGenerator) {
     this.jwtGenerator = jwtGenerator;
+    // Extract credentials from the JWT generator config
+    const config = (jwtGenerator as any).config;
+    this.apiKey = config.keyName;
+    this.apiSecret = config.keySecret;
   }
 
   /**
-   * Execute a SQL query against CDP's indexed blockchain data
+   * Generate HMAC-based authentication headers for CDP API
+   */
+  private generateAuthHeaders(method: string, path: string, body: any): Record<string, string> {
+    const crypto = require('crypto');
+    
+    // Generate timestamp (milliseconds since Unix epoch)
+    const timestamp = Date.now();
+    
+    // Create body hash
+    const bodyString = JSON.stringify(body);
+    const bodyHash = crypto.createHash('sha256').update(bodyString).digest('hex');
+    
+    // Create string to sign: METHOD FULL_PATH BODY_HASH API_KEY TIMESTAMP
+    const stringToSign = `${method} ${path} ${bodyHash} ${this.apiKey} ${timestamp}`;
+    
+    // Generate HMAC-SHA256 signature
+    const signature = crypto.createHmac('sha256', this.apiSecret).update(stringToSign).digest('hex');
+    
+    return {
+      'Authorization': this.apiKey,
+      'X-Authorization-Timestamp': timestamp.toString(),
+      'X-Authorization-Signature-SHA256': signature
+    };
+  }
+
+  /**
+   * Execute a SQL query against Chainlink Data Streams API
    */
   async executeQuery(sql: string): Promise<CDPSQLResponse> {
-    const jwt = this.jwtGenerator.generateJWT();
+    // Use HMAC-based authentication for Chainlink Data Streams API
+    const authHeaders = this.generateAuthHeaders('GET', '/reports/latest', {});
+    
+    // Debug logging
+    console.log('Chainlink Data Streams API Request:', {
+      url: `${this.baseUrl}/reports/latest`,
+      sqlLength: sql.length,
+      hasAuth: !!authHeaders.Authorization,
+      hasTimestamp: !!authHeaders['X-Authorization-Timestamp'],
+      hasSignature: !!authHeaders['X-Authorization-Signature-SHA256']
+    });
 
-    const response = await fetch(`${this.baseUrl}/run`, {
-      method: 'POST',
+    const response = await fetch(`${this.baseUrl}/reports/latest`, {
+      method: 'GET',
       headers: {
-        'Authorization': `Bearer ${jwt}`,
+        ...authHeaders,
         'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ sql })
+      }
     });
 
     if (!response.ok) {
       const errorBody = await response.json().catch(() => null);
       const errorMessage = errorBody?.message || errorBody?.error || response.statusText;
       
-      // Provide specific error messages for common issues
+      // Enhanced debugging for 401 errors
       if (response.status === 401) {
+        console.error('CDP API 401 Error Details:', {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody,
+          url: `${this.baseUrl}/run`,
+          headers: {
+            'Authorization': `${this.apiKey.substring(0, 8)}...`,
+            'Content-Type': 'application/json'
+          }
+        });
+        
         throw new Error(
           `CDP SQL API authentication failed (401). ` +
           `Please check your CDP_API_KEY and CDP_API_SECRET in .env.local. ` +
@@ -202,6 +254,16 @@ export function createCDPSQLClient(): CDPSQLClient {
   // Check for credentials using both new and legacy variable names
   const keyName = process.env.CDP_API_KEY || process.env.KEY_NAME;
   const keySecret = process.env.CDP_API_SECRET || process.env.KEY_SECRET;
+
+  // Debug logging
+  console.log('CDP Credentials Check:', {
+    hasCDPKey: !!process.env.CDP_API_KEY,
+    hasCDPSecret: !!process.env.CDP_API_SECRET,
+    hasLegacyKey: !!process.env.KEY_NAME,
+    hasLegacySecret: !!process.env.KEY_SECRET,
+    keyNameLength: keyName?.length || 0,
+    keySecretLength: keySecret?.length || 0
+  });
 
   if (!keyName || !keySecret) {
     throw new Error(

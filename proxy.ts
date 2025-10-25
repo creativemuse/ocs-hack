@@ -1,6 +1,6 @@
 import { NextResponse, NextRequest } from "next/server";
 
-export default async function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const isApiRoute = request.nextUrl.pathname.startsWith("/api/");
   const requestId = crypto.randomUUID();
 
