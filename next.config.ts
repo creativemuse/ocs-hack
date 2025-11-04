@@ -30,19 +30,17 @@ const nextConfig: NextConfig = {
   // Optimize bundle size
   serverExternalPackages: ['@spacetimedb/client'],
   // Exclude music files and other large assets from serverless function bundles
-  experimental: {
-    // @ts-expect-error - outputFileTracingExcludes exists at runtime but not in Next.js 16 types yet
-    outputFileTracingExcludes: {
-      '*': [
-        'public/music/**/*',
-        'public/music',
-        'node_modules/@swc/core-linux-x64-gnu',
-        'node_modules/@swc/core-linux-x64-musl',
-        'node_modules/esbuild-linux-64',
-        'node_modules/webpack',
-        '.git/**',
-      ],
-    },
+  // Moved from experimental.outputFileTracingExcludes to top-level (Next.js 16+)
+  outputFileTracingExcludes: {
+    '*': [
+      'public/music/**/*',
+      'public/music',
+      'node_modules/@swc/core-linux-x64-gnu',
+      'node_modules/@swc/core-linux-x64-musl',
+      'node_modules/esbuild-linux-64',
+      'node_modules/webpack',
+      '.git/**',
+    ],
   },
   // Exclude large directories from build
   webpack: (config, { isServer, dev }) => {

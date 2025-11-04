@@ -68,6 +68,18 @@ ETHERSCAN_API_KEY=your_etherscan_api_key
 # Rate Limiting (Optional - uses default values if not set)
 RATE_LIMIT_MAX_REQUESTS=10
 RATE_LIMIT_WINDOW_MS=60000
+
+############################################
+# WEBHOOK CONFIGURATION (Optional)
+############################################
+
+# Webhook secret for signature verification (HMAC SHA-256)
+# Generate with: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+WEBHOOK_SECRET=your_webhook_secret_here
+
+# Webhook provider type: 'coinbase', 'stripe', 'cdp', or 'generic'
+# CDP = Coinbase Developer Platform (for blockchain transaction/contract events)
+WEBHOOK_PROVIDER=cdp
 ```
 
 ## Generating Secure Secrets

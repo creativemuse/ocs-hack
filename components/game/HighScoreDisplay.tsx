@@ -7,6 +7,7 @@ import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useAccount } from 'wagmi';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
+import PreviousGamesSelector from '@/components/game/PreviousGamesSelector';
 import { Name } from '@coinbase/onchainkit/identity';
 import { base } from 'viem/chains';
 import { Confetti } from '@neoconfetti/react';
@@ -201,7 +202,14 @@ export default function HighScoreDisplay({
                   </Badge>
                 </div>
                 
-                {!isTrialGame && winnings.hasWinnings && !winnings.hasClaimed ? (
+                {!isTrialGame && winnings.hasClaimed ? (
+                  <div className="flex items-center gap-2 text-green-600 justify-center p-3">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="text-sm font-medium">
+                      Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
+                    </span>
+                  </div>
+                ) : !isTrialGame && winnings.isEligible && winnings.winningAmount !== '0' ? (
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-gray-600">Your Winnings:</span>
@@ -214,18 +222,27 @@ export default function HighScoreDisplay({
                         Prize Rank: #{winnings.rank}
                       </div>
                     )}
-                    <ClaimWinningsButton
-                      winningAmount={winnings.winningAmount}
-                      onClaimSuccess={handleClaimSuccess}
-                      disabled={winnings.hasClaimed}
-                    />
-                  </div>
-                ) : !isTrialGame && winnings.hasClaimed ? (
-                  <div className="flex items-center gap-2 text-green-600 justify-center p-3">
-                    <CheckCircle className="h-4 w-4" />
-                    <span className="text-sm font-medium">
-                      Winnings Claimed: {Number(winnings.winningAmount) / 1000000} USDC
-                    </span>
+                    {winnings.sessionActive ? (
+                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Trophy className="h-4 w-4 text-yellow-600" />
+                          <span className="text-sm font-medium text-yellow-800">Waiting for Game to Finalize</span>
+                        </div>
+                        <p className="text-xs text-yellow-700 mb-2">
+                          Your score qualifies for prizes! You'll be entered into the prize pool distribution.
+                        </p>
+                        <div className="text-xs text-gray-600">
+                          <p>🤖 Chainlink Automation will finalize the game and distribute prizes automatically.</p>
+                          <p>💰 You can claim your winnings once the game session ends.</p>
+                        </div>
+                      </div>
+                    ) : (
+                      <ClaimWinningsButton
+                        winningAmount={winnings.winningAmount}
+                        onClaimSuccess={handleClaimSuccess}
+                        disabled={winnings.hasClaimed}
+                      />
+                    )}
                   </div>
                 ) : !isTrialGame && winnings.isEligible ? (
                   <div className="space-y-3">
@@ -282,6 +299,13 @@ export default function HighScoreDisplay({
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Previous Games with Unclaimed Prizes */}
+        {isConnected && !isGuest && !isTrialGame && (
+          <div className="mt-4">
+            <PreviousGamesSelector />
           </div>
         )}
 

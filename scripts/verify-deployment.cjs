@@ -3,7 +3,7 @@ const hre = require('hardhat');
 
 async function main() {
   // New contract with claim-based prize distribution
-  const CONTRACT_ADDRESS = '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
+  const CONTRACT_ADDRESS = `${process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS}`;
   const USDC_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
   const PLATFORM_FEE_RECIPIENT = '0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260';
 

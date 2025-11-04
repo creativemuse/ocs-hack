@@ -4,6 +4,7 @@ import { useAccount, useCapabilities, useChainId } from 'wagmi';
 interface AccountCapabilities {
   paymasterService?: {
     url: string;
+    supported: boolean;
   };
 }
 
@@ -20,12 +21,13 @@ export function useAccountCapabilities(): AccountCapabilities {
     if (!availableCapabilities) return {};
     const capabilitiesForChain = availableCapabilities[chainId];
     if (
-      capabilitiesForChain['paymasterService'] &&
+      capabilitiesForChain?.['paymasterService'] &&
       capabilitiesForChain['paymasterService'].supported
     ) {
       return {
         paymasterService: {
-          url: `https://api.developer.coinbase.com/rpc/v1/base/${process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}`, // For production use proxy
+          url: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT || '',
+          supported: true,
         },
       };
     }

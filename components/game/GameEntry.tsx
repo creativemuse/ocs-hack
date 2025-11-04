@@ -214,7 +214,16 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     } catch (err) {
       console.error('Failed to join game:', err);
       setIsProcessingPayment(false);
-      setError('Failed to join game. Please try again.');
+      
+      // Check if it's a user rejection
+      if (err instanceof Error && (err.message.includes('User rejected') || err.message.includes('User cancelled'))) {
+        setError('Transaction was cancelled. Please try again when ready.');
+      } else if (err instanceof Error && err.message.includes('Failed to create blockchain game')) {
+        setError(`Unable to start game: ${err.message}. Please try again or contact support.`);
+      } else {
+        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+        setError(`Failed to join game: ${errorMessage}. Please try again.`);
+      }
     }
   };
 

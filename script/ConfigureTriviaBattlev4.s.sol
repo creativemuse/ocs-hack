@@ -6,7 +6,7 @@ import {TriviaGame} from "../contracts/TriviaBattlev4.sol";
 
 contract ConfigureTriviaBattlev4 is Script {
     // Deployed contract address
-    address constant TRIVIA_GAME_ADDRESS = 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13;
+    address constant TRIVIA_GAME_ADDRESS = 0xd8F082fa4EF6a4C59F8366c19a196d488485682b;
     
     // Chainlink Functions configuration
     uint64 constant SUBSCRIPTION_ID = 102;

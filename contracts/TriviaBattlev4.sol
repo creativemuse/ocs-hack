@@ -28,7 +28,8 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
     IERC20 public immutable USDC;
     uint256 public constant ENTRY_FEE = 1e6; // 1 USDC (6 decimals)
     uint256 public constant GAME_DURATION = 5 minutes;
-    uint256 public constant PLATFORM_FEE_PERCENTAGE = 300; // 3%
+    uint256 public constant PLATFORM_FEE_PERCENTAGE = 700; // 7%
+    uint256 public constant SIMPLE_AUTOMATION_THRESHOLD = 100e6; // $100 in USDC (6 decimals)
     
     // Game state
     uint256 public currentGameId;
@@ -46,6 +47,11 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
     // Track Functions requests
     mapping(bytes32 => uint256) public requestToGameId;
     
+    enum ChainlinkMode {
+        SimpleAutomation, // For games under $100 - only use automation oracle
+        FullDON           // For games $100+ - use Chainlink Functions DON
+    }
+
     struct Game {
         uint256 gameId;
         uint256 prizePool;
@@ -57,6 +63,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         bool isFinalized;
         bool rankingsSubmitted;
         bytes32 functionsRequestId; // Track Chainlink Functions request
+        ChainlinkMode chainlinkMode;
         mapping(address => bool) hasEntered;
         mapping(address => bool) hasClaimed;
         mapping(address => uint256) playerRanking;
@@ -77,6 +84,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
     event PlatformFeesWithdrawn(address indexed recipient, uint256 amount);
     event ChainlinkFunctionsToggled(bool enabled);
     event FunctionsConfigUpdated(uint64 subscriptionId, uint32 gasLimit, bytes32 donID);
+    event ChainlinkModeSet(uint256 indexed gameId, ChainlinkMode mode, uint256 expectedPrizePool);
     
     // Errors
     error GameNotActive();
@@ -188,6 +196,22 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         game.startTime = block.timestamp;
         game.endTime = block.timestamp + GAME_DURATION;
         game.isActive = true;
+        // Determine Chainlink mode based on expected prize pool from previous game (lock at creation time)
+        uint256 expectedPrizePool = 0;
+        if (currentGameId > 1) {
+            Game storage prevGame = games[currentGameId - 1];
+            if (prevGame.playerCount > 0) {
+                uint256 estimatedRevenue = prevGame.playerCount * ENTRY_FEE;
+                uint256 estimatedFee = (estimatedRevenue * PLATFORM_FEE_PERCENTAGE) / 10000;
+                expectedPrizePool = estimatedRevenue - estimatedFee;
+            }
+        }
+        if (expectedPrizePool < SIMPLE_AUTOMATION_THRESHOLD) {
+            game.chainlinkMode = ChainlinkMode.SimpleAutomation;
+        } else {
+            game.chainlinkMode = ChainlinkMode.FullDON;
+        }
+        emit ChainlinkModeSet(currentGameId, game.chainlinkMode, expectedPrizePool);
         
         emit GameCreated(currentGameId, game.startTime, game.endTime);
     }
@@ -227,6 +251,11 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         
         Game storage game = games[gameId];
         
+        // Only allow Chainlink Functions for FullDON mode games
+        if (game.chainlinkMode != ChainlinkMode.FullDON) {
+            revert("Game uses SimpleAutomation mode - use fallback oracle");
+        }
+
         if (!game.isActive) revert GameNotActive();
         if (block.timestamp < game.endTime) revert GameNotEnded();
         if (game.rankingsSubmitted) revert RankingsAlreadySubmitted();
@@ -270,8 +299,6 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         uint256 gameId = requestToGameId[requestId];
         if (gameId == 0) revert UnexpectedRequestID();
         
-        Game storage game = games[gameId];
-        
         // Check for errors
         if (err.length > 0) {
             // Log error but don't revert - allow fallback oracle to submit
@@ -292,9 +319,13 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
      * @dev Should only be used if Chainlink Functions fails
      */
     function submitRankingsFallback(uint256 gameId, address[] calldata rankedPlayers) external onlyFallbackOracle {
-        if (useChainlinkFunctions) {
-            // Only allow fallback if Functions request has been pending too long
-            Game storage game = games[gameId];
+        Game storage game = games[gameId];
+
+        // For SimpleAutomation games, allow immediate fallback submission
+        if (game.chainlinkMode == ChainlinkMode.SimpleAutomation) {
+            // no restrictions
+        } else if (useChainlinkFunctions) {
+            // For FullDON games, only allow fallback after timeout
             require(
                 game.functionsRequestId != bytes32(0) && 
                 block.timestamp > game.endTime + 10 minutes,
@@ -494,7 +525,8 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         uint256 endTime,
         bool isActive,
         bool isFinalized,
-        bool rankingsSubmitted
+        bool rankingsSubmitted,
+        ChainlinkMode chainlinkMode
     ) {
         Game storage game = games[gameId];
         return (
@@ -505,7 +537,8 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
             game.endTime,
             game.isActive, 
             game.isFinalized,
-            game.rankingsSubmitted
+            game.rankingsSubmitted,
+            game.chainlinkMode
         );
     }
     
@@ -558,6 +591,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface, 
         bytes memory buffer = new bytes(digits);
         while (value != 0) {
             digits -= 1;
+            // Casting to 'uint8' is safe because ASCII digits 0-9 fit in uint8 range (48-57)
             buffer[digits] = bytes1(uint8(48 + uint256(value % 10)));
             value /= 10;
         }

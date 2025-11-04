@@ -158,6 +158,16 @@ export const TRIVIABATTLEV4_ABI = [
   {
     "anonymous": false,
     "inputs": [
+      { "indexed": true, "internalType": "uint256", "name": "gameId", "type": "uint256" },
+      { "indexed": false, "internalType": "uint8", "name": "mode", "type": "uint8" },
+      { "indexed": false, "internalType": "uint256", "name": "expectedPrizePool", "type": "uint256" }
+    ],
+    "name": "ChainlinkModeSet",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
       { "indexed": false, "internalType": "bool", "name": "enabled", "type": "bool" }
     ],
     "name": "ChainlinkFunctionsToggled",
@@ -323,6 +333,15 @@ export const TRIVIABATTLEV4_ABI = [
   },
   {
     "inputs": [],
+    "name": "SIMPLE_AUTOMATION_THRESHOLD",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "USDC",
     "outputs": [
       { "internalType": "contract IERC20", "name": "", "type": "address" }
@@ -437,7 +456,8 @@ export const TRIVIABATTLEV4_ABI = [
       { "internalType": "bool", "name": "isActive", "type": "bool" },
       { "internalType": "bool", "name": "isFinalized", "type": "bool" },
       { "internalType": "bool", "name": "rankingsSubmitted", "type": "bool" },
-      { "internalType": "bytes32", "name": "functionsRequestId", "type": "bytes32" }
+      { "internalType": "bytes32", "name": "functionsRequestId", "type": "bytes32" },
+      { "internalType": "uint8", "name": "chainlinkMode", "type": "uint8" }
     ],
     "stateMutability": "view",
     "type": "function"
@@ -464,7 +484,8 @@ export const TRIVIABATTLEV4_ABI = [
       { "internalType": "uint256", "name": "endTime", "type": "uint256" },
       { "internalType": "bool", "name": "isActive", "type": "bool" },
       { "internalType": "bool", "name": "isFinalized", "type": "bool" },
-      { "internalType": "bool", "name": "rankingsSubmitted", "type": "bool" }
+      { "internalType": "bool", "name": "rankingsSubmitted", "type": "bool" },
+      { "internalType": "uint8", "name": "chainlinkMode", "type": "uint8" }
     ],
     "stateMutability": "view",
     "type": "function"

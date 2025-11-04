@@ -22,6 +22,19 @@ export async function POST(req: NextRequest) {
   try {
     console.log('🎮 Creating blockchain game session...');
     
+    // Validate environment variables
+    if (!process.env.CONTRACT_OWNER_PRIVATE_KEY) {
+      console.error('❌ CONTRACT_OWNER_PRIVATE_KEY is missing');
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Server configuration error',
+          details: 'CONTRACT_OWNER_PRIVATE_KEY environment variable is missing'
+        },
+        { status: 500 }
+      );
+    }
+    
     // Check if there's already an active game
     const currentGameId = await publicClient.readContract({
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
@@ -94,11 +107,16 @@ export async function POST(req: NextRequest) {
 
   } catch (error) {
     console.error('❌ Failed to create blockchain game:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorDetails = error instanceof Error ? error.stack : String(error);
+    
     return NextResponse.json(
       { 
         success: false,
         error: 'Failed to create blockchain game',
-        details: error instanceof Error ? error.message : 'Unknown error' 
+        details: errorMessage,
+        // Only include stack in development
+        ...(process.env.NODE_ENV === 'development' && { stack: errorDetails })
       },
       { status: 500 }
     );

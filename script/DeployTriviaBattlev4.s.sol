@@ -89,7 +89,7 @@ contract DeployTriviaBattlev4 is Script {
         console.log("Fee Recipient:", platformFeeRecipient);
         console.log("Functions Router:", functionsRouter);
         console.log("Entry Fee:", triviaGame.ENTRY_FEE());
-        console.log("Platform Fee:", triviaGame.PLATFORM_FEE_PERCENTAGE(), "basis points (3%)");
+        console.log("Platform Fee:", triviaGame.PLATFORM_FEE_PERCENTAGE(), "basis points (7%)");
         console.log("Game Duration:", triviaGame.GAME_DURATION());
         
         // Generate the updateFunctionsConfig call

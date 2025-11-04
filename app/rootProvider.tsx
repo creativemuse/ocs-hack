@@ -4,14 +4,38 @@ import { base } from "wagmi/chains";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
 import { WagmiProvider, createConfig, http } from "wagmi";
-import { coinbaseWallet } from "wagmi/connectors";
+import { coinbaseWallet, baseAccount } from "wagmi/connectors";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 
-// Create wagmi config with MiniKit support
+// Get authenticated RPC URL for wagmi config
+// Prefer authenticated Coinbase RPC endpoint if available
+const getBaseRpcUrl = () => {
+  // First, check if bundler endpoint is set (contains API key)
+  const bundlerUrl = process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT;
+  if (bundlerUrl && bundlerUrl.includes('api.developer.coinbase.com')) {
+    return bundlerUrl;
+  }
+  
+  // Second, check if base RPC URL is authenticated
+  const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
+  if (baseRpcUrl && baseRpcUrl.includes('api.developer.coinbase.com')) {
+    return baseRpcUrl;
+  }
+  
+  // Fallback to configured base RPC URL or public endpoint
+  return baseRpcUrl || 'https://mainnet.base.org';
+};
+
+// Create wagmi config with MiniKit and Base Account support
 const wagmiConfig = createConfig({
   chains: [base],
   connectors: [
+    // Base Account connector for existing Base users
+    baseAccount({
+      appName: process.env.NEXT_PUBLIC_APP_NAME || 'BEAT ME',
+    }),
+    // Coinbase Wallet connector (includes embedded wallets via OnchainKit)
     coinbaseWallet({
       appName: 'BEAT ME',
       // Preference ensures smart wallet is default in Farcaster
@@ -20,7 +44,7 @@ const wagmiConfig = createConfig({
   ],
   ssr: true,
   transports: {
-    [base.id]: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'),
+    [base.id]: http(getBaseRpcUrl()),
   },
 });
 
@@ -55,6 +79,7 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
         appearance: {
           name: "BEAT ME",
           mode: "auto", // Change back to "auto" to allow theme switching
+          logo: "/logo.png",
         },
         wallet: {
           display: "modal",

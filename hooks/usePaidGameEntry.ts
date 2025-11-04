@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, useCallsStatus } from 'wagmi';
+import { useCallback, useMemo } from 'react';
+import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { createPaidGameCalls } from '@/lib/transaction/paidGameCalls';
 import { useAccountCapabilities } from './useAccountCapabilities';
-import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import { usePaidGameEntryWithERC20Gas } from './usePaidGameEntryWithERC20Gas';
 
 interface GameEntryResult {
   success: boolean;
@@ -11,27 +11,22 @@ interface GameEntryResult {
 }
 
 export function usePaidGameEntry() {
-  // For EOA (Normal Account)
+  // For EOA (Normal Account) - uses ETH for gas
   const { writeContractAsync: writeContractEOA, data: eoaData, error: eoaError } = useWriteContract();
   const { data: eoaReceipt } = useWaitForTransactionReceipt({
     hash: eoaData,
     query: { enabled: !!eoaData }
   });
 
-  // For Smart Account with Paymaster
+  // For Smart Account with ERC-20 gas payment (USDC for gas)
   const capabilities = useAccountCapabilities();
-  const { writeContractAsync: writeContractSmartAccount, data: saData, error: saError } = useWriteContract();
-  const { data: saStatusData } = useCallsStatus({
-    id: saData ? (saData as `0x${string}`) : '',
-    query: { enabled: !!saData }
-  });
-
-  // Track the second transaction (enterGame) for Smart Accounts
-  const [secondTransactionHash, setSecondTransactionHash] = useState<`0x${string}` | undefined>(undefined);
-  const { data: secondTransactionReceipt } = useWaitForTransactionReceipt({
-    hash: secondTransactionHash,
-    query: { enabled: !!secondTransactionHash }
-  });
+  const {
+    joinGameWithERC20Gas,
+    result: erc20GasResult,
+    error: erc20GasError,
+    isLoading: erc20GasLoading,
+    isReady: erc20GasReady,
+  } = usePaidGameEntryWithERC20Gas();
 
   const joinGameEOA = useCallback(async () => {
     const calls = createPaidGameCalls();
@@ -59,37 +54,8 @@ export function usePaidGameEntry() {
     });
   }, [writeContractEOA]);
 
-  const joinGameSmartAccount = useCallback(async () => {
-    const calls = createPaidGameCalls();
-    
-    // For Smart Account, we can execute both calls in a batch
-    console.log('Smart Account: Executing approve and enterGame...');
-    await writeContractSmartAccount({
-      address: calls[0].address,
-      abi: calls[0].abi,
-      functionName: calls[0].functionName as "approve",
-      args: calls[0].args as [`0x${string}`, bigint],
-    });
-    
-    // Wait a moment for approval to be processed
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Note: For Smart Accounts with paymaster, we need to handle the second call
-    // This might need to be implemented differently depending on the Smart Account implementation
-    // For now, we'll execute them sequentially like EOA
-    console.log('Smart Account: Entering game...');
-    const secondTxHash = await writeContractSmartAccount({
-      address: calls[1].address,
-      abi: calls[1].abi,
-      functionName: calls[1].functionName as "enterGame",
-      args: calls[1].args as [],
-    });
-    
-    // Track the second transaction for success detection
-    if (secondTxHash) {
-      setSecondTransactionHash(secondTxHash);
-    }
-  }, [writeContractSmartAccount, capabilities]);
+  // Smart Account uses ERC-20 gas payment (handled by usePaidGameEntryWithERC20Gas)
+  // No need for separate implementation - the hook handles everything
 
   const joinGameUniversal = useCallback(async () => {
     // First, ensure a blockchain game exists
@@ -101,29 +67,51 @@ export function usePaidGameEntry() {
       });
       
       if (!response.ok) {
-        throw new Error('Failed to create blockchain game');
+        // Get the error details from the response
+        let errorMessage = 'Failed to create blockchain game';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.details || errorData.error || errorMessage;
+          console.error('API error details:', errorData);
+        } catch (e) {
+          // If response isn't JSON, use status text
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
       
       const result = await response.json();
       console.log('Blockchain game status:', result);
     } catch (error) {
       console.error('Failed to ensure blockchain game exists:', error);
-      throw new Error('Failed to create blockchain game session');
+      // Include the original error message in the new error
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      throw new Error(`Failed to create blockchain game session: ${errorMessage}`);
     }
 
     // Now proceed with the game entry
-    if (capabilities?.paymasterService) {
-      console.log('Using Smart Account with Paymaster');
-      await joinGameSmartAccount();
+    if (capabilities?.paymasterService?.supported && erc20GasReady) {
+      console.log('Using Smart Account with ERC-20 gas payment (USDC for gas)');
+      await joinGameWithERC20Gas();
     } else {
-      console.log('Using EOA account');
+      console.log('Using EOA account (ETH for gas)');
       await joinGameEOA();
     }
-  }, [capabilities, joinGameEOA, joinGameSmartAccount]);
+  }, [capabilities, erc20GasReady, joinGameEOA, joinGameWithERC20Gas]);
 
   // Parse results for both account types
   const result = useMemo((): GameEntryResult => {
-    // For EOA - check the second transaction (enterGame)
+    // For Smart Account with ERC-20 gas payment
+    // Only return ERC-20 result if a transaction was actually attempted
+    // (indicated by presence of transactionHash or error)
+    if (capabilities?.paymasterService?.supported && erc20GasResult) {
+      // Check if a transaction was actually attempted
+      if (erc20GasResult.transactionHash || erc20GasResult.error) {
+        return erc20GasResult;
+      }
+    }
+
+    // For EOA - check the transaction receipt (enterGame)
     if (eoaReceipt) {
       console.log('EOA transaction result:', eoaReceipt);
       return {
@@ -133,44 +121,18 @@ export function usePaidGameEntry() {
       };
     }
 
-    // For Smart Account - check the second transaction receipt (enterGame)
-    if (secondTransactionReceipt) {
-      console.log('Smart Account second transaction result:', secondTransactionReceipt);
-      return {
-        success: secondTransactionReceipt.status === 'success',
-        transactionHash: secondTransactionReceipt.transactionHash,
-        error: secondTransactionReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
-      };
-    }
-
-    // Fallback: check if we have any receipts at all
-    if (saStatusData?.receipts && saStatusData.receipts.length > 0) {
-      const lastReceipt = saStatusData.receipts[saStatusData.receipts.length - 1];
-      console.log('Smart Account last transaction result:', lastReceipt);
-      return {
-        success: lastReceipt.status === 'success',
-        transactionHash: lastReceipt.transactionHash,
-        error: lastReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
-      };
-    }
-
     return { success: false };
-  }, [eoaReceipt, secondTransactionReceipt, saStatusData]);
+  }, [capabilities, erc20GasResult, eoaReceipt]);
 
   // Handle errors
-  const error = eoaError || saError;
-
-  useEffect(() => {
-    if (saStatusData) {
-      console.log('Smart Account transaction status:', saStatusData);
-    }
-  }, [saStatusData]);
+  const error = capabilities?.paymasterService?.supported ? erc20GasError : eoaError;
 
   return {
     joinGameUniversal,
     result,
     error,
-    isSmartAccount: !!capabilities?.paymasterService,
-    isEOA: !capabilities?.paymasterService,
+    isSmartAccount: !!capabilities?.paymasterService?.supported && erc20GasReady,
+    isEOA: !capabilities?.paymasterService?.supported,
+    isLoading: capabilities?.paymasterService?.supported ? erc20GasLoading : false,
   };
 }

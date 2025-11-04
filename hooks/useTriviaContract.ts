@@ -113,7 +113,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.log('Session refetch result:', result);
       
       if (result.data) {
-        const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted] = result.data as [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean];
+        const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted, chainlinkMode] = result.data as [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, number];
         const now = BigInt(Math.floor(Date.now() / 1000));
         
         // More lenient session validation - just check if isActive is true
@@ -127,7 +127,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
           endTime: endTime.toString(), 
           now: now.toString(),
           playerCount: playerCount.toString(),
-          prizePool: prizePool.toString()
+          prizePool: prizePool.toString(),
+          chainlinkMode
         });
         return sessionActive;
       } else {

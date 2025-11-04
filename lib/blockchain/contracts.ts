@@ -7,9 +7,10 @@ export const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 
 // TriviaBattlev4 smart contract address (deployed on Base Mainnet)
 // Updated with Chainlink Functions integration for decentralized rankings
-// Compiled with Solidity 0.8.20 (no compiler warnings)
-// Deployed: 2025-10-24 (with Chainlink Functions + Automation)
-export const TRIVIA_CONTRACT_ADDRESS = '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
+// Features: 7% platform fee, Hybrid Chainlink mode (SimpleAutomation < $100, FullDON >= $100)
+// Compiled with Solidity 0.8.25
+// Deployed: 2025-01-XX (Base Mainnet) - 7% platform fee, hybrid Chainlink mode
+export const TRIVIA_CONTRACT_ADDRESS = '0xd8F082fa4EF6a4C59F8366c19a196d488485682b';
 
 // Import TriviaBattlev4 ABI
 import { TRIVIABATTLEV4_ABI } from './triviabattlev4-abi';

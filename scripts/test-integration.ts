@@ -28,7 +28,7 @@ const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, '../.env.local') });
 
 // Configuration
-const CONTRACT_ADDRESS = '0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13';
+const CONTRACT_ADDRESS = `${process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS}`;
 const USDC_ADDRESS = USDC_CONTRACT_ADDRESS_EXPORT;
 const RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
