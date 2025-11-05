@@ -51,8 +51,10 @@ export default function TopEarners({ limit = 10, className = '' }: TopEarnersPro
 
   if (error) {
     return (
-      <div className="text-red-400 text-sm text-center p-4">
-        Failed to load top earners
+      <div className="text-gray-400 text-sm text-center p-4">
+        {error.includes('connected') || error.includes('connection') 
+          ? 'Leaderboard will appear when connected'
+          : 'Failed to load top earners'}
       </div>
     );
   }

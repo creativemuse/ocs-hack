@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -8,17 +9,19 @@ import TriviaQuestion from '@/components/game/TriviaQuestion';
 import GameStats from '@/components/game/GameStats';
 import Timer from '@/components/game/Timer';
 import type { GameState, DifficultyLevel, QuestionType, TriviaQuestion as TQ } from '@/types/game';
-import { Music, Trophy, Clock, Target, Play } from 'lucide-react';
+import { Music, Trophy, Clock, Target, Play, ArrowLeft } from 'lucide-react';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { SessionManager } from '@/lib/utils/sessionManager';
 
-interface SupabaseTriviaGameProps {
+interface SpacetimeTriviaGameProps {
   className?: string;
   onWalletConnect?: () => void;
+  onBack?: () => void;
 }
 
-export default function SupabaseTriviaGame({ className = '', onWalletConnect }: SupabaseTriviaGameProps) {
+export default function SpacetimeTriviaGame({ className = '', onWalletConnect, onBack }: SpacetimeTriviaGameProps) {
+  const { address, isConnected } = useAccount();
   const [gameState, setGameState] = useState<GameState>({
     currentQuestion: 0,
     questions: [],
@@ -29,7 +32,7 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
     gameStatus: 'waiting',
     prizePool: 0,
     entryFee: 0,
-    isTrialPlayer: true, // Default to trial player for Supabase game
+    isTrialPlayer: true,
     sessionId: undefined,
     currentRound: 0,
     totalRounds: 3,
@@ -42,28 +45,53 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
   const [questionType, setQuestionType] = useState<QuestionType>('name-that-tune');
   const [error, setError] = useState<string | null>(null);
   
-  // Add trial status hook (walletAddress will be null for anonymous users)
-  const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(undefined);
+  // Update trial status hook to use wallet address
+  const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(address);
 
   const DEFAULT_TOTAL_ROUNDS = 3;
   const DEFAULT_QUESTIONS_PER_ROUND = 10;
 
+  // Handle wallet connection - navigate back to game entry after connection
+  useEffect(() => {
+    if (isConnected && address && trialStatus.requiresWallet) {
+      // Wallet just connected, but trial status hasn't updated yet
+      // Wait a moment for trial status to update, then navigate
+      const timer = setTimeout(() => {
+        // If wallet is connected and trial no longer requires wallet, we're good
+        // Otherwise, we need to navigate back to game entry
+        if (!trialStatus.requiresWallet) {
+          // Trial status updated, navigate back to game entry
+          if (onBack) {
+            onBack();
+          } else if (onWalletConnect) {
+            // Call wallet connect handler which should navigate
+            onWalletConnect();
+          } else {
+            // Navigate back to home/game entry
+            window.location.href = '/';
+          }
+        }
+      }, 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [isConnected, address, trialStatus.requiresWallet, onBack, onWalletConnect]);
+
   const loadRoundQuestions = useCallback(async (perRound: number) => {
     const params = new URLSearchParams({
-      bucket: 'Songs',
       folder: 'Global_Top_100',
       mode: questionType,
       count: String(perRound),
       difficulty,
       choices: '4',
     });
-    const res = await fetch(`/api/supabase-questions?${params.toString()}`, { cache: 'no-store' });
+    // Change from /api/supabase-questions to /api/spacetime-questions
+    const res = await fetch(`/api/spacetime-questions?${params.toString()}`, { cache: 'no-store' });
     if (!res.ok) {
       const errorData = await res.json();
       throw new Error(errorData.error || 'Failed to load questions');
     }
     const data: { questions: TQ[] } = await res.json();
-    if (!data.questions?.length) throw new Error('No questions generated from Supabase bucket');
+    if (!data.questions?.length) throw new Error('No questions generated from SpacetimeDB');
     return data.questions;
   }, [difficulty, questionType]);
 
@@ -95,7 +123,7 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
     setError(null);
 
     try {
-      console.log('🎮 Starting Supabase trivia game...');
+      console.log('🎮 Starting SpacetimeDB trivia game...');
       setGameState(prev => ({
         ...prev,
         answers: [],
@@ -288,10 +316,10 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
               Trial Games Complete!
             </CardTitle>
             <p className="text-gray-600 text-lg mb-4">
-              You&apos;ve played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+              You&apos;ve played {trialStatus.gamesPlayed} free {trialStatus.gamesPlayed === 1 ? 'game' : 'games'}. Connect your wallet to continue playing and earn rewards!
             </p>
           </CardHeader>
-          <CardContent className="text-center">
+          <CardContent className="text-center space-y-4">
             <Button
               onClick={() => {
                 if (onWalletConnect) {
@@ -303,10 +331,25 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
               }}
               size="lg"
               className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3"
+              disabled={isConnected && address}
             >
-              Connect Wallet to Continue
+              {isConnected && address ? 'Wallet Connected' : 'Connect Wallet to Continue'}
             </Button>
-            <p className="text-sm text-gray-500 mt-4">
+            
+            {/* Back button */}
+            {onBack && (
+              <Button
+                onClick={onBack}
+                variant="ghost"
+                size="sm"
+                className="text-gray-600 hover:text-gray-800"
+              >
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Back to Game Entry
+              </Button>
+            )}
+            
+            <p className="text-sm text-gray-500">
               Connect your wallet to continue playing and earn rewards!
             </p>
           </CardContent>
@@ -339,7 +382,7 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
                   🎮 Free Trial: {trialStatus.gamesRemaining} games remaining
                 </p>
                 <p className="text-xs text-blue-600 mt-1">
-                  Game {trialStatus.gamesPlayed + 1} of 1
+                  Game {trialStatus.gamesPlayed + 1} of {trialStatus.gamesPlayed + trialStatus.gamesRemaining}
                 </p>
               </div>
             )}
@@ -529,3 +572,4 @@ export default function SupabaseTriviaGame({ className = '', onWalletConnect }: 
 
   return null;
 }
+

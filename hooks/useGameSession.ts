@@ -38,6 +38,45 @@ export const useGameSession = (): UseGameSessionReturn => {
   const [entryToken, setEntryToken] = useState<string | null>(null);
   const { address } = useAccount();
 
+  // Load entryToken from localStorage on mount
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    const savedToken = localStorage.getItem('beatme_entry_token');
+    if (savedToken) {
+      // Verify token is not expired before using it
+      try {
+        const payload = JSON.parse(atob(savedToken.split('.')[1]));
+        const now = Math.floor(Date.now() / 1000);
+        if (payload.exp && payload.exp > now) {
+          setEntryToken(savedToken);
+        } else {
+          // Token expired, remove it
+          localStorage.removeItem('beatme_entry_token');
+        }
+      } catch (e) {
+        // Invalid token format, remove it
+        localStorage.removeItem('beatme_entry_token');
+      }
+    }
+  }, []);
+
+  // Helper function to save token to localStorage
+  const saveEntryToken = useCallback((token: string) => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('beatme_entry_token', token);
+    }
+    setEntryToken(token);
+  }, []);
+
+  // Helper function to clear token from localStorage
+  const clearEntryToken = useCallback(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('beatme_entry_token');
+    }
+    setEntryToken(null);
+  }, []);
+
   const fetchSession = useCallback(async () => {
     try {
       setIsLoading(true);
@@ -115,7 +154,7 @@ export const useGameSession = (): UseGameSessionReturn => {
       const data = await response.json();
       setSession(data.session);
       setTimeRemaining(data.timeRemaining);
-      setEntryToken(token); // Store the JWT token for trial status checking
+      saveEntryToken(token); // Use helper function to persist token
       // Fix: Allow joining when there are no paid players, regardless of time remaining
       setCanJoin(data.session.paid_player_count === 0 || data.timeRemaining > 0);
       setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
@@ -158,11 +197,15 @@ export const useGameSession = (): UseGameSessionReturn => {
       
       // Clear player ID when leaving
       setPlayerId(null);
+      
+      // Only clear entry token after successful leave
+      clearEntryToken();
     } catch (err) {
       console.error('Error leaving game:', err);
       setError(err instanceof Error ? err.message : 'Failed to leave game');
+      // Don't clear token if leave failed - user is still in the game on server
     }
-  }, [playerId]);
+  }, [playerId, clearEntryToken]);
 
   // Countdown timer effect - only run if there's at least 1 paid player
   useEffect(() => {

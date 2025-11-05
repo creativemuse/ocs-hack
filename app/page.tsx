@@ -147,6 +147,17 @@ export default function Home() {
 
   const handleGuestStart = async (name: string) => {
     try {
+      // Reset all game state before starting guest game
+      setGameCompleted(false);
+      setScore(0);
+      setTotalScore(0);
+      setCurrentRound(1);
+      setQuestionNumberInRound(1);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setCurrentQuestion(null);
+      setGameError(null);
+      
       // Join the game session as a trial player
       await joinGame(false);
       setGuestName(name);
@@ -168,6 +179,17 @@ export default function Home() {
   };
 
   const handlePaymentComplete = () => {
+    // Reset all game state before starting paid game
+    setGameCompleted(false);
+    setScore(0);
+    setTotalScore(0);
+    setCurrentRound(1);
+    setQuestionNumberInRound(1);
+    setSelectedAnswer(null);
+    setIsAnswered(false);
+    setCurrentQuestion(null);
+    setGameError(null);
+    
     setShowPayment(false);
     setIsTrialGame(false);
     setGameStarted(true);
@@ -181,6 +203,17 @@ export default function Home() {
 
   const handleGameStart = async ({ isTrial }: { isTrial: boolean }) => {
     try {
+      // Reset all game state before starting new game
+      setGameCompleted(false);
+      setScore(0);
+      setTotalScore(0);
+      setCurrentRound(1);
+      setQuestionNumberInRound(1);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setCurrentQuestion(null);
+      setGameError(null);
+      
       // Join the game session accordingly
       await joinGame(!isTrial);
       setIsTrialGame(isTrial);
@@ -407,58 +440,7 @@ export default function Home() {
     );
   }
 
-  // Show trial completion screen if user has used all free games
-  if (trialStatus.requiresWallet) {
-    return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-lg border-0 p-8 text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">
-              Trial Games Complete!
-            </h1>
-            <p className="text-gray-600 text-lg mb-4">
-              You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
-            </p>
-            {/* OnchainKit Wallet Component */}
-            <div className="flex justify-center">
-              <Wallet>
-                <ConnectWallet 
-                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
-                  disconnectedLabel="Connect Wallet to Continue"
-                >
-                  <Avatar className="h-6 w-6" />
-                  <Name />
-                </ConnectWallet>
-                <WalletDropdown>
-                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                    <Avatar />
-                    <Name />
-                    <Address className="text-gray-400" />
-                    <EthBalance />
-                  </Identity>
-                  <button
-                    onClick={() => setShowPayment(true)}
-                    className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
-                  >
-                    💳 Buy USDC
-                  </button>
-                  <WalletDropdownDisconnect />
-                </WalletDropdown>
-              </Wallet>
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              Connect your wallet to continue playing and earn rewards!
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // Show game entry screen with player mode choice
+  // Show game entry screen with player mode choice (check this before trial completion screen)
   if (showGameEntry) {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
@@ -490,7 +472,11 @@ export default function Home() {
                   <button
                     onClick={() => {
                       // Prevent toggling to trial if trial is exhausted
-                      if (trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid') {
+                      if (trialStatus.gamesRemaining === 0) {
+                        // If trial is exhausted, force paid mode
+                        if (playerModeChoice === 'trial') {
+                          setPlayerModeChoice('paid');
+                        }
                         console.log('Trial mode unavailable - trial already used');
                         return;
                       }
@@ -498,9 +484,9 @@ export default function Home() {
                       console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
                       setPlayerModeChoice(newChoice);
                     }}
-                    disabled={trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid'}
+                    disabled={trialStatus.gamesRemaining === 0}
                     className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-                      trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid' 
+                      trialStatus.gamesRemaining === 0 
                         ? 'bg-green-500 opacity-50 cursor-not-allowed' 
                         : playerModeChoice === 'paid' 
                         ? 'bg-green-500 cursor-pointer hover:opacity-80' 
@@ -533,7 +519,12 @@ export default function Home() {
 
               {/* Mode Description */}
               <div className="text-center">
-                {playerModeChoice === 'trial' ? (
+                {trialStatus.gamesRemaining === 0 ? (
+                  <div className="text-blue-400 text-sm">
+                    <p className="font-medium">💰 Paid Player Mode</p>
+                    <p className="text-xs text-gray-300 mt-1">Connect wallet and pay to play</p>
+                  </div>
+                ) : playerModeChoice === 'trial' ? (
                   <div className="text-green-400 text-sm">
                     <p className="font-medium">🎮 Free Trial Available</p>
                     <p className="text-xs text-gray-300 mt-1">Play 1 free game, then connect wallet to continue</p>
@@ -558,6 +549,61 @@ export default function Home() {
           {/* <div className="text-xs text-gray-500 text-center mt-2">
             Debug: playerModeChoice = {playerModeChoice}
           </div> */}
+        </div>
+      </div>
+    );
+  }
+
+  // Show trial completion screen if user has used all free games (only if not showing game entry)
+  if (trialStatus.requiresWallet) {
+    return (
+      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+        <div className="w-full max-w-[390px] md:max-w-[428px]">
+          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-lg border-0 p-8 text-center">
+            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
+              <Trophy className="w-8 h-8 text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-800 mb-2">
+              Trial Games Complete!
+            </h1>
+            <p className="text-gray-600 text-lg mb-4">
+              You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+            </p>
+            {/* OnchainKit Wallet Component */}
+            <div className="flex justify-center mb-4">
+              <Wallet>
+                <ConnectWallet 
+                  className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3 rounded-lg text-lg font-semibold"
+                  disconnectedLabel="Connect Wallet to Continue"
+                >
+                  <Avatar className="h-6 w-6" />
+                  <Name />
+                </ConnectWallet>
+                <WalletDropdown>
+                  <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
+                    <Avatar />
+                    <Name />
+                    <Address className="text-gray-400" />
+                    <EthBalance />
+                  </Identity>
+                  <button
+                    onClick={() => setShowPayment(true)}
+                    className="w-full text-left px-4 py-2 text-gray-800 dark:text-gray-300 font-semibold hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 border-l-4 border-blue-500"
+                  >
+                    💳 Add USDC
+                  </button>
+                  <WalletDropdownDisconnect />
+                </WalletDropdown>
+              </Wallet>
+            </div>
+            {/* Back to Game Entry Button */}
+            <button
+              onClick={() => setShowGameEntry(true)}
+              className="bg-gray-600 hover:bg-gray-700 text-white px-6 py-2 rounded-lg text-sm font-medium transition-colors"
+            >
+              ← Back to Game Entry
+            </button>
+          </div>
         </div>
       </div>
     );

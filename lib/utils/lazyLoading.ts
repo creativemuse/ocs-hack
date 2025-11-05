@@ -39,7 +39,7 @@ export const LazyAdminComponents = {
  */
 export const LazyGameComponents = {
   BlockchainTriviaGame: createLazyComponent(() => import('@/components/game/BlockchainTriviaGame')),
-  SupabaseTriviaGame: createLazyComponent(() => import('@/components/game/SupabaseTriviaGame')),
+  SpacetimeTriviaGame: createLazyComponent(() => import('@/components/game/SpacetimeTriviaGame')),
   BlockchainGameEntry: createLazyComponent(() => import('@/components/game/BlockchainGameEntry')),
   PaymasterTest: createLazyComponent(() => import('@/components/debug/PaymasterTest')),
 };

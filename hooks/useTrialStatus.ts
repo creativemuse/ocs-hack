@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { SessionManager } from '@/lib/utils/sessionManager';
 
 interface TrialStatus {
@@ -25,6 +25,45 @@ export const useTrialStatus = (walletAddress?: string, entryToken?: string) => {
     playerType: bypassTrial ? 'paid' : 'trial' // Set player type based on bypass setting
   });
   const [isLoading, setIsLoading] = useState(true);
+
+  // Load entryToken from localStorage if not provided
+  const [persistedToken, setPersistedToken] = useState<string | null>(null);
+  
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // If entryToken is not provided as prop, try to load from localStorage
+    if (!entryToken) {
+      const savedToken = localStorage.getItem('beatme_entry_token');
+      if (savedToken) {
+        // Verify token is not expired before using it
+        try {
+          const payload = JSON.parse(atob(savedToken.split('.')[1]));
+          const now = Math.floor(Date.now() / 1000);
+          if (payload.exp && payload.exp > now) {
+            setPersistedToken(savedToken);
+          } else {
+            // Token expired, remove it
+            localStorage.removeItem('beatme_entry_token');
+            setPersistedToken(null);
+          }
+        } catch (e) {
+          // Invalid token format, remove it
+          localStorage.removeItem('beatme_entry_token');
+          setPersistedToken(null);
+        }
+      } else {
+        setPersistedToken(null);
+      }
+    } else {
+      setPersistedToken(null); // Clear persisted token if we have a fresh one
+    }
+  }, [entryToken]);
+
+  // Use provided token or persisted token - ensure it's never undefined
+  const effectiveToken = useMemo(() => {
+    return entryToken || persistedToken || null;
+  }, [entryToken, persistedToken]);
 
   useEffect(() => {
     const checkTrialStatus = async () => {
@@ -64,21 +103,34 @@ export const useTrialStatus = (walletAddress?: string, entryToken?: string) => {
                 canJoinPrizePool: true
               });
             }
-          } else if (entryToken) {
-            // If we have an entry token but no wallet, use JWT-based checking
-            const response = await fetch(`/api/trial-status?token=${encodeURIComponent(entryToken)}`);
+          } else if (effectiveToken) {
+            // Check trial status using JWT token
+            const response = await fetch(`/api/trial-status?token=${encodeURIComponent(effectiveToken)}`);
             if (response.ok) {
               const data = await response.json();
+              const gamesRemaining = data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0));
+              const isTrialActive = gamesRemaining > 0;
               setTrialStatus({
                 gamesPlayed: data.gamesPlayed || 0,
-                gamesRemaining: data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0)),
-                isTrialActive: (data.trialGamesRemaining || Math.max(0, 1 - (data.gamesPlayed || 0))) > 0,
-                requiresWallet: data.playerType === 'paid',
-                canJoinPrizePool: data.playerType === 'paid', // Only paid players can join prize pools
-                playerType: data.playerType
+                gamesRemaining,
+                isTrialActive,
+                requiresWallet: !isTrialActive,
+                canJoinPrizePool: true,
+                playerType: data.playerType || 'trial'
               });
+              
+              // Sync local state with server data if available
+              if (data.gamesPlayed !== undefined) {
+                SessionManager.syncWithServerData(data.gamesPlayed);
+              }
             } else {
-              console.warn('JWT-based trial status check failed, falling back to legacy method');
+              // Token might be expired or invalid, clear it and fallback to session check
+              if (typeof window !== 'undefined' && effectiveToken === persistedToken) {
+                localStorage.removeItem('beatme_entry_token');
+                setPersistedToken(null);
+              }
+              // Fall through to session ID check
+              throw new Error('Token validation failed');
             }
           } else {
             // Check anonymous session trial status
@@ -154,7 +206,7 @@ export const useTrialStatus = (walletAddress?: string, entryToken?: string) => {
     };
 
     checkTrialStatus();
-  }, [walletAddress, entryToken, bypassTrial]);
+  }, [walletAddress, bypassTrial, effectiveToken]);
 
   const incrementTrialGame = async () => {
     try {

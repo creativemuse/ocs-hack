@@ -161,6 +161,12 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     console.log('Trial status:', trialStatus);
     console.log('Player mode choice:', playerModeChoice);
     
+    // Prevent trial mode if trial is exhausted
+    if (playerModeChoice === 'trial' && trialStatus.gamesRemaining === 0) {
+      setError('Your free trial has been used. Please switch to Paid Mode.');
+      return;
+    }
+    
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
       // Trial player - start game immediately
       console.log('Starting trial game');

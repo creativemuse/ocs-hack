@@ -44,6 +44,11 @@ export const useTopEarners = (
   useEffect(() => {
     if (!isConnected || !connection) {
       setIsLoading(false);
+      if (!connection) {
+        setError('SpacetimeDB not connected');
+      } else {
+        setError(null); // Clear error if connection exists but not connected yet
+      }
       return;
     }
 

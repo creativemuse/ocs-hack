@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
 
+// Cookie name for anonymous user identification
+const ANON_COOKIE = 'bm_anon_id';
+
 // Helper function to check if a session ID has been used in the smart contract
 // Note: TriviaBattlev4 contract doesn't have trial functionality, so we always return false
 async function checkTrialSessionUsed(sessionId: string): Promise<boolean> {
@@ -167,9 +170,51 @@ export async function GET(req: NextRequest) {
           trialCompleted: false
         });
       }
+    } else {
+      // No token, wallet, or session ID - try to use anon ID cookie as fallback
+      const anonId = req.cookies.get(ANON_COOKIE)?.value;
+      if (anonId) {
+        console.log('Checking anonymous user trial status by anon ID:', anonId);
+        try {
+          // Try to get session data by anon ID from SpacetimeDB
+          // Note: This requires the SpacetimeDB client to support querying by anon_id
+          // For now, we'll return default trial status and let the client create a session
+          const session = spacetimeClient.getAnonymousSession(anonId);
+          
+          if (session) {
+            const gamesPlayed = session.gamesPlayed || 0;
+            return NextResponse.json({
+              gamesPlayed,
+              totalScore: session.totalScore || 0,
+              bestScore: session.bestScore || 0,
+              trialGamesRemaining: Math.max(0, 1 - gamesPlayed),
+              trialCompleted: gamesPlayed >= 1
+            });
+          } else {
+            // No session found for this anon ID, return default trial status
+            return NextResponse.json({
+              gamesPlayed: 0,
+              totalScore: 0,
+              bestScore: 0,
+              trialGamesRemaining: 1,
+              trialCompleted: false
+            });
+          }
+        } catch (queryError) {
+          console.warn('Failed to query by anon ID, using default trial status:', queryError);
+          // Return default trial status if query fails
+          return NextResponse.json({
+            gamesPlayed: 0,
+            totalScore: 0,
+            bestScore: 0,
+            trialGamesRemaining: 1,
+            trialCompleted: false
+          });
+        }
+      }
     }
 
-    return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
+    return NextResponse.json({ error: 'Invalid request - provide token, wallet, session, or valid cookie' }, { status: 400 });
   } catch (error) {
     console.error('Error checking trial status:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
