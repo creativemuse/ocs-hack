@@ -8,6 +8,7 @@ interface HighScore {
   timestamp: number;
   isGuest: boolean;
   guestId?: string;
+  username?: string;
 }
 
 interface HighScoreResponse {
@@ -52,7 +53,8 @@ export const useHighScores = () => {
     playerName: string, 
     score: number, 
     isGuest: boolean = false, 
-    guestId?: string
+    guestId?: string,
+    walletAddress?: string
   ): Promise<SubmitScoreResponse | null> => {
     try {
       setError(null);
@@ -66,7 +68,8 @@ export const useHighScores = () => {
           playerName,
           score,
           isGuest,
-          guestId
+          guestId,
+          walletAddress
         }),
       });
 

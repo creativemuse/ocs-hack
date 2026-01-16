@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Trophy, Medal, Award, TrendingUp, Clock, Target } from 'lucide-react';
+import { Name } from '@coinbase/onchainkit/identity';
+import { base } from 'viem/chains';
 import type { LeaderboardEntry } from '@/types/game';
 
 interface LiveRankingsProps {
@@ -24,10 +26,11 @@ export default function LiveRankings({
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
-    // Sort entries by total score in descending order and take top 10
-    const sortedEntries = [...entries]
+    // Filter for paid players only, sort by total score in descending order, take top 10
+    const paidPlayersOnly = entries.filter(entry => !entry.isTrialPlayer);
+    const sortedEntries = paidPlayersOnly
       .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 10)
+      .slice(0, 10) // Top 10 only
       .map((entry, index) => ({
         ...entry,
         rank: index + 1 // Reassign ranks based on sorted position
@@ -153,8 +156,15 @@ export default function LiveRankings({
                           </AvatarFallback>
                         </Avatar>
                         <div>
-                          <div className="font-semibold text-gray-800">
-                            {entry.playerName || formatAddress(entry.playerAddress)}
+                          <div className="font-semibold text-gray-800 flex items-center gap-2">
+                            {entry.playerName ? (
+                              <span>{entry.playerName}</span>
+                            ) : (
+                              <Name 
+                                address={entry.playerAddress as `0x${string}`}
+                                chain={base}
+                              />
+                            )}
                             {isCurrentPlayer && (
                               <Badge variant="outline" className="ml-2 text-xs">
                                 You
@@ -162,18 +172,11 @@ export default function LiveRankings({
                             )}
                           </div>
                           <div className="text-sm text-gray-500 flex items-center gap-2">
+                            {/* Always show truncated address below username, or just address if no username */}
+                            <span className="text-xs text-gray-400">
+                              {formatAddress(entry.playerAddress)}
+                            </span>
                             <span>{entry.gamesPlayed} games played</span>
-                            {/* Show player type indicator */}
-                            <Badge
-                              variant="outline"
-                              className={`text-xs ${
-                                !entry.isTrialPlayer
-                                  ? 'bg-green-50 text-green-700 border-green-200'
-                                  : 'bg-amber-50 text-amber-700 border-amber-200'
-                              }`}
-                            >
-                              {!entry.isTrialPlayer ? '💰 Paid' : '🎮 Trial'}
-                            </Badge>
                           </div>
                         </div>
                       </div>

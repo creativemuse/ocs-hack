@@ -1,0 +1,10 @@
+{
+  "schedule": "0 0 * * 0",
+  "evms": [
+    {
+      "chainName": "ethereum-testnet-sepolia-base-1",
+      "contractAddress": "0xe72Fc03137A1412354ca97282071d173Ae592D96",
+      "gasLimit": "500000"
+    }
+  ]
+}

@@ -65,13 +65,19 @@ export default function Home() {
   // Add contract USDC balance hook
   const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError, refreshBalance } = useContractUSDCBalance();
 
-  // Automatically switch to paid mode if trial is exhausted
+  // Automatically switch to paid mode if trial is exhausted or if player has wallet
   useEffect(() => {
-    if (trialStatus.gamesRemaining === 0 && !trialStatus.isTrialActive && playerModeChoice === 'trial') {
+    if (address) {
+      // If player has wallet, always use paid mode
+      if (playerModeChoice === 'trial') {
+        console.log('Player has wallet - automatically switching to paid mode');
+        setPlayerModeChoice('paid');
+      }
+    } else if (trialStatus.gamesRemaining === 0 && !trialStatus.isTrialActive && playerModeChoice === 'trial') {
       console.log('Trial exhausted - automatically switching to paid mode');
       setPlayerModeChoice('paid');
     }
-  }, [trialStatus.gamesRemaining, trialStatus.isTrialActive, playerModeChoice]);
+  }, [address, trialStatus.gamesRemaining, trialStatus.isTrialActive, playerModeChoice]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -471,6 +477,11 @@ export default function Home() {
                   </span> */}
                   <button
                     onClick={() => {
+                      // If player has wallet connected, they can only play paid games
+                      if (address && playerModeChoice === 'paid') {
+                        console.log('Paid player - can only play paid games');
+                        return;
+                      }
                       // Prevent toggling to trial if trial is exhausted
                       if (trialStatus.gamesRemaining === 0) {
                         // If trial is exhausted, force paid mode
@@ -484,7 +495,11 @@ export default function Home() {
                       console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
                       setPlayerModeChoice(newChoice);
                     }}
+<<<<<<< Updated upstream
                     disabled={trialStatus.gamesRemaining === 0}
+=======
+                    disabled={(trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid') || (address && playerModeChoice === 'trial')}
+>>>>>>> Stashed changes
                     className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
                       trialStatus.gamesRemaining === 0 
                         ? 'bg-green-500 opacity-50 cursor-not-allowed' 
@@ -721,8 +736,16 @@ export default function Home() {
                 </div>
               )}
             </div>
+            {/* For paid players, automatically set to paid mode when playing again */}
             <button
-              onClick={handleBackToHome}
+              onClick={() => {
+                // If player has wallet, force paid mode
+                if (address) {
+                  setPlayerModeChoice('paid');
+                  setIsTrialGame(false);
+                }
+                handleBackToHome();
+              }}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg"
             >
               Play Again

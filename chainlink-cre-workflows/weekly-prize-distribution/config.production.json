@@ -1,0 +1,10 @@
+{
+  "schedule": "0 0 * * 0",
+  "evms": [
+    {
+      "chainName": "ethereum-mainnet-base-1",
+      "contractAddress": "YOUR_CONTRACT_ADDRESS_HERE",
+      "gasLimit": "500000"
+    }
+  ]
+}

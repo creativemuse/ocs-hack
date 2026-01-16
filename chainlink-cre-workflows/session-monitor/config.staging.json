@@ -1,0 +1,8 @@
+{
+  "evms": [
+    {
+      "chainName": "ethereum-testnet-sepolia-base-1",
+      "contractAddress": "0x060d87018EE78c2968959cA2C8a189c12953Cc9A"
+    }
+  ]
+}

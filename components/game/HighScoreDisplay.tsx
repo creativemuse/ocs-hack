@@ -49,7 +49,9 @@ export default function HighScoreDisplay({
   };
 
   // Auto-submit score when component mounts (for completed games)
+  // For trial games, show confetti immediately when score is displayed
   useEffect(() => {
+<<<<<<< Updated upstream
     if (currentScore > 0 && !hasSubmitted) {
       const submitCurrentScore = async () => {
         const result = await submitScore(playerName, currentScore, isGuest, guestId);
@@ -65,12 +67,41 @@ export default function HighScoreDisplay({
             setShowConfetti(true);
             // Auto-hide confetti after animation completes
             setTimeout(() => setShowConfetti(false), 4000);
+=======
+    if (currentScore > 0) {
+      // For trial games, show confetti immediately when component mounts
+      if (isTrialGame) {
+        setShowConfetti(true);
+        // Auto-hide confetti after animation completes
+        const confettiTimer = setTimeout(() => setShowConfetti(false), 4000);
+        return () => clearTimeout(confettiTimer);
+      }
+
+      // For paid players, submit score and show confetti for new high scores
+      if (!isTrialGame && !hasSubmitted) {
+        const submitCurrentScore = async () => {
+          // For paid players, include wallet address in submission
+          const result = await submitScore(playerName, currentScore, isGuest, guestId, address);
+          if (result) {
+            setHasSubmitted(true);
+            setSubmissionResult({
+              isNewHighScore: result.isNewHighScore,
+              rank: result.rank
+            });
+            
+            // Trigger confetti for new high scores
+            if (result.isNewHighScore) {
+              setShowConfetti(true);
+              // Auto-hide confetti after animation completes
+              setTimeout(() => setShowConfetti(false), 4000);
+            }
+>>>>>>> Stashed changes
           }
-        }
-      };
-      submitCurrentScore();
+        };
+        submitCurrentScore();
+      }
     }
-  }, [currentScore, playerName, isGuest, guestId, hasSubmitted, submitScore]);
+  }, [currentScore, playerName, isGuest, guestId, hasSubmitted, submitScore, isTrialGame, address]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
