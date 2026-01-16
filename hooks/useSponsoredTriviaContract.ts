@@ -54,44 +54,26 @@ export function useSponsoredTriviaContract() {
     };
   }, [address, isConnected]);
 
+  // NOTE: Trial battle functions do NOT exist in the deployed contract
+  // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const createJoinTrialBattleCall = useCallback((sessionId: string) => {
-    if (!address || !isConnected) {
-      return null; // Return null instead of throwing error
-    }
+    console.warn('joinTrialBattle not available in contract. Trial mode must be implemented off-chain.');
+    return null;
+  }, []);
 
-    return {
-      contractAddress: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'joinTrialBattle',
-      args: [sessionId],
-    };
-  }, [address, isConnected]);
-
+  // NOTE: Individual score submission does NOT exist for regular players
+  // Contract has submitScores(address[], uint256[]) for batch submission by owner/chainlink only
   const createSubmitScoreCall = useCallback((score: number) => {
-    if (!address || !isConnected) {
-      return null; // Return null instead of throwing error
-    }
+    console.warn('submitScore not available for players. Scores are submitted in batch by owner/chainlink via submitScores().');
+    return null;
+  }, []);
 
-    return {
-      contractAddress: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'submitScore',
-      args: [BigInt(score)],
-    };
-  }, [address, isConnected]);
-
+  // NOTE: Trial score submission does NOT exist in the deployed contract
+  // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const createSubmitTrialScoreCall = useCallback((sessionId: string, score: number) => {
-    if (!address || !isConnected) {
-      return null; // Return null instead of throwing error
-    }
-
-    return {
-      contractAddress: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'submitTrialScore',
-      args: [sessionId, BigInt(score)],
-    };
-  }, [address, isConnected]);
+    console.warn('submitTrialScore not available in contract. Trial mode must be implemented off-chain.');
+    return null;
+  }, []);
 
   // Transaction success handler
   const handleTransactionSuccess = useCallback((hash: string) => {

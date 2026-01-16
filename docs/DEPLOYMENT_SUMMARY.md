@@ -1,36 +1,27 @@
-# Deployment Summary - Claim-Based Prize System
+# 🎉 TriviaBattle Deployment Summary
 
-## ✅ Successfully Deployed!
+## ✅ Deployment Successful!
 
+<<<<<<< Updated upstream:docs/DEPLOYMENT_SUMMARY.md
 ### New Smart Contract
 - **Address**: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
 - **Network**: Base Mainnet (Chain ID: 8453)
 - **Deployed**: October 13, 2025
 - **Status**: ✅ Deployed and verified (functional)
 - **View on Basescan**: https://basescan.org/address/0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
+=======
+**Contract Address (Base Sepolia):** `0x060d87018EE78c2968959cA2C8a189c12953Cc9A`
+>>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 
-### Contract Details Verified
-- ✅ Owner: `0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260`
-- ✅ USDC Token: `0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913`
-- ✅ Entry Fee: 1.0 USDC
-- ✅ Platform Fee: 250 BPS (2.5%)
-- ✅ Platform Fee Recipient: `0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260`
+**Transaction:** https://sepolia.basescan.org/tx/0x221329422d14e37e9225df0e1ff394d0e4f3cf19ab4fe09d404fe55695544eca
 
-### New Features
-✅ **Claim-Based Prize Distribution**
-- `playerWinnings` mapping tracks claimable prizes
-- `hasClaimed` mapping prevents double claims
-- `claimWinnings()` function for gasless prize claims
-- `WinningsClaimed` event for tracking
+**Owner:** `0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294`
 
-✅ **Dynamic Leaderboard System**
-- SpaceTimeDB module deployed with prize tracking
-- Top earners API endpoint created
-- Real-time polling (30-second updates)
-- Home page shows actual winners
+## Contract Verification
 
-## What Changed
+The contract was deployed but verification needs to be done manually. To verify:
 
+<<<<<<< Updated upstream:docs/DEPLOYMENT_SUMMARY.md
 ### Smart Contract Updates
 1. Added `playerWinnings` and `hasClaimed` mappings
 2. Added `claimWinnings()` function
@@ -144,21 +135,24 @@ Shows: wallet address, avatar, total USDC earned
 ## Testing the System
 
 ### 1. Start Development Server
+=======
+1. Set `BASESCAN_API_KEY` in your `.env` file
+2. Run:
+>>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 ```bash
-npm run dev
+forge verify-contract \
+  0x060d87018EE78c2968959cA2C8a189c12953Cc9A \
+  contracts/TriviaBattle.sol:TriviaBattle \
+  --chain-id 84532 \
+  --num-of-optimizations 200 \
+  --constructor-args $(cast abi-encode "constructor(address,address,address,address,uint256,uint256,uint256)" 0x036CbD53842c5426634e7929541eC2318f3dCF7e 0xE4aB69C077896252FAFBD49EFD26B5D171A32410 0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294 0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294 604800 1000000 80) \
+  --watch
 ```
 
-### 2. Test Complete Flow
-1. **Join Game**: Connect wallet, pay 1 USDC entry fee
-2. **Play Game**: Complete trivia questions
-3. **Admin Distributes**: Admin calls `distributePrizes()`
-4. **View Winnings**: Player sees claimable amount
-5. **Claim Prize**: Click "Claim Winnings" (gasless!)
-6. **Check Balance**: USDC appears in wallet
-7. **Leaderboard Updates**: Name appears in TOP EARNERS
+## Quick Test Commands
 
-### 3. Verify Contract Functions
 ```bash
+<<<<<<< Updated upstream:docs/DEPLOYMENT_SUMMARY.md
 # Check if player has claimable winnings
 cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "playerWinnings(address)(uint256)" \
@@ -170,62 +164,64 @@ cast call 0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13 \
   "hasClaimed(address)(bool)" \
   <player-address> \
   --rpc-url https://mainnet.base.org
+=======
+# Check owner
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "owner()" --rpc-url base_sepolia
+
+# Check USDC token address
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "USDC_TOKEN()" --rpc-url base_sepolia
+
+# Check entry fee (should return 1000000 = 1 USDC)
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "entryFee()" --rpc-url base_sepolia
+
+# Check if session is active
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "isSessionActive()" --rpc-url base_sepolia
+
+# Get current players
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "getCurrentPlayers()" --rpc-url base_sepolia
+>>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 ```
-
-### 4. Monitor Leaderboard
-1. Visit: http://localhost:3000
-2. Scroll to TOP EARNERS section
-3. Should see either:
-   - "No winners yet. Be the first!" (if no prizes distributed)
-   - Real player addresses/usernames with USDC amounts
-4. Watch it auto-refresh every 30 seconds
-
-## File Changes Summary
-
-### Modified Files
-1. ✅ `contracts/TriviaBattle.sol` - Added claim system
-2. ✅ `lib/blockchain/contracts.ts` - Updated address & ABI
-3. ✅ `lib/blockchain/payouts.ts` - Added SpaceTimeDB sync
-4. ✅ `hooks/useTriviaContract.ts` - Real claimWinnings() call
-5. ✅ `app/page.tsx` - Dynamic leaderboard component
-6. ✅ `spacetime-module/beat-me/src/lib.rs` - Prize tracking
-7. ✅ `lib/apis/spacetime.ts` - Prize distribution methods
-8. ✅ `scripts/verify-deployment.cjs` - Updated verification
-
-### New Files
-1. ✅ `components/leaderboard/TopEarners.tsx` - Dynamic leaderboard UI
-2. ✅ `hooks/useTopEarners.ts` - Polling hook
-3. ✅ `app/api/top-earners/route.ts` - API endpoint
-4. ✅ `CLAIM_SYSTEM_SETUP.md` - Documentation
-5. ✅ `DEPLOYMENT_SUMMARY.md` - This file
 
 ## Next Steps
 
+<<<<<<< Updated upstream:docs/DEPLOYMENT_SUMMARY.md
 ### Immediate (Required for Gasless Claims)
 1. **Update Paymaster Allowlist** on CDP Dashboard
    - Remove old contract: `0x231240B1d776a8F72785FE3707b74Ed9C3048B3a`
    - Add new contract: `0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13`
    - Add `claimWinnings` function to allowlist
+=======
+1. **Update Application Config**
+   - Update `lib/blockchain/contracts.ts` with contract address
+   - Test contract interactions
+>>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 
-### Optional (For Better UX)
-2. **Verify Contract on Basescan** (manual process)
-   - Makes source code readable on Basescan
-   - Builds trust with users
-   - Allows interaction via Basescan UI
+2. **Start First Session**
+   ```bash
+   cast send 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "startNewSession()" \
+     --rpc-url base_sepolia \
+     --private-key $PRIVATE_KEY
+   ```
 
-### Testing
-3. **Run Test Game**
-   - Join game with wallet
-   - Complete questions
-   - Admin distributes prizes
-   - Claim winnings with button
-   - Verify leaderboard updates
+3. **Update Chainlink Addresses** (when ready)
+   ```bash
+   cast send 0x060d87018EE78c2968959cA2C8a189c12953Cc9A \
+     "setChainlinkOracle(address)" <CHAINLINK_FORWARDER_ADDRESS> \
+     --rpc-url base_sepolia \
+     --private-key $PRIVATE_KEY
+   ```
 
-## Monitoring & Maintenance
+4. **Deploy to Base Mainnet** (after testing)
+   ```bash
+   forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle \
+     --rpc-url base_mainnet \
+     --broadcast \
+     --verify
+   ```
 
-### Check Paymaster Usage
-https://portal.cdp.coinbase.com/products/bundler-and-paymaster
+## Contract Details
 
+<<<<<<< Updated upstream:docs/DEPLOYMENT_SUMMARY.md
 Monitor:
 - Total gas sponsored
 - Number of claims processed
@@ -282,4 +278,13 @@ If you encounter issues:
 **Status**: ✅ All code deployed and functional  
 **Pending**: Manual paymaster allowlist update in CDP Dashboard  
 **Ready**: System ready to accept real players and distribute prizes!
+=======
+- **Network:** Base Sepolia (84532)
+- **USDC:** 0x036CbD53842c5426634e7929541eC2318f3dCF7e
+- **LINK:** 0xE4aB69C077896252FAFBD49EFD26B5D171A32410
+- **Entry Fee:** 1 USDC
+- **Session Interval:** 1 week
+- **Prize Percentage:** 80%
+>>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 
+See `DEPLOYMENT_SUCCESS.md` for complete details.

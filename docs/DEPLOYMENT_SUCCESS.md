@@ -1,135 +1,136 @@
-# 🎉 Smart Contract Deployment Success
+# ✅ TriviaBattle Deployment Success - Base Sepolia
 
-## ✅ **Contract Successfully Deployed**
+## Deployment Details
 
-**Contract Address:** `0xc3538A59829DdB43D791B0dFA4242FEcC463402C`  
-**Network:** Base Sepolia Testnet  
-**Deployment Time:** August 29, 2024  
-**Basescan URL:** https://sepolia.basescan.org/address/0xc3538A59829DdB43D791B0dFA4242FEcC463402C
+**Status:** ✅ Successfully Deployed
 
-## 🔧 **Key Features Implemented**
+**Contract Address:** `0x060d87018EE78c2968959cA2C8a189c12953Cc9A`
 
-### **Trial Player Restrictions**
-- ✅ **Trial players excluded from prize pool distributions**
-- ✅ **Only paid players can win prizes**
-- ✅ **Prevents abuse of trial system**
-- ✅ **Clear upgrade path from trial to paid**
+**Network:** Base Sepolia (Chain ID: 84532)
 
-### **Smart Contract Functions**
-- ✅ `joinBattle()` - Paid players join with 1 USDC entry fee
-- ✅ `joinTrialBattle()` - Trial players join for free (no prize eligibility)
-- ✅ `submitScore()` - Submit scores for paid players
-- ✅ `submitTrialScore()` - Submit scores for trial players
-- ✅ `distributePrizes()` - Distribute prizes to paid players only
-- ✅ `startSession()` - Start new game session (owner only)
+**Transaction Hash:** `0x221329422d14e37e9225df0e1ff394d0e4f3cf19ab4fe09d404fe55695544eca`
 
-### **Prize Distribution Logic**
-```
-Prize Pool = Sum of all paid player entry fees
-Trial players contribute $0 to prize pool
-Only paid players can win from prize pool
-```
+**Block Number:** 36285986
 
-## 📋 **Contract Details**
+**Gas Used:** 1,982,646 gas
 
-- **Owner:** `0x1Fde40a4046Eda0cA0539Dd6c77ABF8933B94260`
+**Gas Cost:** 0.0000023791752 ETH
+
+**Deployer/Owner:** `0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294`
+
+## Contract Configuration
+
 - **USDC Token:** `0x036CbD53842c5426634e7929541eC2318f3dCF7e`
-- **Entry Fee:** 1 USDC (1,000,000 wei)
-- **Trial Entry Fee:** 0 USDC
+- **LINK Token:** `0xE4aB69C077896252FAFBD49EFD26B5D171A32410`
+- **Chainlink Functions:** `0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294` (placeholder - update after Chainlink setup)
+- **Chainlink Oracle:** `0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294` (placeholder - update after Chainlink setup)
+- **Session Interval:** 1 week (604,800 seconds)
+- **Entry Fee:** 1 USDC (1,000,000 = 1e6)
+- **Prize Percentage:** 80%
 
-## 🔗 **Integration Status**
+## View on Basescan
 
-### **Frontend Integration**
-- ✅ Contract address updated in `lib/blockchain/contracts.ts`
-- ✅ ABI updated to match new contract structure
-- ✅ Trial player restrictions implemented in UI
-- ✅ Clear messaging about trial limitations
+🔗 **Contract:** https://sepolia.basescan.org/address/0x060d87018EE78c2968959cA2C8a189c12953Cc9A
 
-### **SpacetimeDB Integration**
-- ✅ Player type tracking implemented
-- ✅ Separate leaderboards for trial vs paid players
-- ✅ Session tracking distinguishes player types
-- ✅ Prize pool calculations exclude trial players
+🔗 **Transaction:** https://sepolia.basescan.org/tx/0x221329422d14e37e9225df0e1ff394d0e4f3cf19ab4fe09d404fe55695544eca
 
-### **API Integration**
-- ✅ Game session API updated with player types
-- ✅ High scores API tracks player eligibility
-- ✅ Scoring system validates prize eligibility
+## Next Steps
 
-## 🧪 **Testing Checklist**
+### 1. Verify Contract on Basescan
 
-### **Smart Contract Testing**
-- [ ] Trial players cannot win prizes
-- [ ] Only paid players in prize distribution
-- [ ] Prize pool only from paid entry fees
-- [ ] Contract events reflect new policy
+Set your `BASESCAN_API_KEY` in `.env` and run:
 
-### **Frontend Testing**
-- [ ] Trial warnings display correctly
-- [ ] Leaderboard shows player types
-- [ ] Scoring system validates eligibility
-- [ ] UI messaging is clear and consistent
+```bash
+forge verify-contract \
+  0x060d87018EE78c2968959cA2C8a189c12953Cc9A \
+  contracts/TriviaBattle.sol:TriviaBattle \
+  --chain-id 84532 \
+  --num-of-optimizations 200 \
+  --constructor-args $(cast abi-encode "constructor(address,address,address,address,uint256,uint256,uint256)" 0x036CbD53842c5426634e7929541eC2318f3dCF7e 0xE4aB69C077896252FAFBD49EFD26B5D171A32410 0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294 0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294 604800 1000000 80) \
+  --watch
+```
 
-### **Integration Testing**
-- [ ] Player type tracking works end-to-end
-- [ ] Prize pool calculations are accurate
-- [ ] Trial to paid conversion works
-- [ ] All systems align with new policy
+### 2. Update Application Configuration
 
-## 🚀 **Next Steps**
+Update `lib/blockchain/contracts.ts` with the new contract address:
 
-### **Immediate Actions**
-1. ✅ **Contract deployed and verified**
-2. ✅ **Frontend configuration updated**
-3. ✅ **All systems aligned with trial restrictions**
+```typescript
+export const TRIVIA_CONTRACT_ADDRESS = "0x060d87018EE78c2968959cA2C8a189c12953Cc9A";
+```
 
-### **Testing Phase**
-1. **Test trial player flow** - Verify no prize eligibility
-2. **Test paid player flow** - Verify full prize eligibility
-3. **Test conversion flow** - Trial to paid upgrade
-4. **Test prize distribution** - Only paid players win
+### 3. Update Chainlink Oracle Address (When Ready)
 
-### **Production Readiness**
-1. **Security audit** - Review trial restriction implementation
-2. **User testing** - Validate trial experience vs conversion
-3. **Monitoring setup** - Track trial to paid conversion rates
-4. **Documentation** - Update user guides and FAQs
+Once you have the Chainlink Functions forwarder address, update it:
 
-## 📊 **Expected Outcomes**
+```bash
+cast send 0x060d87018EE78c2968959cA2C8a189c12953Cc9A \
+  "setChainlinkOracle(address)" <CHAINLINK_FORWARDER_ADDRESS> \
+  --rpc-url base_sepolia \
+  --private-key $PRIVATE_KEY
+```
 
-### **Security Benefits**
-- **Prevents trial abuse** - No more multiple trial accounts winning prizes
-- **Fair prize distribution** - Only paying players can win prizes
-- **Clear value proposition** - Trial players see clear upgrade incentives
+### 4. Test the Contract
 
-### **User Experience**
-- **Trial players** - Can enjoy game, see clear upgrade path
-- **Paid players** - Exclusive access to prize pool
-- **Clear messaging** - No confusion about trial limitations
+```bash
+# Check contract owner
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "owner()" --rpc-url base_sepolia
 
-### **Business Metrics**
-- **Trial to paid conversion** - Expected increase due to clear value
-- **Prize pool integrity** - Only funded by actual paying players
-- **User engagement** - Trial players still engaged but incentivized to upgrade
+# Check session info
+cast call 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "getSessionInfo()" --rpc-url base_sepolia
 
-## 🔍 **Verification**
+# Start first session (as owner)
+cast send 0x060d87018EE78c2968959cA2C8a189c12953Cc9A "startNewSession()" \
+  --rpc-url base_sepolia \
+  --private-key $PRIVATE_KEY
+```
 
-### **Contract Verification**
-- ✅ **Basescan verification successful**
-- ✅ **Source code publicly available**
-- ✅ **ABI matches deployed contract**
-- ✅ **All functions accessible**
+### 5. Chainlink CRE Workflow
 
-### **Security Verification**
-- ✅ **Trial players excluded from prizes**
-- ✅ **Prize pool only from paid entries**
-- ✅ **No backdoors or bypasses**
-- ✅ **Clear upgrade path implemented**
+The Chainlink CRE workflow configuration is already updated with this contract address in:
+- `chainlink-cre-workflows/weekly-prize-distribution/config.staging.json`
 
----
+Once you deploy the CRE workflow, it will automatically call `distributePrizes()` weekly.
 
-**Deployment Status:** ✅ **SUCCESSFUL**  
-**Trial Restrictions:** ✅ **IMPLEMENTED**  
-**Solidity Version:** ✅ **0.8.25 (No Warnings)**  
-**Ready for Testing:** ✅ **YES**  
-**Production Ready:** 🔄 **AFTER TESTING**
+## Deploy to Base Mainnet
+
+When ready for mainnet deployment:
+
+```bash
+forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle \
+  --rpc-url base_mainnet \
+  --broadcast \
+  --verify
+```
+
+**⚠️ Important:** Only deploy to mainnet after thorough testing on Sepolia!
+
+## Contract Functions
+
+### Owner Functions
+- `startNewSession()` - Start a new game session
+- `endSession()` - End current session and distribute prizes
+- `submitScores(address[] calldata, uint256[] calldata)` - Submit player scores
+- `setChainlinkOracle(address)` - Update Chainlink oracle address
+- `setSessionInterval(uint256)` - Update session interval
+- `setEntryFee(uint256)` - Update entry fee
+- `setPrizePercentage(uint256)` - Update prize percentage
+
+### Public Functions
+- `joinSession()` - Join the current session (requires 1 USDC)
+- `getSessionInfo()` - Get current session information
+- `getPlayerScore(address)` - Get a player's score
+- `getCurrentPlayers()` - Get list of current players
+
+## Security Notes
+
+- ✅ Contract uses SafeERC20 for all token transfers
+- ✅ ReentrancyGuard protection on state-changing functions
+- ✅ Two-step ownership transfer implemented
+- ✅ Max approval check in `joinSession()`
+- ✅ Front-running protection with session intervals
+
+## Support
+
+- Contract on Basescan: https://sepolia.basescan.org/address/0x060d87018EE78c2968959cA2C8a189c12953Cc9A
+- Base Documentation: https://docs.base.org
+- Foundry Documentation: https://book.getfoundry.sh

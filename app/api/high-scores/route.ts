@@ -4,11 +4,13 @@ import { spacetimeClient } from '@/lib/apis/spacetime';
 interface HighScore {
   id: string;
   playerName: string;
+  walletAddress?: string;
   score: number;
   timestamp: number;
   isGuest: boolean;
   guestId?: string;
   playerType: 'trial' | 'paid';
+  username?: string;
 }
 
 // In-memory storage for high scores (in production, this would be in SpaceTimeDB)
@@ -22,11 +24,11 @@ export async function GET(req: NextRequest) {
     // Initialize SpacetimeDB connection
     await spacetimeClient.initialize();
     
-    // Note: In a real implementation, you'd query SpaceTimeDB for high scores
-    // For now, we'll return the in-memory high scores
-    const topScores = highScores
+    // Filter for paid players only, sort by score (highest to lowest), limit to top 10
+    const paidScoresOnly = highScores.filter(score => score.playerType === 'paid');
+    const topScores = paidScoresOnly
       .sort((a, b) => b.score - a.score)
-      .slice(0, limit);
+      .slice(0, Math.min(limit, 10)); // Ensure max 10 entries
     
     return NextResponse.json({
       highScores: topScores,
@@ -44,7 +46,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { playerName, score, isGuest = false, guestId, playerType = 'paid' } = body;
+    const { playerName, score, isGuest = false, guestId, playerType = 'paid', walletAddress } = body;
 
     if (!playerName || typeof score !== 'number') {
       return NextResponse.json(
@@ -59,11 +61,13 @@ export async function POST(req: NextRequest) {
     const newScore: HighScore = {
       id: `score_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       playerName,
+      walletAddress: walletAddress || undefined,
       score,
       timestamp: Date.now(),
       isGuest,
       guestId,
-      playerType: isGuest ? 'trial' : 'paid'
+      playerType: isGuest ? 'trial' : 'paid',
+      username: playerName // Store username if provided
     };
 
     // Add to high scores (in-memory for now)
