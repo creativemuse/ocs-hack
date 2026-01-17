@@ -495,11 +495,7 @@ export default function Home() {
                       console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
                       setPlayerModeChoice(newChoice);
                     }}
-<<<<<<< Updated upstream
                     disabled={trialStatus.gamesRemaining === 0}
-=======
-                    disabled={(trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid') || (address && playerModeChoice === 'trial')}
->>>>>>> Stashed changes
                     className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
                       trialStatus.gamesRemaining === 0 
                         ? 'bg-green-500 opacity-50 cursor-not-allowed' 

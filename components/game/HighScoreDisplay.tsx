@@ -51,23 +51,6 @@ export default function HighScoreDisplay({
   // Auto-submit score when component mounts (for completed games)
   // For trial games, show confetti immediately when score is displayed
   useEffect(() => {
-<<<<<<< Updated upstream
-    if (currentScore > 0 && !hasSubmitted) {
-      const submitCurrentScore = async () => {
-        const result = await submitScore(playerName, currentScore, isGuest, guestId);
-        if (result) {
-          setHasSubmitted(true);
-          setSubmissionResult({
-            isNewHighScore: result.isNewHighScore,
-            rank: result.rank
-          });
-          
-          // Trigger confetti for new high scores OR if this is the highest score
-          if (result.isNewHighScore || currentScore >= currentHighScore) {
-            setShowConfetti(true);
-            // Auto-hide confetti after animation completes
-            setTimeout(() => setShowConfetti(false), 4000);
-=======
     if (currentScore > 0) {
       // For trial games, show confetti immediately when component mounts
       if (isTrialGame) {
@@ -95,7 +78,6 @@ export default function HighScoreDisplay({
               // Auto-hide confetti after animation completes
               setTimeout(() => setShowConfetti(false), 4000);
             }
->>>>>>> Stashed changes
           }
         };
         submitCurrentScore();

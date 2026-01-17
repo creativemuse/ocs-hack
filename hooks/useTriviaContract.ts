@@ -57,14 +57,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     },
   });
 
-<<<<<<< Updated upstream
-  // Read contract owner
-  const { data: contractOwner } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'owner',
-  });
-=======
   // Fetch session info using Base Account SDK
   // Note: New contract doesn't have getSessionInfo(), so we build it from multiple calls
   const fetchSessionInfo = useCallback(async () => {
@@ -184,22 +176,15 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       fetchContractOwner();
     }
   }, [fetchSessionInfo, fetchContractOwner, provider]);
->>>>>>> Stashed changes
 
   // Note: OnchainKit gasless transactions require Transaction component wrapper
   // For now, we'll use regular wagmi transactions
 
   // Start a new trivia session
-<<<<<<< Updated upstream
-  const startSession = useCallback(async (duration: number = 300) => { // 5 minutes default
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
-=======
   // Note: New contract uses startNewSession() with no parameters (uses configured sessionInterval)
   const startSession = useCallback(async () => {
     if (!address || !isConnected || !provider) {
       setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
->>>>>>> Stashed changes
       return false;
     }
 
@@ -214,12 +199,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-<<<<<<< Updated upstream
-        functionName: 'createGame',
-=======
         functionName: 'startNewSession',
         args: [],
->>>>>>> Stashed changes
       });
       
       // Wait for transaction to be confirmed
@@ -246,14 +227,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       const result = await refetchSession();
       console.log('Session refetch result:', result);
       
-<<<<<<< Updated upstream
-      if (result.data) {
-        const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted, chainlinkMode] = result.data as [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, number];
-        const now = BigInt(Math.floor(Date.now() / 1000));
-        
-        // More lenient session validation - just check if isActive is true
-        const sessionActive = isActive;
-=======
       // New contract uses isSessionActive() view function
       const data = encodeFunctionData({
         abi: TRIVIA_ABI,
@@ -261,7 +234,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         args: [],
       });
       
-      const result = await provider.request({
+      const activeResult = await provider.request({
         method: 'eth_call',
         params: [{
           to: TRIVIA_CONTRACT_ADDRESS,
@@ -269,23 +242,17 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         }, 'latest']
       });
       
-      console.log('Session status result:', result);
+      console.log('Session status result:', activeResult);
       
-      if (result && result !== '0x') {
+      if (activeResult && activeResult !== '0x') {
         // Parse boolean result (uint256, where 0 = false, 1 = true)
-        const isActive = BigInt(result) !== 0n;
->>>>>>> Stashed changes
+        const isActive = BigInt(activeResult) !== 0n;
+        const sessionActive = isActive;
         
         setState(prev => ({ ...prev, sessionActive }));
         console.log('Session status:', { 
           isActive, 
-          sessionActive, 
-          startTime: startTime.toString(), 
-          endTime: endTime.toString(), 
-          now: now.toString(),
-          playerCount: playerCount.toString(),
-          prizePool: prizePool.toString(),
-          chainlinkMode
+          sessionActive
         });
         return sessionActive;
       } else {
@@ -473,17 +440,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       }));
     }
     }, [address, isConnected, writeContractAsync, ensureActiveSession]);
-=======
-    const errorMsg = 'Trial battle function not available in contract. Trial mode must be implemented off-chain.';
-    console.error(errorMsg);
-    setState(prev => ({
-      ...prev,
-      isJoining: false,
-      error: errorMsg,
-    }));
-    throw new Error(errorMsg);
-  }, []);
->>>>>>> Stashed changes
 
   // Submit score
   // NOTE: This function does NOT exist for regular players in the deployed contract
@@ -514,17 +470,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       }));
     }
     }, [address, isConnected, writeContractAsync]);
-=======
-    const errorMsg = 'Individual score submission not available. Scores are submitted in batch by owner/chainlink via submitScores(). Use off-chain tracking during gameplay.';
-    console.error(errorMsg);
-    setState(prev => ({
-      ...prev,
-      isSubmitting: false,
-      error: errorMsg,
-    }));
-    throw new Error(errorMsg);
-  }, []);
->>>>>>> Stashed changes
 
   // Submit trial score
   // NOTE: This function does NOT exist in the deployed contract
@@ -585,32 +530,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       }));
     }
   }, [address, isConnected, writeContractAsync]);
-=======
-    const errorMsg = 'Trial score submission not available in contract. Trial mode must be implemented off-chain.';
-    console.error(errorMsg);
-    setState(prev => ({
-      ...prev,
-      isSubmitting: false,
-      error: errorMsg,
-    }));
-    throw new Error(errorMsg);
-  }, []);
-
-  // Claim winnings
-  // NOTE: This function does NOT exist in the deployed contract
-  // Prizes automatically distribute via distributePrizes() called by owner/chainlink after session ends
-  // No claiming needed - winners receive prizes directly
-  const claimWinnings = useCallback(async (winningAmount: string) => {
-    const errorMsg = 'Claim winnings function not available. Prizes automatically distribute after session ends via distributePrizes(). No claiming needed.';
-    console.error(errorMsg);
-    setState(prev => ({
-      ...prev,
-      isClaiming: false,
-      error: errorMsg,
-    }));
-    throw new Error(errorMsg);
-  }, []);
->>>>>>> Stashed changes
 
   // Update state based on transaction status
   const updateTransactionState = useCallback(() => {

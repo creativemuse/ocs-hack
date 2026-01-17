@@ -2,25 +2,11 @@
 export const ENTRY_FEE_USDC = '1'; // 1 USDC
 export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 
-<<<<<<< Updated upstream
-// USDC contract address on Base Mainnet
-export const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
-
-// TriviaBattlev4 smart contract address (deployed on Base Mainnet)
-// Updated with Chainlink Functions integration for decentralized rankings
-// Features: 7% platform fee, Hybrid Chainlink mode (SimpleAutomation < $100, FullDON >= $100)
-// Compiled with Solidity 0.8.25
-// Deployed: 2025-01-XX (Base Mainnet) - 7% platform fee, hybrid Chainlink mode
-export const TRIVIA_CONTRACT_ADDRESS = '0xd8F082fa4EF6a4C59F8366c19a196d488485682b';
-
-// Import TriviaBattlev4 ABI
-import { TRIVIABATTLEV4_ABI } from './triviabattlev4-abi';
-=======
 // USDC contract addresses
 // Base Sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
 // Base Mainnet: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 // Use environment variable if set, otherwise default to Sepolia
-const USDC_CONTRACT_ADDRESS = 
+export const USDC_CONTRACT_ADDRESS = 
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_USDC_ADDRESS) ||
   '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia default
 
@@ -28,12 +14,12 @@ const USDC_CONTRACT_ADDRESS =
 // Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
 // Base Mainnet: 0xc166a6FB38636e8430d6A2Efb7A601c226659425 (old deployment)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
-const TRIVIA_CONTRACT_ADDRESS = 
+export const TRIVIA_CONTRACT_ADDRESS = 
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
   '0xe72Fc03137A1412354ca97282071d173Ae592D96'; // Base Sepolia default
 
 // Contract ABI for TriviaBattle contract (updated to match deployed contract on Base Sepolia)
-export const TRIVIA_ABI = [
+const TRIVIA_ABI_INLINE = [
   {
     "type": "constructor",
     "inputs": [
@@ -941,10 +927,9 @@ export const TRIVIA_ABI = [
     "inputs": []
   }
 ] as const;
->>>>>>> Stashed changes
 
 // Contract ABI for trivia battle functionality (updated with Chainlink Functions integration)
-export const TRIVIA_ABI = TRIVIABATTLEV4_ABI;
+export const TRIVIA_ABI = TRIVIA_ABI_INLINE;
 
 // USDC ABI for balance checking and approvals
 export const USDC_ABI = [
