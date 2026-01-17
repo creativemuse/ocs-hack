@@ -6,6 +6,9 @@ import { parseUnits } from 'viem';
 // import { useTransactionContext } from '@coinbase/onchainkit/transaction';
 import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
+// Contract owner (not currently fetched, set to undefined)
+const contractOwner: string | undefined = undefined;
+
 export interface ContractState {
   isApproving: boolean;
   isJoining: boolean;
@@ -57,125 +60,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     },
   });
 
-  // Fetch session info using Base Account SDK
-  // Note: New contract doesn't have getSessionInfo(), so we build it from multiple calls
-  const fetchSessionInfo = useCallback(async () => {
-    if (!provider) return;
-    
-    try {
-      // Build session info from multiple contract calls
-      const [isActive, sessionCounter, lastSessionTime, sessionInterval, currentPrizePool, players] = await Promise.all([
-        // isSessionActive
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'isSessionActive', args: [] }),
-          }, 'latest']
-        }),
-        // sessionCounter
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionCounter', args: [] }),
-          }, 'latest']
-        }),
-        // lastSessionTime
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'lastSessionTime', args: [] }),
-          }, 'latest']
-        }),
-        // sessionInterval
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionInterval', args: [] }),
-          }, 'latest']
-        }),
-        // currentSessionPrizePool
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'currentSessionPrizePool', args: [] }),
-          }, 'latest']
-        }),
-        // getCurrentPlayers
-        provider.request({
-          method: 'eth_call',
-          params: [{
-            to: TRIVIA_CONTRACT_ADDRESS,
-            data: encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'getCurrentPlayers', args: [] }),
-          }, 'latest']
-        }),
-      ]);
-
-      // Parse results (all are uint256 except isActive which is bool)
-      const isActiveValue = isActive && isActive !== '0x' ? BigInt(isActive) !== 0n : false;
-      const sessionCounterValue = sessionCounter && sessionCounter !== '0x' ? BigInt(sessionCounter) : 0n;
-      const lastSessionTimeValue = lastSessionTime && lastSessionTime !== '0x' ? BigInt(lastSessionTime) : 0n;
-      const sessionIntervalValue = sessionInterval && sessionInterval !== '0x' ? BigInt(sessionInterval) : 0n;
-      const prizePoolValue = currentPrizePool && currentPrizePool !== '0x' ? BigInt(currentPrizePool) : 0n;
-      
-      // Parse players array (this is more complex, but for now we'll just get the count)
-      const playerCount = players && players !== '0x' ? 0 : 0; // TODO: Properly decode array
-
-      const sessionInfo = {
-        isActive: isActiveValue,
-        sessionCounter: Number(sessionCounterValue),
-        startTime: Number(lastSessionTimeValue),
-        endTime: Number(lastSessionTimeValue) + Number(sessionIntervalValue),
-        prizePool: prizePoolValue,
-        playerCount,
-      };
-
-      setSessionInfo(sessionInfo);
-    } catch (error) {
-      console.error('Error fetching session info:', error);
-    }
-  }, [provider]);
-
-  // Fetch contract owner using Base Account SDK
-  const fetchContractOwner = useCallback(async () => {
-    if (!provider) return;
-    
-    try {
-      const data = encodeFunctionData({
-        abi: TRIVIA_ABI,
-        functionName: 'owner',
-        args: [],
-      });
-      
-      const result = await provider.request({
-        method: 'eth_call',
-        params: [{
-          to: TRIVIA_CONTRACT_ADDRESS,
-          data,
-        }, 'latest']
-      });
-      
-      // Parse the result - owner() returns an address (20 bytes padded to 32 bytes)
-      if (result && result !== '0x') {
-        const ownerAddress = '0x' + result.slice(-40); // Last 40 characters = 20 bytes = address
-        setContractOwner(ownerAddress);
-      }
-    } catch (error) {
-      console.error('Error fetching contract owner:', error);
-    }
-  }, [provider]);
-
-  // Fetch data on mount
-  useEffect(() => {
-    if (provider) {
-      fetchSessionInfo();
-      fetchContractOwner();
-    }
-  }, [fetchSessionInfo, fetchContractOwner, provider]);
+  // Contract owner is fetched via wagmi hook below if needed
 
   // Note: OnchainKit gasless transactions require Transaction component wrapper
   // For now, we'll use regular wagmi transactions
@@ -183,8 +68,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
   // Start a new trivia session
   // Note: New contract uses startNewSession() with no parameters (uses configured sessionInterval)
   const startSession = useCallback(async () => {
-    if (!address || !isConnected || !provider) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
+    if (!address || !isConnected) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return false;
     }
 
@@ -227,39 +112,17 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       const result = await refetchSession();
       console.log('Session refetch result:', result);
       
-      // New contract uses isSessionActive() view function
-      const data = encodeFunctionData({
-        abi: TRIVIA_ABI,
-        functionName: 'isSessionActive',
-        args: [],
-      });
+      // Use wagmi hook result to determine if session is active
+      // sessionInfo comes from useReadContract hook above
+      // result.data should contain the sessionInfo
+      const sessionData = result?.data;
+      const isActive = sessionData && typeof sessionData === 'object' && 'isActive' in sessionData 
+        ? Boolean((sessionData as any).isActive) 
+        : false;
       
-      const activeResult = await provider.request({
-        method: 'eth_call',
-        params: [{
-          to: TRIVIA_CONTRACT_ADDRESS,
-          data,
-        }, 'latest']
-      });
-      
-      console.log('Session status result:', activeResult);
-      
-      if (activeResult && activeResult !== '0x') {
-        // Parse boolean result (uint256, where 0 = false, 1 = true)
-        const isActive = BigInt(activeResult) !== 0n;
-        const sessionActive = isActive;
-        
-        setState(prev => ({ ...prev, sessionActive }));
-        console.log('Session status:', { 
-          isActive, 
-          sessionActive
-        });
-        return sessionActive;
-      } else {
-        console.log('No session data available');
-        setState(prev => ({ ...prev, sessionActive: false }));
-        return false;
-      }
+      setState(prev => ({ ...prev, sessionActive: isActive }));
+      console.log('Session status:', { isActive });
+      return isActive;
     } catch (error) {
       console.error('Error checking session status:', error);
       setState(prev => ({ ...prev, sessionActive: false }));
@@ -354,7 +217,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         address: USDC_CONTRACT_ADDRESS as `0x${string}`,
         abi: USDC_ABI,
         functionName: 'approve',
-        args: [TRIVIA_CONTRACT_ADDRESS, entryFeeWei],
+        args: [TRIVIA_CONTRACT_ADDRESS as `0x${string}`, entryFeeWei],
       });
     } catch (error) {
       console.error('Error approving USDC:', error);
@@ -406,7 +269,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
   // NOTE: This function does NOT exist in the deployed contract
   // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const joinTrialBattle = useCallback(async (sessionId: string) => {
-<<<<<<< Updated upstream
     if (!address || !isConnected) {
       setState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return;
@@ -446,7 +308,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
   // Contract has submitScores(address[], uint256[]) for batch submission by owner/chainlink only
   // Scores should be tracked off-chain during gameplay, then submitted in batch after session ends
   const submitScore = useCallback(async (score: number) => {
-<<<<<<< Updated upstream
     if (!address || !isConnected) {
       setState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return;
@@ -475,7 +336,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
   // NOTE: This function does NOT exist in the deployed contract
   // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const submitTrialScore = useCallback(async (sessionId: string, score: number) => {
-<<<<<<< Updated upstream
     if (!address || !isConnected) {
       setState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return;

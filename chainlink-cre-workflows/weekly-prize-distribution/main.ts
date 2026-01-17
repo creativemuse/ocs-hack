@@ -96,7 +96,7 @@ const onWeeklyDistribution = (
     }
   }
 
-  if (sessionInfo.prizePool === 0n) {
+  if (sessionInfo.prizePool === BigInt(0)) {
     const reason = "No prize pool to distribute"
     runtime.log(reason)
     return {
@@ -233,8 +233,8 @@ function readSessionInfo(
   const startTime = lastSessionTime
   const endTime = lastSessionTime + sessionInterval
   const paidPlayerCount = BigInt(players.length)
-  const trialPlayerCount = 0n // Not tracked separately in this contract version
-  const prizesDistributed = !isActive && prizePool === 0n // Heuristic: if inactive and no prize pool, likely distributed
+  const trialPlayerCount = BigInt(0) // Not tracked separately in this contract version
+  const prizesDistributed = !isActive && prizePool === BigInt(0) // Heuristic: if inactive and no prize pool, likely distributed
 
   return {
     startTime,
