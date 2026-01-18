@@ -13,6 +13,7 @@ import { Music, Trophy, Clock, Target, Play, ArrowLeft } from 'lucide-react';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { SessionManager } from '@/lib/utils/sessionManager';
+import GameScoreCard from './GameScoreCard';
 
 interface SpacetimeTriviaGameProps {
   className?: string;
@@ -48,7 +49,7 @@ export default function SpacetimeTriviaGame({ className = '', onWalletConnect, o
   // Update trial status hook to use wallet address
   const { trialStatus, isLoading: _trialLoading, incrementTrialGame } = useTrialStatus(address);
 
-  const DEFAULT_TOTAL_ROUNDS = 3;
+  const DEFAULT_TOTAL_ROUNDS = 1; // Trial games use 1 round
   const DEFAULT_QUESTIONS_PER_ROUND = 10;
 
   // Handle wallet connection - navigate back to game entry after connection
@@ -130,7 +131,7 @@ export default function SpacetimeTriviaGame({ className = '', onWalletConnect, o
         score: 0,
         isTrialPlayer: true,
         sessionId: undefined,
-        totalRounds: DEFAULT_TOTAL_ROUNDS,
+        totalRounds: 1, // Trial games always use 1 round
         questionsPerRound: DEFAULT_QUESTIONS_PER_ROUND,
       }));
       await startRound(1);
@@ -536,37 +537,23 @@ export default function SpacetimeTriviaGame({ className = '', onWalletConnect, o
     const stats = getGameStats();
     
     return (
-      <div className={`max-w-4xl mx-auto ${className}`}>
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-yellow-400 to-orange-500 rounded-full flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-3xl font-bold text-gray-800 mb-2">
-              Game Complete!
-            </CardTitle>
-            <p className="text-gray-600 text-lg">
-              Great job! Here&apos;s how you performed:
-            </p>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            <GameStats
-              totalQuestions={stats.totalQuestions}
-              correctAnswers={stats.correctAnswers}
-              accuracy={stats.accuracy}
-              averageTime={stats.averageTime}
-              totalScore={stats.totalScore}
-              maxScore={stats.totalQuestions * 100}
-            />
-            <div className="text-center">
-              <Button onClick={resetGame} size="lg" variant="outline">
-                Play Again
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+      <GameScoreCard
+        finalScore={stats.totalScore}
+        totalQuestions={stats.totalQuestions}
+        correctAnswers={stats.correctAnswers}
+        accuracy={stats.accuracy}
+        playerName="Player"
+        isGuest={false}
+        isTrialGame={gameState.isTrialPlayer}
+        onBackToEntry={() => {
+          if (onBack) {
+            onBack();
+          } else {
+            resetGame();
+          }
+        }}
+        className={className}
+      />
     );
   }
 

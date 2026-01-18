@@ -27,6 +27,7 @@ import { Avatar, Name, Identity, Address, EthBalance } from '@coinbase/onchainki
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import GameScoreCard from '@/components/game/GameScoreCard';
 
 export default function Home() {
   const router = useRouter();
@@ -52,10 +53,12 @@ export default function Home() {
   const [gameTimeRemaining, setGameTimeRemaining] = useState(10);
   const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [currentRound, setCurrentRound] = useState(1);
-  const totalRounds = 3;
+  const totalRounds = isTrialGame ? 1 : 3;
   const questionsPerRound = 10;
   const [questionNumberInRound, setQuestionNumberInRound] = useState(1);
   const [gameCompleted, setGameCompleted] = useState(false);
+  const [correctAnswers, setCorrectAnswers] = useState(0);
+  const [totalQuestionsAnswered, setTotalQuestionsAnswered] = useState(0);
   const [audioError, setAudioError] = useState(false);
   const timerTriggeredRef = useRef(false);
   // Add trial status hook
@@ -163,6 +166,8 @@ export default function Home() {
       setIsAnswered(false);
       setCurrentQuestion(null);
       setGameError(null);
+      setCorrectAnswers(0);
+      setTotalQuestionsAnswered(0);
       
       // Join the game session as a trial player
       await joinGame(false);
@@ -195,11 +200,37 @@ export default function Home() {
     setIsAnswered(false);
     setCurrentQuestion(null);
     setGameError(null);
+    setCorrectAnswers(0);
+    setTotalQuestionsAnswered(0);
     
     setShowPayment(false);
     setIsTrialGame(false);
     setGameStarted(true);
     loadRandomQuestion();
+  };
+
+  const handlePlayAgainPaid = async () => {
+    try {
+      // Reset all game state
+      setGameCompleted(false);
+      setScore(0);
+      setTotalScore(0);
+      setCurrentRound(1);
+      setQuestionNumberInRound(1);
+      setSelectedAnswer(null);
+      setIsAnswered(false);
+      setCurrentQuestion(null);
+      setGameError(null);
+      setCorrectAnswers(0);
+      setTotalQuestionsAnswered(0);
+      
+      // Set to paid mode and initiate payment flow
+      setPlayerModeChoice('paid');
+      setIsTrialGame(false);
+      setShowPayment(true);
+    } catch (error) {
+      console.error('Error initiating paid game:', error);
+    }
   };
 
   const handlePaymentBack = () => {
@@ -219,6 +250,8 @@ export default function Home() {
       setIsAnswered(false);
       setCurrentQuestion(null);
       setGameError(null);
+      setCorrectAnswers(0);
+      setTotalQuestionsAnswered(0);
       
       // Join the game session accordingly
       await joinGame(!isTrial);
@@ -252,6 +285,8 @@ export default function Home() {
       setTotalScore(0);
       setCurrentRound(1);
       setQuestionNumberInRound(1);
+      setCorrectAnswers(0);
+      setTotalQuestionsAnswered(0);
     }
   };
 
@@ -262,7 +297,9 @@ export default function Home() {
     setIsAnswered(true);
     
     const isCorrect = answerIndex === currentQuestion.correctAnswer;
+    setTotalQuestionsAnswered(prev => prev + 1);
     if (isCorrect) {
+      setCorrectAnswers(prev => prev + 1);
       const timeSpentMs = Date.now() - startTime;
       const timeSpent = Math.round(timeSpentMs / 100) / 10;
       
@@ -648,106 +685,22 @@ export default function Home() {
     }
 
     if (gameCompleted) {
+      // Calculate total questions answered
+      const totalQuestions = totalRounds * questionsPerRound;
+      const accuracy = totalQuestions > 0 ? (correctAnswers / totalQuestions) * 100 : 0;
+
       return (
-        <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-          <div className="w-full max-w-[390px] md:max-w-[428px] text-center">
-            <div className="text-white mb-8">
-              <h1 className="text-3xl font-bold mb-4">Game Complete!</h1>
-              <div className="text-2xl mb-2">Final Score: {totalScore}</div>
-              <div className="text-gray-400 mb-4">
-                {isTrialGame ? (isGuestMode ? `Trial Player: ${guestName}` : 'Trial Player') : 'Paid Player'}
-              </div>
-
-              {/* Trial Player Notice */}
-              {isTrialGame && (
-                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6">
-                  <div className="text-amber-300 text-sm">
-                    <p className="font-medium mb-2">🎮 Trial Game Results</p>
-                    <p className="text-amber-200/80">
-                      This was a practice game. Your score won't qualify for prizes from the prize pool.
-                      Connect your wallet to play for real money and compete for prizes!
-                    </p>
-                  </div>
-                </div>
-              )}
-
-              {/* Trial Exhausted Notice */}
-              {trialStatus.requiresWallet && (
-                <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
-                  <div className="text-purple-300 text-sm">
-                    <p className="font-medium mb-2">🎯 Trial Games Complete!</p>
-                    <p className="text-purple-200/80 mb-3">
-                      You've used all your free games. Connect your wallet to continue playing and earn rewards!
-                    </p>
-                    <div className="flex justify-center">
-                      <Wallet>
-                        <ConnectWallet 
-                          className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-2 rounded-lg text-sm font-semibold"
-                          disconnectedLabel="Connect Wallet to Continue"
-                        >
-                          <Avatar className="h-4 w-4" />
-                          <Name />
-                        </ConnectWallet>
-                        <WalletDropdown>
-                          <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                            <Avatar />
-                            <Name />
-                            <Address className="text-gray-400" />
-                            <EthBalance />
-                          </Identity>
-                          <button
-                            onClick={() => setShowPayment(true)}
-                            className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors"
-                          >
-                            💳 Buy USDC
-                          </button>
-                          <WalletDropdownDisconnect />
-                        </WalletDropdown>
-                      </Wallet>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* High Score Display with Reward Claiming */}
-              <div className="mb-6">
-                <HighScoreDisplay
-                  currentScore={totalScore}
-                  playerName={isGuestMode ? guestName : 'Player'}
-                  isGuest={isGuestMode}
-                  isTrialGame={isTrialGame}
-                  className="w-full"
-                />
-              </div>
-
-              {/* Paid Player Success */}
-              {!isTrialGame && (
-                <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
-                  <div className="text-green-300 text-sm">
-                    <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
-                    <p className="text-green-200/80">
-                      Your score qualifies for prizes! You'll be entered into the prize pool distribution.
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-            {/* For paid players, automatically set to paid mode when playing again */}
-            <button
-              onClick={() => {
-                // If player has wallet, force paid mode
-                if (address) {
-                  setPlayerModeChoice('paid');
-                  setIsTrialGame(false);
-                }
-                handleBackToHome();
-              }}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg"
-            >
-              Play Again
-            </button>
-          </div>
-        </div>
+        <GameScoreCard
+          finalScore={totalScore}
+          totalQuestions={totalQuestions}
+          correctAnswers={correctAnswers}
+          accuracy={accuracy}
+          playerName={isGuestMode ? guestName : 'Player'}
+          isGuest={isGuestMode}
+          isTrialGame={isTrialGame}
+          onPlayAgain={!isTrialGame && address ? handlePlayAgainPaid : undefined}
+          onBackToEntry={handleBackToHome}
+        />
       );
     }
 
