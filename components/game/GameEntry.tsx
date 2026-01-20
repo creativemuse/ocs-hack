@@ -44,7 +44,9 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
   const { 
     sessionActive, 
-    sessionInfo, 
+    sessionCounter,
+    isSessionActive,
+    currentSessionPrizePool,
     contractOwner,
     startSession, 
     checkSessionStatus, 
