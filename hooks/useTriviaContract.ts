@@ -63,6 +63,20 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     functionName: 'currentSessionPrizePool',
   });
 
+  // Read session interval
+  const { data: sessionInterval, refetch: refetchSessionInterval } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'sessionInterval',
+  });
+
+  // Read last session time
+  const { data: lastSessionTime, refetch: refetchLastSessionTime } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'lastSessionTime',
+  });
+
   // Contract owner is fetched via wagmi hook below if needed
 
   // Note: OnchainKit gasless transactions require Transaction component wrapper
@@ -167,7 +181,47 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         return false; // Don't allow transaction if user is not owner
       }
       
-      console.log('✅ You are the contract owner, attempting to start session...');
+      console.log('✅ You are the contract owner, checking session interval...');
+      
+      // Check if enough time has elapsed since last session
+      // Note: If values aren't loaded yet, we'll proceed and let the contract validate
+      if (sessionInterval !== undefined && lastSessionTime !== undefined && sessionInterval !== null && lastSessionTime !== null) {
+        const currentTime = BigInt(Math.floor(Date.now() / 1000));
+        const lastSession = BigInt(lastSessionTime.toString());
+        const interval = BigInt(sessionInterval.toString());
+        const nextSessionTime = lastSession + interval;
+        
+        if (currentTime < nextSessionTime) {
+          const timeRemaining = Number(nextSessionTime - currentTime);
+          const daysRemaining = Math.floor(timeRemaining / 86400);
+          const hoursRemaining = Math.floor((timeRemaining % 86400) / 3600);
+          const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+          const nextSessionDate = new Date(Number(nextSessionTime) * 1000);
+          
+          let timeMessage = '';
+          if (daysRemaining > 0) {
+            timeMessage = `${daysRemaining}d ${hoursRemaining}h`;
+          } else if (hoursRemaining > 0) {
+            timeMessage = `${hoursRemaining}h ${minutesRemaining}m`;
+          } else {
+            timeMessage = `${minutesRemaining}m`;
+          }
+          
+          const errorMessage = `Session interval not elapsed. Next session can start in ${timeMessage} (${nextSessionDate.toLocaleString()})`;
+          console.error('⏰', errorMessage);
+          
+          setState(prev => ({
+            ...prev,
+            error: errorMessage,
+          }));
+          
+          return false;
+        }
+      } else {
+        console.log('⚠️ Session interval data not loaded yet, proceeding with contract validation...');
+      }
+      
+      console.log('✅ Session interval has elapsed, attempting to start session...');
       
       try {
         const sessionStarted = await startSession();
@@ -189,6 +243,59 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         
       } catch (sessionError) {
         console.error('Session start failed:', sessionError);
+        
+        // Check if the error is about session interval
+        const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
+        const errorString = JSON.stringify(sessionError);
+        if (errorMessage.includes('SessionIntervalNotElapsed') || 
+            errorString.includes('SessionIntervalNotElapsed') ||
+            errorMessage.includes('session interval') ||
+            errorMessage.includes('interval not elapsed')) {
+          // Re-read the values to get the most current data
+          const [intervalResult, lastTimeResult] = await Promise.all([
+            refetchSessionInterval(),
+            refetchLastSessionTime(),
+          ]);
+          const interval = intervalResult.data ? BigInt(intervalResult.data.toString()) : null;
+          const lastTime = lastTimeResult.data ? BigInt(lastTimeResult.data.toString()) : null;
+          
+          if (interval && lastTime) {
+            const currentTime = BigInt(Math.floor(Date.now() / 1000));
+            const nextSessionTime = lastTime + interval;
+            const timeRemaining = Number(nextSessionTime - currentTime);
+            const daysRemaining = Math.floor(timeRemaining / 86400);
+            const hoursRemaining = Math.floor((timeRemaining % 86400) / 3600);
+            const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+            const nextSessionDate = new Date(Number(nextSessionTime) * 1000);
+            
+            let timeMessage = '';
+            if (daysRemaining > 0) {
+              timeMessage = `${daysRemaining}d ${hoursRemaining}h`;
+            } else if (hoursRemaining > 0) {
+              timeMessage = `${hoursRemaining}h ${minutesRemaining}m`;
+            } else {
+              timeMessage = `${minutesRemaining}m`;
+            }
+            
+            const friendlyError = `Session interval not elapsed. Next session can start in ${timeMessage} (${nextSessionDate.toLocaleString()})`;
+            
+            setState(prev => ({
+              ...prev,
+              error: friendlyError,
+            }));
+          } else {
+            setState(prev => ({
+              ...prev,
+              error: 'Session interval not elapsed. Please wait before starting a new session.',
+            }));
+          }
+        } else {
+          setState(prev => ({
+            ...prev,
+            error: errorMessage,
+          }));
+        }
+        
         return false;
       }
       
@@ -196,7 +303,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.error('Error in ensureActiveSession:', error);
       return false;
     }
-  }, [checkSessionStatus, startSession, requireSession, contractOwner, address]);
+  }, [checkSessionStatus, startSession, requireSession, contractOwner, address, sessionInterval, lastSessionTime]);
 
   // Approve USDC spending for the trivia contract
   const approveUSDC = useCallback(async () => {

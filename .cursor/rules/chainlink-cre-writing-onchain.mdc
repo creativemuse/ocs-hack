@@ -1125,18 +1125,38 @@ contract AdvancedConsumer is ReceiverTemplate {
 
 ### 5.2 Using Metadata Fields in Your Logic
 
-The `_decodeMetadata` helper function is available for use in your `_processReport` implementation. This allows you to access workflow metadata for custom business logic:
+The `_decodeMetadata` helper function is available for use in your contract. To access workflow metadata in your `_processReport` implementation, you need to override `onReport` to decode the metadata and either store it in a state variable or pass it to `_processReport` through a custom parameter.
+
+**Important**: `_processReport` is an internal function called from `onReport`, so `msg.data` inside `_processReport` will not contain the original `onReport` call data. You must pass metadata from `onReport` to `_processReport`.
+
+Here are two approaches:
+
+#### Approach 1: Store metadata in a state variable (Recommended)
 
 ```solidity
 contract MetadataAwareConsumer is ReceiverTemplate {
   mapping(bytes32 => uint256) public s_reportCountByWorkflow;
+  
+  // Temporary storage for metadata during processing
+  bytes32 private s_currentWorkflowId;
 
   constructor(address _forwarderAddress) ReceiverTemplate(_forwarderAddress) {}
 
-  function _processReport(bytes calldata report) internal override {
-    // Access the metadata to get workflow ID
-    bytes calldata metadata = msg.data[4:]; // Skip function selector
+  function onReport(bytes calldata metadata, bytes calldata report) external override {
+    // Decode metadata before calling parent
     (bytes32 workflowId, , ) = _decodeMetadata(metadata);
+    s_currentWorkflowId = workflowId;
+    
+    // Call parent implementation for standard permission checks
+    super.onReport(metadata, report);
+    
+    // Clear temporary storage after processing
+    delete s_currentWorkflowId;
+  }
+
+  function _processReport(bytes calldata report) internal override {
+    // Access the workflow ID from state variable
+    bytes32 workflowId = s_currentWorkflowId;
 
     // Use workflow ID in your business logic
     s_reportCountByWorkflow[workflowId]++;
@@ -1144,6 +1164,28 @@ contract MetadataAwareConsumer is ReceiverTemplate {
     // Process the report data
     uint256 value = abi.decode(report, (uint256));
     // ... your logic here ...
+  }
+}
+```
+
+#### Approach 2: Override `_processReport` signature (if you control the template)
+
+If you're creating your own template, you can modify `_processReport` to accept metadata:
+
+```solidity
+contract CustomReceiverTemplate is ReceiverTemplate {
+  // Override to pass metadata to _processReport
+  function onReport(bytes calldata metadata, bytes calldata report) external override {
+    // Perform security checks
+    super.onReport(metadata, report);
+    
+    // Call custom _processReport with metadata
+    _processReportWithMetadata(metadata, report);
+  }
+  
+  function _processReportWithMetadata(bytes calldata metadata, bytes calldata report) internal {
+    (bytes32 workflowId, , ) = _decodeMetadata(metadata);
+    // ... use workflowId and process report ...
   }
 }
 ```
