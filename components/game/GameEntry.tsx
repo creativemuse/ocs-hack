@@ -14,6 +14,7 @@ import { useAccount } from 'wagmi';
 import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
+import SessionCountdown from './SessionCountdown';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Zap } from 'lucide-react';
 import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
 import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
@@ -350,6 +351,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
         <TrialStatusDisplay walletAddress={address} entryToken={entryToken} />
       )}
 
+      {/* Session countdown - shows when next session can start */}
+      <SessionCountdown />
       
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">

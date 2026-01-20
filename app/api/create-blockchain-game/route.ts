@@ -61,6 +61,69 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Check session interval before attempting to start a new session
+    const lastSessionTime = await publicClient.readContract({
+      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      abi: TRIVIA_ABI,
+      functionName: 'lastSessionTime',
+    });
+
+    const sessionInterval = await publicClient.readContract({
+      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      abi: TRIVIA_ABI,
+      functionName: 'sessionInterval',
+    });
+
+    // Get current block timestamp
+    const blockNumber = await publicClient.getBlockNumber();
+    const block = await publicClient.getBlock({ blockNumber });
+    const currentTime = BigInt(block.timestamp);
+    const lastSession = BigInt(lastSessionTime.toString());
+    const interval = BigInt(sessionInterval.toString());
+    const nextSessionTime = lastSession + interval;
+
+    console.log('Last session time:', lastSessionTime);
+    console.log('Session interval:', sessionInterval);
+    console.log('Current time:', currentTime);
+    console.log('Next session time:', nextSessionTime);
+
+    // Check if enough time has elapsed
+    if (currentTime < nextSessionTime) {
+      const timeRemaining = Number(nextSessionTime - currentTime);
+      const daysRemaining = Math.floor(timeRemaining / 86400);
+      const hoursRemaining = Math.floor((timeRemaining % 86400) / 3600);
+      const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
+      const secondsRemaining = timeRemaining % 60;
+      const nextSessionDate = new Date(Number(nextSessionTime) * 1000);
+      
+      let timeMessage = '';
+      if (daysRemaining > 0) {
+        timeMessage = `${daysRemaining} day${daysRemaining > 1 ? 's' : ''}, ${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}`;
+      } else if (hoursRemaining > 0) {
+        timeMessage = `${hoursRemaining} hour${hoursRemaining !== 1 ? 's' : ''}, ${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}`;
+      } else if (minutesRemaining > 0) {
+        timeMessage = `${minutesRemaining} minute${minutesRemaining !== 1 ? 's' : ''}, ${secondsRemaining} second${secondsRemaining !== 1 ? 's' : ''}`;
+      } else {
+        timeMessage = `${secondsRemaining} second${secondsRemaining !== 1 ? 's' : ''}`;
+      }
+
+      console.log(`⏳ Session interval not elapsed. Time remaining: ${timeMessage}`);
+      console.log(`Next session can start at: ${nextSessionDate.toISOString()}`);
+
+      return NextResponse.json(
+        { 
+          success: false,
+          error: 'Session interval not elapsed',
+          message: `Cannot start a new session yet. Please wait ${timeMessage} before starting the next session.`,
+          timeRemaining: timeRemaining,
+          timeRemainingFormatted: timeMessage,
+          nextSessionTime: nextSessionTime.toString(),
+          nextSessionDate: nextSessionDate.toISOString(),
+        },
+        { status: 429 } // 429 Too Many Requests is appropriate for rate limiting
+      );
+    }
+
     // Start a new session
     console.log('Starting new blockchain game session...');
     const hash = await walletClient.writeContract({

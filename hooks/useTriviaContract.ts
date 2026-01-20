@@ -490,6 +490,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     sessionCounter,
     isSessionActive,
     currentSessionPrizePool,
+    sessionInterval,
+    lastSessionTime,
     contractOwner,
     startSession,
     checkSessionStatus,

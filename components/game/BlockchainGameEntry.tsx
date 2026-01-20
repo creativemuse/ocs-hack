@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
+import SessionCountdown from './SessionCountdown';
 import { Trophy, Clock, Users, DollarSign, Play, Zap } from 'lucide-react';
 
 interface BlockchainGameEntryProps {
@@ -108,15 +109,19 @@ export default function BlockchainGameEntry({
   }
 
   return (
-    <Card className={`bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20 ${className}`}>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-purple-400">
-          <Trophy className="w-5 h-5" />
-          Join Trivia Battle
-        </CardTitle>
-      </CardHeader>
+    <div className={`space-y-4 ${className}`}>
+      {/* Session countdown - shows when next session can start */}
+      <SessionCountdown />
       
-      <CardContent className="space-y-6">
+      <Card className="bg-gradient-to-br from-purple-500/10 to-blue-500/10 border-purple-500/20">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-purple-400">
+            <Trophy className="w-5 h-5" />
+            Join Trivia Battle
+          </CardTitle>
+        </CardHeader>
+        
+        <CardContent className="space-y-6">
         {/* Session Status */}
         {(sessionCounter !== undefined || currentSessionPrizePool !== undefined) && (
           <div className="grid grid-cols-2 gap-4 text-sm">
@@ -224,7 +229,8 @@ export default function BlockchainGameEntry({
             </div>
           </div>
         )}
-      </CardContent>
-    </Card>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
