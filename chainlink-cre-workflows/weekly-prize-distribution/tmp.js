@@ -16143,9 +16143,17 @@ var onWeeklyDistribution = (runtime2, payload) => {
   }
   runtime2.log(`Weekly distribution check triggered for contract: ${evmConfig.contractAddress}`);
   const sessionInfo = readSessionInfo(runtime2, network248.chainSelector.selector, evmConfig);
-  runtime2.log(`Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}`);
+  runtime2.log(`Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}, Session Counter: ${sessionInfo.sessionCounter}, Players: ${sessionInfo.paidPlayerCount}`);
   const currentTime = BigInt(Math.floor(Date.now() / 1000));
   const isSessionEnded = !sessionInfo.isActive || currentTime > sessionInfo.endTime;
+  if (sessionInfo.sessionCounter === BigInt(0)) {
+    const reason = `No session has been started yet (sessionCounter = 0). This is expected for a new contract. Skipping distribution.`;
+    runtime2.log(reason);
+    return {
+      distributionExecuted: false,
+      reason
+    };
+  }
   if (!isSessionEnded) {
     const reason = `Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`;
     runtime2.log(reason);
@@ -16155,15 +16163,15 @@ var onWeeklyDistribution = (runtime2, payload) => {
     };
   }
   if (sessionInfo.prizesDistributed) {
-    const reason = "Prizes already distributed for this session";
+    const reason = `Prizes already distributed for session ${sessionInfo.sessionCounter}`;
     runtime2.log(reason);
     return {
       distributionExecuted: false,
       reason
     };
   }
-  if (sessionInfo.prizePool === 0n) {
-    const reason = "No prize pool to distribute";
+  if (sessionInfo.prizePool === BigInt(0)) {
+    const reason = `No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}). This may mean prizes were already distributed or no players joined.`;
     runtime2.log(reason);
     return {
       distributionExecuted: false,
@@ -16256,11 +16264,24 @@ function readSessionInfo(runtime2, chainSelector, evmConfig) {
     functionName: "getCurrentPlayers",
     data: bytesToHex(playersResult.data)
   });
+  const sessionCounterCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "sessionCounter", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "sessionCounter"
+  });
+  const sessionCounterResult = evmClient.callContract(runtime2, {
+    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: sessionCounterCall }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+  }).result();
+  const sessionCounter = decodeFunctionResult({
+    abi: [{ inputs: [], name: "sessionCounter", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "sessionCounter",
+    data: bytesToHex(sessionCounterResult.data)
+  });
   const startTime = lastSessionTime;
   const endTime = lastSessionTime + sessionInterval;
   const paidPlayerCount = BigInt(players.length);
-  const trialPlayerCount = 0n;
-  const prizesDistributed = !isActive && prizePool === 0n;
+  const trialPlayerCount = BigInt(0);
+  const prizesDistributed = sessionCounter > BigInt(0) && !isActive && prizePool === BigInt(0);
   return {
     startTime,
     endTime,
@@ -16268,7 +16289,8 @@ function readSessionInfo(runtime2, chainSelector, evmConfig) {
     paidPlayerCount,
     trialPlayerCount,
     isActive,
-    prizesDistributed
+    prizesDistributed,
+    sessionCounter
   };
 }
 function callDistributePrizes(runtime2, chainSelector, evmConfig) {

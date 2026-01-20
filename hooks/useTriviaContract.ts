@@ -253,7 +253,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       await writeContractAsync({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'enterGame',
+        functionName: 'joinBattle',
       });
     } catch (error) {
       console.error('Error joining battle:', error);
@@ -269,96 +269,44 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
   // NOTE: This function does NOT exist in the deployed contract
   // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const joinTrialBattle = useCallback(async (sessionId: string) => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, isJoining: true, error: null }));
-
-    try {
-      // First ensure there's an active session
-      console.log('Ensuring active session before joining trial battle...');
-      const sessionActive = await ensureActiveSession();
-      
-      if (!sessionActive) {
-        throw new Error('Failed to start or find active session');
-      }
-      
-      console.log('Session is active, proceeding with join trial battle...');
-      
-      // Use regular wagmi transaction (gasless transactions require Transaction component wrapper)
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'enterGame',
-      });
-    } catch (error) {
-      console.error('Error joining trial battle:', error);
-      setState(prev => ({
-        ...prev,
-        isJoining: false,
-        error: error instanceof Error ? error.message : 'Failed to join trial battle',
-      }));
-    }
-    }, [address, isConnected, writeContractAsync, ensureActiveSession]);
+    const errorMessage = 'Trial mode is not available on-chain. Trial battles must be implemented off-chain via SpacetimeDB. Use joinBattle() to join as a paid player.';
+    console.error(errorMessage);
+    setState(prev => ({
+      ...prev,
+      isJoining: false,
+      error: errorMessage,
+    }));
+    throw new Error(errorMessage);
+  }, []);
 
   // Submit score
   // NOTE: This function does NOT exist for regular players in the deployed contract
-  // Contract has submitScores(address[], uint256[]) for batch submission by owner/chainlink only
+  // Contract has submitScores(address[] calldata, uint256[] calldata) for batch submission by owner/chainlink only
   // Scores should be tracked off-chain during gameplay, then submitted in batch after session ends
   const submitScore = useCallback(async (score: number) => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, isSubmitting: true, error: null }));
-
-    try {
-      // Use regular wagmi transaction (gasless transactions require Transaction component wrapper)
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'enterGame',
-      });
-    } catch (error) {
-      console.error('Error submitting score:', error);
-      setState(prev => ({
-        ...prev,
-        isSubmitting: false,
-        error: error instanceof Error ? error.message : 'Failed to submit score',
-      }));
-    }
-    }, [address, isConnected, writeContractAsync]);
+    const errorMessage = 'Individual score submission is not available. Scores are submitted in batch by owner/chainlink via submitScores() after the session ends. Your score will be tracked off-chain during gameplay.';
+    console.error(errorMessage);
+    setState(prev => ({
+      ...prev,
+      isSubmitting: false,
+      error: errorMessage,
+    }));
+    throw new Error(errorMessage);
+  }, []);
 
   // Submit trial score
   // NOTE: This function does NOT exist in the deployed contract
   // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
   const submitTrialScore = useCallback(async (sessionId: string, score: number) => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, isSubmitting: true, error: null }));
-
-    try {
-      // Use regular wagmi transaction (gasless transactions require Transaction component wrapper)
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'enterGame',
-      });
-    } catch (error) {
-      console.error('Error submitting trial score:', error);
-      setState(prev => ({
-        ...prev,
-        isSubmitting: false,
-        error: error instanceof Error ? error.message : 'Failed to submit trial score',
-      }));
-    }
-    }, [address, isConnected, writeContractAsync]);
+    const errorMessage = 'Trial score submission is not available on-chain. Trial mode must be implemented off-chain via SpacetimeDB.';
+    console.error(errorMessage);
+    setState(prev => ({
+      ...prev,
+      isSubmitting: false,
+      error: errorMessage,
+    }));
+    throw new Error(errorMessage);
+  }, []);
 
   // Claim winnings (calls smart contract claimWinnings function)
   const claimWinnings = useCallback(async (winningAmount: string) => {

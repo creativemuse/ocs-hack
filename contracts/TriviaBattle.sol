@@ -1,52 +1,23 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-<<<<<<< Updated upstream
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-=======
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC165} from "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 import {IChainlinkFunctions} from "./interfaces/IChainlinkFunctions.sol";
->>>>>>> Stashed changes
 
-contract TriviaBattle is ReentrancyGuard, Ownable {
-<<<<<<< Updated upstream
-    // USDC token contract
-    IERC20 public immutable USDC_TOKEN;
-    
-    // Entry fee in USDC (1 USDC = 1,000,000 wei for 6 decimals)
-    uint256 public constant ENTRY_FEE = 1_000_000; // 1 USDC
-    
-    // Platform fee in basis points (2.5% = 250 basis points)
-    uint256 public constant PLATFORM_FEE_BPS = 250; // 2.5%
-    
-    // Platform fee recipient address
-    address public platformFeeRecipient;
-    
-    // Prize claim system
-    mapping(address => uint256) public playerWinnings;
-    mapping(address => bool) public hasClaimed;
-    
-    // Game session structure
-    struct GameSession {
-        uint256 startTime;
-        uint256 endTime;
-        uint256 prizePool;
-        uint256 paidPlayerCount;
-        uint256 trialPlayerCount;
-        bool isActive;
-        bool prizesDistributed;
-        mapping(address => PlayerScore) playerScores;
-        mapping(string => TrialPlayerScore) trialPlayerScores; // sessionId => score
-        address[] paidPlayers;
-        string[] trialPlayers;
-    }
-    
-=======
+/// @title IReceiver - Interface for receiving Chainlink CRE workflow reports
+/// @notice This interface is required for contracts that receive reports from Chainlink CRE workflows
+interface IReceiver is IERC165 {
+    /// @notice Handles incoming keystone reports from Chainlink CRE workflows
+    /// @param metadata Report metadata containing workflow ID, name, and owner
+    /// @param report Encoded function call data (e.g., encoded distributePrizes() call)
+    function onReport(bytes calldata metadata, bytes calldata report) external;
+}
+
+contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     using SafeERC20 for IERC20;
 
     // --- Constants ---
@@ -77,7 +48,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     uint256 public currentSessionPrizePool; // Track entry fees collected for current session
 
     // --- Structs ---
->>>>>>> Stashed changes
     struct PlayerScore {
         address player;
         uint256 score;
@@ -91,38 +61,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         address[] winners,
         uint256[] prizeAmounts
     );
-<<<<<<< Updated upstream
-    event SessionStarted(uint256 startTime, uint256 duration);
-    event SessionEnded(uint256 endTime);
-    event PlatformFeeCollected(uint256 amount, address indexed recipient);
-    event PlatformFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
-    event WinningsClaimed(address indexed player, uint256 amount);
-    
-    // Modifiers
-    modifier onlyActiveSession() {
-        _onlyActiveSession();
-        _;
-    }
-    
-    modifier onlySessionEnded() {
-        _onlySessionEnded();
-        _;
-    }
-    
-    function _onlyActiveSession() internal view {
-        require(currentSession.isActive, "No active session");
-        require(block.timestamp >= currentSession.startTime, "Session not started");
-        require(block.timestamp <= currentSession.endTime, "Session ended");
-    }
-    
-    function _onlySessionEnded() internal view {
-        require(!currentSession.isActive || block.timestamp > currentSession.endTime, "Session still active");
-    }
-    
-    constructor(address _usdcToken, address _platformFeeRecipient) Ownable(msg.sender) {
-        USDC_TOKEN = IERC20(_usdcToken);
-        platformFeeRecipient = _platformFeeRecipient;
-=======
     event PlatformFeeDistributed(
         uint256 indexed sessionId,
         address indexed recipient,
@@ -201,7 +139,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         _setEntryFee(_entryFee);
         lastSessionTime = block.timestamp;
         sessionCounter = 0; // Explicitly initialize session counter to 0
->>>>>>> Stashed changes
     }
 
     // --- Core Functions ---
@@ -236,133 +173,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             revert TriviaBattle__SessionNotActive();
         }
         
-<<<<<<< Updated upstream
-        // Ensure session is active and has started
-        require(currentSession.isActive, "No active session");
-        require(block.timestamp >= currentSession.startTime, "Session not started");
-        
-        // Calculate platform fee (2.5% of entry fee)
-        uint256 platformFee = (ENTRY_FEE * PLATFORM_FEE_BPS) / 10000;
-        uint256 prizePoolContribution = ENTRY_FEE - platformFee;
-        
-        // Transfer USDC entry fee
-        require(
-            USDC_TOKEN.transferFrom(msg.sender, address(this), ENTRY_FEE),
-            "USDC transfer failed"
-        );
-        
-        // Transfer platform fee to recipient
-        if (platformFee > 0 && platformFeeRecipient != address(0)) {
-            require(
-                USDC_TOKEN.transfer(platformFeeRecipient, platformFee),
-                "Platform fee transfer failed"
-            );
-            emit PlatformFeeCollected(platformFee, platformFeeRecipient);
-        }
-        
-        // Add remaining amount to prize pool
-        currentSession.prizePool += prizePoolContribution;
-        currentSession.paidPlayerCount++;
-        currentSession.paidPlayers.push(msg.sender);
-        
-        // Initialize player score
-        currentSession.playerScores[msg.sender] = PlayerScore({
-            score: 0,
-            hasSubmitted: false,
-            submissionTime: 0
-        });
-        
-        emit PlayerJoined(msg.sender, ENTRY_FEE, platformFee);
-    }
-    
-    /**
-     * @dev Join battle as a trial player (no entry fee required)
-     * Trial players can participate but are NOT eligible for prize pool distributions
-     * Automatically starts a session if none is active
-     * @param sessionId Unique session identifier for trial player
-     */
-    function joinTrialBattle(string calldata sessionId) external {
-        require(bytes(sessionId).length > 0, "Invalid session ID");
-        require(currentSession.trialPlayerScores[sessionId].score == 0, "Session ID already used");
-        
-        // If no active session OR the previous session has ended, start a new one automatically
-        if (!currentSession.isActive || block.timestamp > currentSession.endTime) {
-            _startNewSession(300); // Default 5 minutes
-        }
-        
-        // Ensure session is active and has started
-        require(currentSession.isActive, "No active session");
-        require(block.timestamp >= currentSession.startTime, "Session not started");
-        
-        currentSession.trialPlayerCount++;
-        currentSession.trialPlayers.push(sessionId);
-        
-        // Initialize trial player score
-        currentSession.trialPlayerScores[sessionId] = TrialPlayerScore({
-            score: 0,
-            hasSubmitted: false,
-            submissionTime: 0
-        });
-        
-        emit TrialPlayerJoined(sessionId);
-    }
-    
-    /**
-     * @dev Submit score for paid player
-     * @param score Player's final score
-     */
-    function submitScore(uint256 score) external onlyActiveSession {
-        require(currentSession.playerScores[msg.sender].score > 0, "Player not joined");
-        require(!currentSession.playerScores[msg.sender].hasSubmitted, "Score already submitted");
-        
-        currentSession.playerScores[msg.sender].score = score;
-        currentSession.playerScores[msg.sender].hasSubmitted = true;
-        currentSession.playerScores[msg.sender].submissionTime = block.timestamp;
-        
-        emit ScoreSubmitted(msg.sender, score, block.timestamp);
-    }
-    
-    /**
-     * @dev Submit score for trial player
-     * Trial players can submit scores but are not eligible for prizes
-     * @param sessionId Trial player's session ID
-     * @param score Player's final score
-     */
-    function submitTrialScore(string calldata sessionId, uint256 score) external onlyActiveSession {
-        require(currentSession.trialPlayerScores[sessionId].score > 0, "Trial player not joined");
-        require(!currentSession.trialPlayerScores[sessionId].hasSubmitted, "Score already submitted");
-        
-        currentSession.trialPlayerScores[sessionId].score = score;
-        currentSession.trialPlayerScores[sessionId].hasSubmitted = true;
-        currentSession.trialPlayerScores[sessionId].submissionTime = block.timestamp;
-        
-        emit TrialScoreSubmitted(sessionId, score, block.timestamp);
-    }
-    
-    /**
-     * @dev Distribute prizes to winners (only owner, after session ends)
-     * RESTRICTED: Only paid players are eligible for prize pool distributions
-     * Trial players are excluded from prize distribution to prevent abuse
-     */
-    function distributePrizes() external onlyOwner onlySessionEnded nonReentrant {
-        require(!currentSession.prizesDistributed, "Prizes already distributed");
-        require(currentSession.prizePool > 0, "No prize pool");
-        
-        // Collect only paid player scores (trial players excluded from prize distribution)
-        ScoreEntry[] memory paidPlayerScores = new ScoreEntry[](currentSession.paidPlayers.length);
-        
-        uint256 scoreIndex = 0;
-        
-        // Add only paid player scores
-        for (uint256 i = 0; i < currentSession.paidPlayers.length; i++) {
-            address player = currentSession.paidPlayers[i];
-            if (currentSession.playerScores[player].hasSubmitted) {
-                paidPlayerScores[scoreIndex] = ScoreEntry({
-                    playerAddress: player,
-                    score: currentSession.playerScores[player].score
-                });
-                scoreIndex++;
-=======
         // Check if player participated in current session
         // If hasParticipated is true but player is not in current players array,
         // they're from a previous session, so clear the flag and allow them to join
@@ -380,7 +190,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
                 delete hasParticipated[msg.sender];
             } else {
                 revert TriviaBattle__AlreadyParticipated();
->>>>>>> Stashed changes
             }
         }
 
@@ -521,129 +330,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         currentSessionPrizePool = 0; // Reset prize pool after distribution
         isSessionActive = false; // Mark session as inactive after prize distribution
     }
-<<<<<<< Updated upstream
-    
-    /**
-     * @dev Claim winnings (gasless-enabled for players)
-     * Players can claim their accumulated winnings from prize distributions
-     */
-    function claimWinnings() external nonReentrant {
-        require(playerWinnings[msg.sender] > 0, "No winnings to claim");
-        require(!hasClaimed[msg.sender], "Already claimed");
-        
-        uint256 amount = playerWinnings[msg.sender];
-        playerWinnings[msg.sender] = 0;
-        hasClaimed[msg.sender] = true;
-        
-        require(
-            USDC_TOKEN.transfer(msg.sender, amount),
-            "Claim transfer failed"
-        );
-        
-        emit WinningsClaimed(msg.sender, amount);
-    }
-    
-    /**
-     * @dev Get current session info
-     */
-    function getSessionInfo() external view returns (
-        uint256 startTime,
-        uint256 endTime,
-        uint256 prizePool,
-        uint256 paidPlayerCount,
-        uint256 trialPlayerCount,
-        bool isActive,
-        bool prizesDistributed
-    ) {
-        return (
-            currentSession.startTime,
-            currentSession.endTime,
-            currentSession.prizePool,
-            currentSession.paidPlayerCount,
-            currentSession.trialPlayerCount,
-            currentSession.isActive,
-            currentSession.prizesDistributed
-        );
-    }
-    
-    /**
-     * @dev Get player score
-     */
-    function getPlayerScore(address player) external view returns (
-        uint256 score,
-        bool hasSubmitted,
-        uint256 submissionTime
-    ) {
-        PlayerScore memory playerScore = currentSession.playerScores[player];
-        return (playerScore.score, playerScore.hasSubmitted, playerScore.submissionTime);
-    }
-    
-    /**
-     * @dev Get trial player score
-     */
-    function getTrialPlayerScore(string calldata sessionId) external view returns (
-        uint256 score,
-        bool hasSubmitted,
-        uint256 submissionTime
-    ) {
-        TrialPlayerScore memory trialScore = currentSession.trialPlayerScores[sessionId];
-        return (trialScore.score, trialScore.hasSubmitted, trialScore.submissionTime);
-    }
-    
-    /**
-     * @dev Update platform fee recipient address (only owner)
-     * @param _newRecipient New platform fee recipient address
-     */
-    function updatePlatformFeeRecipient(address _newRecipient) external onlyOwner {
-        require(_newRecipient != address(0), "Invalid recipient address");
-        address oldRecipient = platformFeeRecipient;
-        platformFeeRecipient = _newRecipient;
-        emit PlatformFeeRecipientUpdated(oldRecipient, _newRecipient);
-    }
-    
-    /**
-     * @dev Emergency function to withdraw USDC (only owner)
-     */
-    function emergencyWithdraw() external onlyOwner {
-        uint256 balance = USDC_TOKEN.balanceOf(address(this));
-        require(balance > 0, "No USDC to withdraw");
-        require(USDC_TOKEN.transfer(owner(), balance), "Withdrawal failed");
-    }
-    
-    // Internal functions
-    struct ScoreEntry {
-        address playerAddress;
-        uint256 score;
-    }
-    
-    /**
-     * @dev Internal function to start a new session (can be called by anyone)
-     * @param duration Duration of the session in seconds
-     */
-    function _startNewSession(uint256 duration) internal {
-        require(!currentSession.isActive, "Session already active");
-        require(duration > 0, "Invalid duration");
-        
-        // Reset current session
-        delete currentSession;
-        
-        currentSession.startTime = block.timestamp;
-        currentSession.endTime = block.timestamp + duration;
-        currentSession.isActive = true;
-        currentSession.prizesDistributed = false;
-        
-        emit SessionStarted(currentSession.startTime, duration);
-    }
-    
-    function _sortScores(ScoreEntry[] memory scores, uint256 length) internal pure {
-        // Simple bubble sort for demo - in production use a more efficient algorithm
-        for (uint256 i = 0; i < length - 1; i++) {
-            for (uint256 j = 0; j < length - i - 1; j++) {
-                if (scores[j].score < scores[j + 1].score) {
-                    ScoreEntry memory temp = scores[j];
-                    scores[j] = scores[j + 1];
-                    scores[j + 1] = temp;
-=======
 
     function _findTopPlayers(uint256 numWinners)
         private
@@ -678,7 +364,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
                     PlayerScore memory temp = playerScoresArray[j];
                     playerScoresArray[j] = playerScoresArray[j + 1];
                     playerScoresArray[j + 1] = temp;
->>>>>>> Stashed changes
                 }
             }
         }
@@ -902,5 +587,49 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
 
     function getContractUsdcBalance() external view returns (uint256) {
         return USDC_TOKEN.balanceOf(address(this));
+    }
+
+    // --- Chainlink CRE Integration (IReceiver) ---
+    
+    /// @notice Receives reports from Chainlink CRE workflow
+    /// @dev This function is called by the Chainlink KeystoneForwarder when a CRE workflow
+    ///      writes data onchain. The report contains encoded function call data (e.g., distributePrizes()).
+    ///      We verify the caller is the configured chainlinkOracle (forwarder), then execute the report.
+    /// @param report Encoded function call data from the CRE workflow
+    function onReport(
+        bytes calldata /* metadata */,
+        bytes calldata report
+    ) external {
+        // Security: Verify caller is the Chainlink forwarder (set via setChainlinkOracle)
+        if (msg.sender != chainlinkOracle) {
+            revert TriviaBattle__Unauthorized();
+        }
+
+        // Execute the report data as a function call
+        // The report contains the encoded function call (e.g., distributePrizes())
+        // Use a low-level call to execute it
+        (bool success, bytes memory returnData) = address(this).call(report);
+        
+        if (!success) {
+            // Decode error if possible, otherwise revert with generic message
+            if (returnData.length > 0) {
+                assembly {
+                    let returndata_size := mload(returnData)
+                    revert(add(32, returnData), returndata_size)
+                }
+            } else {
+                revert("TriviaBattle__ReportExecutionFailed");
+            }
+        }
+    }
+
+    /// @notice ERC165 interface detection
+    /// @dev Returns true for IReceiver and IERC165 interface IDs
+    /// @param interfaceId The interface identifier to check
+    /// @return true if the contract implements the interface
+    function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
+        return 
+            interfaceId == type(IReceiver).interfaceId ||
+            interfaceId == type(IERC165).interfaceId;
     }
 }

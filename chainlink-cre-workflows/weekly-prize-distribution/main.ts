@@ -31,6 +31,7 @@ type SessionInfo = {
   trialPlayerCount: bigint
   isActive: boolean
   prizesDistributed: boolean
+  sessionCounter: bigint // Added to track if session was actually started
 }
 
 type DistributionResult = {
@@ -71,12 +72,22 @@ const onWeeklyDistribution = (
   const sessionInfo = readSessionInfo(runtime, network.chainSelector.selector, evmConfig)
 
   runtime.log(
-    `Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}`
+    `Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}, Session Counter: ${sessionInfo.sessionCounter}, Players: ${sessionInfo.paidPlayerCount}`
   )
 
   // Step 2: Check if distribution is needed
   const currentTime = BigInt(Math.floor(Date.now() / 1000))
   const isSessionEnded = !sessionInfo.isActive || currentTime > sessionInfo.endTime
+
+  // Early check: If no session was ever started, skip distribution
+  if (sessionInfo.sessionCounter === BigInt(0)) {
+    const reason = `No session has been started yet (sessionCounter = 0). This is expected for a new contract. Skipping distribution.`
+    runtime.log(reason)
+    return {
+      distributionExecuted: false,
+      reason,
+    }
+  }
 
   if (!isSessionEnded) {
     const reason = `Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`
@@ -88,7 +99,7 @@ const onWeeklyDistribution = (
   }
 
   if (sessionInfo.prizesDistributed) {
-    const reason = "Prizes already distributed for this session"
+    const reason = `Prizes already distributed for session ${sessionInfo.sessionCounter}`
     runtime.log(reason)
     return {
       distributionExecuted: false,
@@ -97,7 +108,7 @@ const onWeeklyDistribution = (
   }
 
   if (sessionInfo.prizePool === BigInt(0)) {
-    const reason = "No prize pool to distribute"
+    const reason = `No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}). This may mean prizes were already distributed or no players joined.`
     runtime.log(reason)
     return {
       distributionExecuted: false,
@@ -229,12 +240,35 @@ function readSessionInfo(
     data: bytesToHex(playersResult.data),
   }) as `0x${string}`[]
 
+  // Read sessionCounter to verify if a session was actually started
+  const sessionCounterCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "sessionCounter", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "sessionCounter",
+  })
+  const sessionCounterResult = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: sessionCounterCall }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    })
+    .result()
+  const sessionCounter = decodeFunctionResult({
+    abi: [{ inputs: [], name: "sessionCounter", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "sessionCounter",
+    data: bytesToHex(sessionCounterResult.data),
+  }) as bigint
+
   // Calculate session times
   const startTime = lastSessionTime
   const endTime = lastSessionTime + sessionInterval
   const paidPlayerCount = BigInt(players.length)
   const trialPlayerCount = BigInt(0) // Not tracked separately in this contract version
-  const prizesDistributed = !isActive && prizePool === BigInt(0) // Heuristic: if inactive and no prize pool, likely distributed
+  
+  // Improved heuristic: Only assume prizes distributed if:
+  // 1. A session was actually started (sessionCounter > 0)
+  // 2. Session has ended (not active)
+  // 3. Prize pool is empty
+  // This distinguishes between "no activity yet" vs "prizes already distributed"
+  const prizesDistributed = sessionCounter > BigInt(0) && !isActive && prizePool === BigInt(0)
 
   return {
     startTime,
@@ -244,6 +278,7 @@ function readSessionInfo(
     trialPlayerCount,
     isActive,
     prizesDistributed,
+    sessionCounter, // Include sessionCounter in return value
   }
 }
 

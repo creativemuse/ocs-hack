@@ -185,28 +185,34 @@ export default function BlockchainGameEntry({
               </div>
             </div>
 
-            {/* Trial Player Option */}
-            <div className="border border-blue-500/20 rounded-lg p-4 bg-blue-500/5">
+            {/* Trial Player Option - DISABLED: Not available on-chain */}
+            <div className="border border-blue-500/20 rounded-lg p-4 bg-blue-500/5 opacity-60">
               <div className="flex items-center justify-between mb-3">
                 <h3 className="font-semibold text-blue-300">Trial Player</h3>
-                <Badge variant="secondary" className="bg-blue-500/20 text-blue-300">
-                  Free
+                <Badge variant="secondary" className="bg-gray-500/20 text-gray-400">
+                  Unavailable
                 </Badge>
               </div>
               
-              <div className="space-y-2 text-sm text-gray-300 mb-4">
-                <p>• Play for free</p>
-                <p>• No wallet required</p>
-                <p>• Practice mode</p>
+              <div className="space-y-2 text-sm text-gray-400 mb-4">
+                <p>• Trial mode is not available on-chain</p>
+                <p>• Must be implemented off-chain via SpacetimeDB</p>
+                <p>• Use "Join Battle" above to play as paid player</p>
               </div>
+
+              <Alert className="border-yellow-500/20 bg-yellow-500/10 mb-4">
+                <AlertDescription className="text-yellow-300 text-xs">
+                  Trial mode requires off-chain implementation. Use SpacetimeDB or join as a paid player.
+                </AlertDescription>
+              </Alert>
 
               <Button
                 onClick={handleJoinTrialBattle}
-                disabled={!canJoinTrial}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white"
+                disabled={true}
+                className="w-full bg-gray-600 hover:bg-gray-600 text-gray-400 cursor-not-allowed"
               >
-                <Play className="w-4 h-4 mr-2" />
-                Start Trial
+                <Zap className="w-4 h-4 mr-2" />
+                Trial Mode Unavailable
               </Button>
             </div>
           </div>

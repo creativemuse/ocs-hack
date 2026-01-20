@@ -108,7 +108,7 @@ export function usePaidGameEntryWithERC20Gas() {
         value: BigInt(0),
         data: encodeFunctionData({
           abi: TRIVIA_ABI,
-          functionName: 'enterGame',
+          functionName: 'joinBattle',
           args: [],
         }),
       });

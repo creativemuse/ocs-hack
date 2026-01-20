@@ -44,12 +44,12 @@ export function usePaidGameEntry() {
     // Wait a moment for approval to be processed
     await new Promise(resolve => setTimeout(resolve, 2000));
     
-    // Then enter game
-    console.log('EOA: Entering game...');
+    // Then join battle
+    console.log('EOA: Joining battle...');
     await writeContractEOA({
       address: calls[1].address,
       abi: calls[1].abi,
-      functionName: calls[1].functionName as "enterGame",
+      functionName: calls[1].functionName as "joinBattle",
       args: calls[1].args as [],
     });
   }, [writeContractEOA]);

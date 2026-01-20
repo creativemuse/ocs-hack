@@ -20,7 +20,7 @@ export function createPaidGameCalls() {
     {
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'enterGame',
+      functionName: 'joinBattle',
       args: [],
     },
   ];
@@ -28,14 +28,14 @@ export function createPaidGameCalls() {
 
 /**
  * Creates transaction calls for trial game entry
+ * 
+ * NOTE: Trial mode is NOT available on-chain in the TriviaBattle contract.
+ * The joinTrialBattle() function does not exist. Trial mode must be implemented
+ * off-chain via SpacetimeDB or another off-chain solution.
+ * 
+ * This function returns null to prevent errors. Do not use for on-chain transactions.
  */
 export function createTrialGameCalls(sessionId: string) {
-  return [
-    {
-      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'joinTrialBattle',
-      args: [sessionId],
-    },
-  ];
+  console.warn('Trial mode is not available on-chain. joinTrialBattle() does not exist in the contract. Trial mode must be implemented off-chain via SpacetimeDB.');
+  return null;
 }
