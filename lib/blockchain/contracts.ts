@@ -18,7 +18,9 @@ export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
   '0xe72Fc03137A1412354ca97282071d173Ae592D96'; // Base Sepolia default
 
-// Contract ABI for TriviaBattle contract (updated to match deployed contract on Base Sepolia)
+// Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
+// NOTE: This is a session-based contract, not game-based. It does NOT have:
+// - currentGameId, games mapping, getGameInfo, getPlayerRanking, calculatePrize, claimPrize, hasPlayerClaimed, hasPlayerEntered, createGame, enterGame
 const TRIVIA_ABI_INLINE = [
   {
     "type": "constructor",
@@ -188,88 +190,6 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
-    "name": "currentGameId",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "games",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "prizePool",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "platformFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "playerCount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "startTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "endTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "isActive",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "isFinalized",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "rankingsSubmitted",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "functionsRequestId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "chainlinkMode",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "distributePrizes",
     "inputs": [],
     "outputs": [],
@@ -277,21 +197,7 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
-    "name": "createGame",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "endSession",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "enterGame",
     "inputs": [],
     "outputs": [],
     "stateMutability": "nonpayable"
@@ -354,126 +260,6 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
-    "name": "getGameInfo",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "prizePool",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "platformFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "playerCount",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "startTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "endTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "isActive",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "isFinalized",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "rankingsSubmitted",
-        "type": "bool",
-        "internalType": "bool"
-      },
-      {
-        "name": "chainlinkMode",
-        "type": "uint8",
-        "internalType": "uint8"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getPlayerRanking",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "player",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "calculatePrize",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "ranking",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "prize",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "claimPrize",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
     "name": "getCurrentPlayers",
     "inputs": [],
     "outputs": [
@@ -500,54 +286,6 @@ const TRIVIA_ABI_INLINE = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "hasPlayerClaimed",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "player",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "hasPlayerEntered",
-    "inputs": [
-      {
-        "name": "gameId",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "player",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
       }
     ],
     "stateMutability": "view"
@@ -879,6 +617,43 @@ const TRIVIA_ABI_INLINE = [
     ],
     "outputs": [],
     "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "onReport",
+    "inputs": [
+      {
+        "name": "metadata",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "report",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "supportsInterface",
+    "inputs": [
+      {
+        "name": "interfaceId",
+        "type": "bytes4",
+        "internalType": "bytes4"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "pure"
   },
   {
     "type": "event",

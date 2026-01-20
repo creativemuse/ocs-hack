@@ -1,204 +1,109 @@
 'use client';
 
-import { useState, useEffect, useMemo, useRef } from 'react';
-import { useAccount, useReadContract, useReadContracts } from 'wagmi';
+import { useState, useEffect } from 'react';
+import { useAccount, useReadContract } from 'wagmi';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 export interface UnclaimedGame {
-  gameId: bigint;
+  sessionId: bigint;
   prizeAmount: string;
   ranking: number;
   prizePool: string;
   playerCount: number;
-  endTime: bigint;
-  isFinalized: boolean;
+  isActive: boolean;
 }
 
+/**
+ * NOTE: TriviaBattle.sol is session-based and does NOT store history of past sessions.
+ * This hook can only check the current session. Past sessions are not queryable on-chain.
+ * Prizes are automatically distributed when distributePrizes() is called - there's no claim function.
+ */
 export function useUnclaimedGames(maxGamesToCheck: number = 10) {
   const { address, isConnected } = useAccount();
   const [unclaimedGames, setUnclaimedGames] = useState<UnclaimedGame[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Get current game ID
-  const { data: currentGameId, isLoading: isLoadingGameId } = useReadContract({
+  // Get current session counter
+  const { data: sessionCounter, isLoading: isLoadingSessionId } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'currentGameId',
+    functionName: 'sessionCounter',
   });
 
-  // Generate game IDs to check (last N games before current)
-  const gameIdsToCheck = useMemo(() => {
-    if (!currentGameId) return [];
-    const currentId = Number(currentGameId);
-    const startGameId = Math.max(1, currentId - maxGamesToCheck);
-    const gameIds: bigint[] = [];
-    for (let i = startGameId; i < currentId; i++) {
-      gameIds.push(BigInt(i));
-    }
-    return gameIds;
-  }, [currentGameId, maxGamesToCheck]);
+  // Read current session info
+  const { data: isSessionActive } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'isSessionActive',
+  });
 
-  // Create contract calls for all games we want to check
-  const contractCalls = useMemo(() => {
-    if (!address || !isConnected || gameIdsToCheck.length === 0) return [];
+  const { data: currentSessionPrizePool } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'currentSessionPrizePool',
+  });
 
-    const calls: any[] = [];
-    
-    // For each game, check:
-    // 1. hasPlayerEntered
-    // 2. hasPlayerClaimed  
-    // 3. getGameInfo
-    // 4. getPlayerRanking
-    // 5. calculatePrize (if ranked)
-    
-    gameIdsToCheck.forEach((gameId) => {
-      // Check if player entered
-      calls.push({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'hasPlayerEntered' as const,
-        args: [gameId, address],
-      });
-      
-      // Check if player claimed
-      calls.push({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'hasPlayerClaimed' as const,
-        args: [gameId, address],
-      });
-      
-      // Get game info
-      calls.push({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'getGameInfo' as const,
-        args: [gameId],
-      });
-      
-      // Get player ranking
-      calls.push({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'getPlayerRanking' as const,
-        args: [gameId, address],
-      });
-    });
+  const { data: currentPlayers } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'getCurrentPlayers',
+  });
 
-    return calls;
-  }, [address, isConnected, gameIdsToCheck]);
-
-  // Execute all contract reads in parallel
-  const { data: contractResults, isLoading: isLoadingCalls } = useReadContracts({
-    contracts: contractCalls,
+  const { data: playerScore } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'getPlayerScore',
+    args: address ? [address] : undefined,
     query: {
-      enabled: contractCalls.length > 0 && !!address && isConnected,
+      enabled: !!address && isConnected,
     },
   });
 
-  // Process results when contract calls complete
+  // Check current session only (past sessions are not stored on-chain)
   useEffect(() => {
-    if (!contractResults || contractResults.length === 0 || !gameIdsToCheck.length) {
+    if (!address || !isConnected || !sessionCounter) {
       setUnclaimedGames([]);
       return;
     }
 
     setIsLoading(true);
     try {
-      const games: UnclaimedGame[] = [];
-      const callsPerGame = 4; // hasEntered, hasClaimed, gameInfo, ranking
+      const playersList = (currentPlayers as `0x${string}`[] | undefined) || [];
+      const isPlayerInSession = playersList.includes(address as `0x${string}`);
+      const sessionActive = Boolean(isSessionActive ?? false);
+      const prizePool = currentSessionPrizePool?.toString() || '0';
+      const score = playerScore || BigInt(0);
 
-      gameIdsToCheck.forEach((gameId, gameIndex) => {
-        const baseIndex = gameIndex * callsPerGame;
-        
-        const hasEntered = contractResults[baseIndex]?.result as boolean;
-        const hasClaimed = contractResults[baseIndex + 1]?.result as boolean;
-        const gameInfo = contractResults[baseIndex + 2]?.result as readonly [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, number] | undefined;
-        const ranking = contractResults[baseIndex + 3]?.result as bigint | undefined;
-
-        // Skip if player didn't enter or already claimed
-        if (!hasEntered || hasClaimed || !gameInfo || !ranking) {
-          return;
-        }
-
-        const [prizePool, , playerCount, , endTime, , isFinalized] = gameInfo;
-        const rankingNum = Number(ranking);
-
-        // Only include if player has a ranking (was ranked) and game is finalized
-        if (rankingNum > 0 && isFinalized) {
-          // Calculate prize amount
-          // We need to call calculatePrize, but for now we'll estimate based on ranking
-          // In a production app, you'd want to batch calculatePrize calls too
-          const prizeAmount = '0'; // Will be calculated separately if needed
-
-          games.push({
-            gameId,
-            prizeAmount,
-            ranking: rankingNum,
-            prizePool: prizePool.toString(),
-            playerCount: Number(playerCount),
-            endTime,
-            isFinalized,
-          });
-        }
-      });
-
-      setUnclaimedGames(games);
+      // NOTE: TriviaBattle.sol doesn't store past sessions
+      // We can only check the current session
+      // Prizes are automatically distributed - there's no claim function
+      if (isPlayerInSession && !sessionActive && score > BigInt(0)) {
+        // Session ended, player participated, prizes should have been distributed
+        // Check wallet for USDC transfers instead of checking "claimed" status
+        setUnclaimedGames([{
+          sessionId: sessionCounter,
+          prizeAmount: '0', // Can't calculate without all player scores
+          ranking: 0, // Can't determine without all player scores
+          prizePool,
+          playerCount: playersList.length,
+          isActive: false,
+        }]);
+      } else {
+        setUnclaimedGames([]);
+      }
     } catch (err) {
       console.error('Error processing unclaimed games:', err);
       setError(err instanceof Error ? err.message : 'Failed to process unclaimed games');
+      setUnclaimedGames([]);
     } finally {
       setIsLoading(false);
     }
-  }, [contractResults, gameIdsToCheck]);
-
-  // Calculate prize amounts for each game using useReadContracts
-  const prizeCalculationCalls = useMemo(() => {
-    if (unclaimedGames.length === 0) return [];
-    
-    return unclaimedGames.map((game) => ({
-      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'calculatePrize' as const,
-      args: [game.gameId, BigInt(game.ranking)],
-    }));
-  }, [unclaimedGames]);
-
-  const { data: prizeResults } = useReadContracts({
-    contracts: prizeCalculationCalls,
-    query: {
-      enabled: prizeCalculationCalls.length > 0,
-    },
-  });
-
-  // Update games with calculated prize amounts
-  const previousPrizeResults = useRef<string>('');
-  useEffect(() => {
-    if (!prizeResults || prizeResults.length === 0) return;
-
-    const prizeResultsString = JSON.stringify(prizeResults.map(r => r.result?.toString()));
-    if (prizeResultsString === previousPrizeResults.current) return;
-    previousPrizeResults.current = prizeResultsString;
-
-    setUnclaimedGames((prevGames) => {
-      if (prevGames.length === 0 || prevGames.length !== prizeResults.length) return prevGames;
-      
-      return prevGames.map((game, index) => {
-        const prizeResult = prizeResults[index]?.result as bigint | undefined;
-        const prizeAmount = prizeResult?.toString() || '0';
-        
-        return {
-          ...game,
-          prizeAmount,
-        };
-      });
-    });
-  }, [prizeResults]); // Only update when prize results change
+  }, [address, isConnected, sessionCounter, isSessionActive, currentSessionPrizePool, currentPlayers, playerScore]);
 
   return {
     unclaimedGames,
-    isLoading: isLoading || isLoadingGameId || isLoadingCalls,
+    isLoading: isLoading || isLoadingSessionId,
     error,
     refresh: () => {
       // Trigger a refetch by updating dependencies

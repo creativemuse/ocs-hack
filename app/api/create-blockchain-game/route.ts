@@ -35,85 +35,74 @@ export async function POST(req: NextRequest) {
       );
     }
     
-    // Check if there's already an active game
-    const currentGameId = await publicClient.readContract({
+    // Check if there's already an active session
+    const isSessionActive = await publicClient.readContract({
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'currentGameId',
+      functionName: 'isSessionActive',
     });
 
-    console.log('Current game ID:', currentGameId);
+    const sessionCounter = await publicClient.readContract({
+      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      abi: TRIVIA_ABI,
+      functionName: 'sessionCounter',
+    });
 
-    // If there's already an active game, check if it's still valid
-    if (Number(currentGameId) > 0) {
-      try {
-        const game = await publicClient.readContract({
-          address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-          abi: TRIVIA_ABI,
-          functionName: 'games',
-          args: [currentGameId],
-        });
+    console.log('Current session counter:', sessionCounter);
+    console.log('Is session active:', isSessionActive);
 
-        // Check if the game is still active and not expired
-        const now = Math.floor(Date.now() / 1000);
-        const endTime = Number(game[2]); // endTime is at index 2
-        const isActive = game[5]; // isActive is at index 5
-
-        if (isActive && now < endTime) {
-          console.log('✅ Active game already exists, no need to create new one');
-          return NextResponse.json({ 
-            success: true, 
-            gameId: currentGameId.toString(),
-            message: 'Active game already exists' 
-          });
-        }
-      } catch (error) {
-        console.warn('Could not read game details, proceeding to create new game:', error);
-      }
+    // If there's already an active session, return it
+    if (isSessionActive) {
+      console.log('✅ Active session already exists, no need to create new one');
+      return NextResponse.json({ 
+        success: true, 
+        sessionId: sessionCounter.toString(),
+        message: 'Active session already exists' 
+      });
     }
 
-    // Create a new game
-    console.log('Creating new blockchain game...');
+    // Start a new session
+    console.log('Starting new blockchain game session...');
     const hash = await walletClient.writeContract({
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'createGame',
+      functionName: 'startNewSession',
     });
 
-    console.log('Game creation transaction hash:', hash);
+    console.log('Session start transaction hash:', hash);
 
     // Wait for transaction to be confirmed
     const receipt = await publicClient.waitForTransactionReceipt({ hash });
     
     if (receipt.status === 'success') {
-      // Get the new game ID
-      const newGameId = await publicClient.readContract({
+      // Get the new session counter (it will be incremented by startNewSession)
+      const newSessionCounter = await publicClient.readContract({
         address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
         abi: TRIVIA_ABI,
-        functionName: 'currentGameId',
+        functionName: 'sessionCounter',
       });
 
-      console.log('✅ Blockchain game created successfully! Game ID:', newGameId);
+      console.log('✅ Blockchain game session started successfully! Session ID:', newSessionCounter);
       
       return NextResponse.json({ 
         success: true, 
-        gameId: newGameId.toString(),
+        sessionId: newSessionCounter.toString(),
         transactionHash: hash,
-        message: 'Blockchain game created successfully' 
+        message: 'Blockchain game session started successfully' 
       });
     } else {
-      throw new Error('Game creation transaction failed');
+      throw new Error('Session start transaction failed');
     }
 
   } catch (error) {
-    console.error('❌ Failed to create blockchain game:', error);
+    console.error('❌ Failed to start blockchain game session:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     const errorDetails = error instanceof Error ? error.stack : String(error);
     
     return NextResponse.json(
       { 
         success: false,
-        error: 'Failed to create blockchain game',
+        error: 'Failed to start blockchain game session',
         details: errorMessage,
         // Only include stack in development
         ...(process.env.NODE_ENV === 'development' && { stack: errorDetails })
