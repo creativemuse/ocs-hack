@@ -42,22 +42,25 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     hash,
   });
 
-  // Read current game ID
-  const { data: currentGameId } = useReadContract({
+  // Read current session counter
+  const { data: sessionCounter } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'currentGameId',
+    functionName: 'sessionCounter',
   });
 
-  // Read contract to check session status
-  const { data: sessionInfo, refetch: refetchSession } = useReadContract({
+  // Read session active status
+  const { data: isSessionActive, refetch: refetchSession } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getGameInfo',
-    args: currentGameId ? [currentGameId] : undefined,
-    query: {
-      enabled: !!currentGameId,
-    },
+    functionName: 'isSessionActive',
+  });
+
+  // Read current session prize pool
+  const { data: currentSessionPrizePool } = useReadContract({
+    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+    abi: TRIVIA_ABI,
+    functionName: 'currentSessionPrizePool',
   });
 
   // Contract owner is fetched via wagmi hook below if needed
@@ -112,13 +115,8 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       const result = await refetchSession();
       console.log('Session refetch result:', result);
       
-      // Use wagmi hook result to determine if session is active
-      // sessionInfo comes from useReadContract hook above
-      // result.data should contain the sessionInfo
-      const sessionData = result?.data;
-      const isActive = sessionData && typeof sessionData === 'object' && 'isActive' in sessionData 
-        ? Boolean((sessionData as any).isActive) 
-        : false;
+      // isSessionActive is a boolean from the contract
+      const isActive = Boolean(result?.data ?? false);
       
       setState(prev => ({ ...prev, sessionActive: isActive }));
       console.log('Session status:', { isActive });
@@ -308,36 +306,19 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     throw new Error(errorMessage);
   }, []);
 
-  // Claim winnings (calls smart contract claimWinnings function)
+  // Claim winnings - NOTE: TriviaBattle.sol auto-distributes prizes via distributePrizes()
+  // There is no claimPrize() function. Prizes are automatically sent to winners when
+  // distributePrizes() is called by the owner or Chainlink automation.
   const claimWinnings = useCallback(async (winningAmount: string) => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
-      return;
-    }
-
-    setState(prev => ({ ...prev, isClaiming: true, error: null }));
-
-    try {
-      console.log(`Claiming ${winningAmount} USDC for player ${address}`);
-      
-      // Call the smart contract claimPrize function
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-        abi: TRIVIA_ABI,
-        functionName: 'claimPrize',
-        args: [currentGameId || BigInt(0)],
-      });
-      
-      console.log('✅ Claim winnings transaction submitted');
-    } catch (error) {
-      console.error('Error claiming winnings:', error);
-      setState(prev => ({
-        ...prev,
-        isClaiming: false,
-        error: error instanceof Error ? error.message : 'Failed to claim winnings',
-      }));
-    }
-  }, [address, isConnected, writeContractAsync]);
+    const errorMessage = 'Prizes are automatically distributed when the session ends. There is no claim function. Check your wallet for USDC transfers after prize distribution.';
+    console.warn(errorMessage);
+    setState(prev => ({
+      ...prev,
+      isClaiming: false,
+      error: errorMessage,
+    }));
+    throw new Error(errorMessage);
+  }, []);
 
   // Update state based on transaction status
   const updateTransactionState = useCallback(() => {
@@ -399,7 +380,9 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     isConfirming,
     isConfirmed,
     transactionHash: hash,
-    sessionInfo,
+    sessionCounter,
+    isSessionActive,
+    currentSessionPrizePool,
     contractOwner,
     startSession,
     checkSessionStatus,

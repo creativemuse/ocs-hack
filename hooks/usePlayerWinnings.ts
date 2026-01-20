@@ -29,59 +29,41 @@ export function usePlayerWinnings() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Read current game info to get prize pool and session status
-  const { data: currentGameId } = useReadContract({
+  // Read session status and prize pool
+  const { data: isSessionActive, isLoading: sessionLoading } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'currentGameId',
+    functionName: 'isSessionActive',
   });
 
-  const { data: sessionInfo, isLoading: sessionLoading } = useReadContract({
+  const { data: currentSessionPrizePool } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getGameInfo',
-    args: currentGameId ? [currentGameId] : undefined,
-    query: {
-      enabled: !!currentGameId,
-    },
+    functionName: 'currentSessionPrizePool',
   });
 
-  // Read player ranking (for paid players only)
-  const { data: playerRanking, isLoading: scoreLoading } = useReadContract({
+  // Read all players in current session
+  const { data: currentPlayers } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'getPlayerRanking',
-    args: currentGameId && address ? [currentGameId, address] : undefined,
-    query: {
-      enabled: !!currentGameId && !!address && isConnected,
-    },
+    functionName: 'getCurrentPlayers',
   });
 
-  // Check if player has already claimed their prize
-  const { data: hasClaimedFromContract } = useReadContract({
+  // Read player's score
+  const { data: playerScore, isLoading: scoreLoading } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'hasPlayerClaimed',
-    args: currentGameId && address ? [currentGameId, address] : undefined,
+    functionName: 'getPlayerScore',
+    args: address ? [address] : undefined,
     query: {
-      enabled: !!currentGameId && !!address && isConnected,
-    },
-  });
-
-  // Get prize amount from contract using calculatePrize
-  const { data: calculatedPrize } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'calculatePrize',
-    args: currentGameId && playerRanking && playerRanking > BigInt(0) ? [currentGameId, playerRanking] : undefined,
-    query: {
-      enabled: !!currentGameId && !!playerRanking && playerRanking > BigInt(0),
+      enabled: !!address && isConnected,
     },
   });
 
   // Calculate winnings based on score and prize pool
+  // Note: TriviaBattle.sol auto-distributes prizes, so this is for display purposes only
   const calculateWinnings = useCallback(async () => {
-    if (!address || !isConnected || !sessionInfo || !playerRanking) {
+    if (!address || !isConnected) {
       return;
     }
 
@@ -89,43 +71,19 @@ export function usePlayerWinnings() {
     setError(null);
 
     try {
-      const [prizePool, platformFee, playerCount, startTime, endTime, isActive, isFinalized, rankingsSubmitted, chainlinkMode] = sessionInfo as readonly [bigint, bigint, bigint, bigint, bigint, boolean, boolean, boolean, number];
+      const sessionActive = Boolean(isSessionActive ?? false);
+      const totalPrizePool = currentSessionPrizePool?.toString() || '0';
+      const playersList = (currentPlayers as `0x${string}`[] | undefined) || [];
+      const score = playerScore || BigInt(0);
       
-      // Check if session is active and prizes have been distributed
-      const sessionActive = isActive;
-      const gameFinalized = isFinalized;
-      const totalPrizePool = prizePool.toString();
+      // Check if player is in the current session
+      const isPaidPlayer = playersList.includes(address as `0x${string}`);
       
-      // Get player's ranking (0 means not ranked)
-      const ranking = playerRanking as bigint;
-      
-      // Check if player has already claimed (from contract)
-      const hasClaimed = hasClaimedFromContract || false;
-      
-      // Check if player is ranked (ranking > 0 means they participated and are ranked)
-      // Trial players should never be able to claim winnings
-      if (ranking === BigInt(0)) {
+      if (!isPaidPlayer || score === BigInt(0)) {
         setWinnings({
           hasWinnings: false,
           winningAmount: '0',
-          hasClaimed: false,
-          isEligible: false,
-          totalPrizePool,
-          sessionActive,
-          isPaidPlayer: false, // No ranking = not a paid player
-        });
-        return;
-      }
-
-      // If player has a ranking, they must be a paid player (trial players are not ranked)
-      const isPaidPlayer = ranking > BigInt(0);
-      
-      // Trial players are completely excluded from winnings
-      if (!isPaidPlayer) {
-        setWinnings({
-          hasWinnings: false,
-          winningAmount: '0',
-          hasClaimed: false,
+          hasClaimed: false, // Prizes are auto-distributed, so "claimed" means they were distributed
           isEligible: false,
           totalPrizePool,
           sessionActive,
@@ -134,56 +92,44 @@ export function usePlayerWinnings() {
         return;
       }
 
-      // Prize distribution logic for paid players only
-      const playerRankingNum = Number(ranking);
-      const totalPlayers = Number(playerCount);
-      const totalPrizePoolNum = Number(prizePool);
+      // Calculate ranking by comparing scores with all players
+      // We need to get all player scores to determine ranking
+      // For now, we'll estimate based on the player's score
+      // In a production app, you'd batch read all player scores
+      const totalPlayers = playersList.length;
+      const totalPrizePoolNum = Number(totalPrizePool);
       
-      // Use calculated prize from contract if available, otherwise calculate estimate
+      // Estimate ranking (this is approximate - in production, fetch all scores and sort)
+      // For display purposes, we'll show estimated winnings based on typical distribution
       let winningAmount = '0';
-      let rank = playerRankingNum;
+      let rank: number | undefined;
       let isEligible = false;
       
-      // If game is finalized, use the actual calculated prize from contract
-      if (gameFinalized && calculatedPrize !== undefined) {
-        winningAmount = calculatedPrize.toString();
-        isEligible = calculatedPrize > BigInt(0) && !hasClaimed;
-      } else if (playerRankingNum > 0 && totalPlayers > 0 && totalPrizePoolNum > 0) {
-        // For active games, show estimated winnings based on ranking
-        // Prize distribution tiers (customize these based on your game rules)
-        if (playerRankingNum === 1) { // Top tier - 1st place
-          winningAmount = Math.floor(totalPrizePoolNum * 0.5).toString(); // 50% of total prize pool
-          isEligible = true;
-        } else if (playerRankingNum === 2) { // Second tier - 2nd place
-          winningAmount = Math.floor(totalPrizePoolNum * 0.3).toString(); // 30% of total prize pool
-          isEligible = true;
-        } else if (playerRankingNum === 3) { // Third tier - 3rd place
-          winningAmount = Math.floor(totalPrizePoolNum * 0.15).toString(); // 15% of total prize pool
-          isEligible = true;
-        } else if (playerRankingNum <= 10) { // Fourth tier - participation prize
-          winningAmount = Math.floor(totalPrizePoolNum * 0.05).toString(); // 5% of total prize pool
-          isEligible = true;
-        } else if (playerRankingNum <= 20) { // Fifth tier - small participation prize
-          winningAmount = Math.floor(totalPrizePoolNum * 0.01).toString(); // 1% of total prize pool
-          isEligible = true;
-        }
-      }
+      // Note: Actual prize distribution happens in _distributePrizes():
+      // - Top 3 players get prizes (60% first, 30% second, 10% third)
+      // - Prizes are automatically sent when distributePrizes() is called
+      // - There's no claim function - prizes are sent directly to winners
       
-      // Note: In a real implementation, you'd need to:
-      // 1. Get all paid player scores from the contract
-      // 2. Rank them properly
-      // 3. Calculate exact winnings based on actual ranking
-      // 4. Check if this specific player is in the winners list
+      // For active sessions, we can only estimate
+      // Prizes will be calculated and distributed when the session ends
+      if (sessionActive && totalPlayers > 0 && totalPrizePoolNum > 0) {
+        // Estimate: assume player might be in top 3 if they have a score
+        // This is just for UI display - actual prizes are calculated on-chain
+        isEligible = true; // Player is eligible if they're in the session
+        // We can't determine exact ranking without all scores, so we'll show 0 for now
+        rank = undefined;
+        winningAmount = '0'; // Will be determined when prizes are distributed
+      }
 
       setWinnings({
-        hasWinnings: isEligible && winningAmount !== '0' && !hasClaimed,
+        hasWinnings: isEligible && !sessionActive, // Only show winnings after session ends and prizes distributed
         winningAmount,
-        hasClaimed: hasClaimed, // Use contract value instead of localStorage
-        isEligible: isEligible, // Use the isEligible value determined by prize distribution logic (lines 154-169)
+        hasClaimed: false, // Prizes are auto-distributed, check wallet for USDC transfers
+        isEligible,
         rank,
         totalPrizePool,
-        sessionActive: sessionActive && !gameFinalized, // Session is active only if not finalized
-        isPaidPlayer: true, // Confirmed paid player
+        sessionActive,
+        isPaidPlayer: true,
       });
 
     } catch (err) {
@@ -192,16 +138,17 @@ export function usePlayerWinnings() {
     } finally {
       setIsLoading(false);
     }
-  }, [address, isConnected, sessionInfo, playerRanking, hasClaimedFromContract, calculatedPrize]);
+  }, [address, isConnected, isSessionActive, currentSessionPrizePool, currentPlayers, playerScore]);
 
   // Recalculate winnings when dependencies change
   useEffect(() => {
     calculateWinnings();
   }, [calculateWinnings]);
 
-  // Mark as claimed - contract will update this automatically
+  // Mark as claimed - NOTE: Prizes are auto-distributed, so this is just for UI state
   const markAsClaimed = useCallback(() => {
-    // Refresh winnings to get updated claim status from contract
+    // Prizes are automatically sent to winners when distributePrizes() is called
+    // Check wallet for USDC transfers instead
     setWinnings(prev => ({
       ...prev,
       hasClaimed: true,

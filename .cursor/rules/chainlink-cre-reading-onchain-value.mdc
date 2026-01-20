@@ -395,7 +395,7 @@ const onCronTrigger = (runtime: Runtime<Config>): string => {
   // Get network information
   const network = getNetwork({
     chainFamily: "evm",
-    chainSelectorName: runtime.config.chainName,
+    chainSelectorName: runtime.config.chainSelectorName,
     isTestnet: true,
   })
 
