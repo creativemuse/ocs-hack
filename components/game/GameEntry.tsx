@@ -62,7 +62,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     result: gameResult, 
     error: gameError, 
     isSmartAccount, 
-    isEOA 
+    isEOA,
+    currentStep
   } = usePaidGameEntry();
   
   const [showPayment, setShowPayment] = useState(false);
@@ -217,6 +218,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     console.log('Account type:', isSmartAccount ? 'Smart Account (Paymaster)' : 'EOA');
     setIsProcessingPayment(true);
     setError(null);
+    // Step will be set by the hook during transaction execution
 
     try {
       await joinGameUniversal();
@@ -406,7 +408,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                     <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                       <Avatar />
                       <Name />
-                      <Address className="text-gray-400" />
+                      {/* Address shown only in wallet dropdown for wallet management - OnchainKit Name handles Basename display above */}
+                      <Address className="text-gray-400 text-xs" />
                       <EthBalance />
                     </Identity>
                     <WalletDropdownFundLink 
@@ -565,14 +568,58 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                   
                   {isProcessingPayment ? (
                     <div className="space-y-4">
-                      <div className="flex items-center justify-center gap-2 p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
-                        <span className="text-yellow-400 text-sm">
-                          {isSmartAccount ? 'Processing with Paymaster...' : 'Processing transaction...'}
-                        </span>
+                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg space-y-3">
+                        {/* Transaction Step Display */}
+                        {isSmartAccount ? (
+                          // Smart Account: Batched transaction
+                          <>
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+                              <span className="text-yellow-400 text-sm font-medium">
+                                {currentStep === 'batching_transaction' 
+                                  ? 'Batching transaction (approval + payment)...'
+                                  : currentStep === 'processing_paymaster'
+                                  ? 'Processing with Paymaster...'
+                                  : 'Processing batched transaction...'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-400 text-center space-y-1">
+                              <div className="flex items-center justify-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${currentStep === 'batching_transaction' || currentStep === 'processing_paymaster' || currentStep === 'complete' ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+                                <span>Approving USDC & Joining battle (batched)</span>
+                              </div>
+                            </div>
+                          </>
+                        ) : (
+                          // EOA: Sequential transactions
+                          <>
+                            <div className="flex items-center justify-center gap-2">
+                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
+                              <span className="text-yellow-400 text-sm font-medium">
+                                {currentStep === 'approving_usdc' 
+                                  ? 'Step 1/2: Approving USDC spending...'
+                                  : currentStep === 'joining_battle'
+                                  ? 'Step 2/2: Joining battle...'
+                                  : 'Processing transaction...'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-gray-400 text-center space-y-1">
+                              <div className="flex items-center justify-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${currentStep === 'approving_usdc' || currentStep === 'joining_battle' || currentStep === 'complete' ? 'bg-green-400' : 'bg-gray-500'}`}></div>
+                                <span>Step 1: Approve USDC</span>
+                              </div>
+                              <div className="flex items-center justify-center gap-2">
+                                <div className={`w-2 h-2 rounded-full ${currentStep === 'joining_battle' || currentStep === 'complete' ? 'bg-green-400' : currentStep === 'approving_usdc' ? 'bg-yellow-400 animate-pulse' : 'bg-gray-500'}`}></div>
+                                <span>Step 2: Join battle</span>
+                              </div>
+                            </div>
+                          </>
+                        )}
                       </div>
                       <Button
-                        onClick={() => setIsProcessingPayment(false)}
+                        onClick={() => {
+                          setIsProcessingPayment(false);
+                        }}
                         variant="outline"
                         className="w-full border-red-400 text-white hover:bg-red-500/10 cursor-pointer"
                       >

@@ -1,10 +1,12 @@
 'use client';
 
 import { useState } from 'react';
-import { Avatar } from '@coinbase/onchainkit/identity';
+import { Avatar, Name } from '@coinbase/onchainkit/identity';
 import { base } from 'viem/chains';
 import { useActivePlayers, type ActivePlayer } from '@/hooks/useActivePlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
+import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
+import { useAccount } from 'wagmi';
 import { Share2, Users, Trophy } from 'lucide-react';
 
 interface ActivePlayersProps {
@@ -25,13 +27,11 @@ export default function ActivePlayers({
   const { players, isLoading, error } = useActivePlayers({ maxPlayers });
   const [hoveredPlayer, setHoveredPlayer] = useState<ActivePlayer | null>(null);
   const { sharePlayerActivity } = useSocialShare();
+  const { user: currentUserProfile, isInMiniApp } = useMiniAppProfile();
+  const { address: currentUserAddress } = useAccount();
 
-  const formatAddress = (address: string) => {
-    if (address.startsWith('anon_')) {
-      return address.slice(5, 13) + '...';
-    }
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  // Address formatting removed per Product Guidelines - avoid showing 0x addresses
+  // Use OnchainKit Name component for Basename resolution instead
 
   const formatLastActive = (lastActive: string) => {
     const now = new Date();
@@ -114,7 +114,21 @@ export default function ActivePlayers({
           {showTooltips && hoveredPlayer?.address === player.address && (
             <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-black/90 text-white text-xs rounded-lg shadow-lg whitespace-nowrap z-50 min-w-[200px]">
               <div className="font-semibold flex items-center space-x-2">
-                <span>{player.username}</span>
+                {/* Show Mini App profile name for current user, otherwise show username or Basename */}
+                {isInMiniApp && 
+                 currentUserAddress?.toLowerCase() === player.address.toLowerCase() && 
+                 (currentUserProfile?.displayName || currentUserProfile?.username) ? (
+                  <span>{currentUserProfile.displayName || currentUserProfile.username}</span>
+                ) : player.username ? (
+                  <span>{player.username}</span>
+                ) : player.isWalletUser ? (
+                  <Name 
+                    address={player.address as `0x${string}`}
+                    chain={base}
+                  />
+                ) : (
+                  <span>Anonymous Player</span>
+                )}
                 {showSocialFeatures && (
                   <button
                     onClick={(e) => {
@@ -128,9 +142,15 @@ export default function ActivePlayers({
                   </button>
                 )}
               </div>
-              <div className="text-gray-300">
-                {player.isWalletUser ? formatAddress(player.address) : 'Anonymous Player'}
-              </div>
+              {/* Removed address display per Product Guidelines - avoid showing 0x addresses */}
+              {player.isWalletUser && currentUserAddress?.toLowerCase() !== player.address.toLowerCase() && (
+                <div className="text-gray-300">
+                  <Name 
+                    address={player.address as `0x${string}`}
+                    chain={base}
+                  />
+                </div>
+              )}
               <div className="text-green-400 flex items-center space-x-1">
                 <Trophy className="w-3 h-3" />
                 <span>{player.totalScore} USDC</span>
@@ -140,8 +160,6 @@ export default function ActivePlayers({
                 <span>{player.gamesPlayed} games</span>
               </div>
               <div className="text-gray-400">{formatLastActive(player.lastActive)}</div>
-              
-              {/* Social graph connection indicator */}
               
               {/* Tooltip arrow */}
               <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-black/90"></div>

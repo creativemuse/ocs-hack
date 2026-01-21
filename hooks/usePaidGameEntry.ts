@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useState, useEffect } from 'react';
 import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { createPaidGameCalls } from '@/lib/transaction/paidGameCalls';
 import { useAccountCapabilities } from './useAccountCapabilities';
@@ -10,7 +10,17 @@ interface GameEntryResult {
   error?: string;
 }
 
+export type TransactionStep = 
+  | 'idle'
+  | 'approving_usdc'
+  | 'joining_battle'
+  | 'batching_transaction'
+  | 'processing_paymaster'
+  | 'complete';
+
 export function usePaidGameEntry() {
+  const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
+  
   // For EOA (Normal Account) - uses ETH for gas
   const { writeContractAsync: writeContractEOA, data: eoaData, error: eoaError } = useWriteContract();
   const { data: eoaReceipt } = useWaitForTransactionReceipt({
@@ -33,6 +43,7 @@ export function usePaidGameEntry() {
     
     // For EOA, we need to execute calls sequentially
     // First approve USDC
+    setCurrentStep('approving_usdc');
     console.log('EOA: Approving USDC...');
     await writeContractEOA({
       address: calls[0].address,
@@ -45,6 +56,7 @@ export function usePaidGameEntry() {
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Then join battle
+    setCurrentStep('joining_battle');
     console.log('EOA: Joining battle...');
     await writeContractEOA({
       address: calls[1].address,
@@ -52,12 +64,17 @@ export function usePaidGameEntry() {
       functionName: calls[1].functionName as "joinBattle",
       args: calls[1].args as [],
     });
+    
+    setCurrentStep('complete');
   }, [writeContractEOA]);
 
   // Smart Account uses ERC-20 gas payment (handled by usePaidGameEntryWithERC20Gas)
   // No need for separate implementation - the hook handles everything
 
   const joinGameUniversal = useCallback(async () => {
+    // Reset step at the start
+    setCurrentStep('idle');
+    
     // First, ensure a blockchain game exists
     console.log('Ensuring blockchain game exists...');
     try {
@@ -92,7 +109,9 @@ export function usePaidGameEntry() {
     // Now proceed with the game entry
     if (capabilities?.paymasterService?.supported && erc20GasReady) {
       console.log('Using Smart Account with ERC-20 gas payment (USDC for gas)');
+      setCurrentStep('batching_transaction');
       await joinGameWithERC20Gas();
+      setCurrentStep('complete');
     } else {
       console.log('Using EOA account (ETH for gas)');
       await joinGameEOA();
@@ -127,6 +146,17 @@ export function usePaidGameEntry() {
   // Handle errors
   const error = capabilities?.paymasterService?.supported ? erc20GasError : eoaError;
 
+  // Reset step when transaction completes or fails
+  useEffect(() => {
+    if (result.success || result.error) {
+      // Keep step as 'complete' on success, reset on error after a delay
+      if (result.error) {
+        const timer = setTimeout(() => setCurrentStep('idle'), 2000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [result]);
+
   return {
     joinGameUniversal,
     result,
@@ -134,5 +164,6 @@ export function usePaidGameEntry() {
     isSmartAccount: !!capabilities?.paymasterService?.supported && erc20GasReady,
     isEOA: !capabilities?.paymasterService?.supported,
     isLoading: capabilities?.paymasterService?.supported ? erc20GasLoading : false,
+    currentStep,
   };
 }
