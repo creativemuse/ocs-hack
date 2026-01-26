@@ -111,18 +111,51 @@ function generateHS256JWT(apiKey: string, apiSecret: string): string {
 // Handle CORS preflight requests
 export async function OPTIONS(req: NextRequest) {
   const origin = req.headers.get('origin');
+  const referer = req.headers.get('referer');
+  const host = req.headers.get('host');
   
-  // For mobile-only integrations, do not return Access-Control-Allow-Origin header
-  // For web clients, only allow requests from approved origins
-  if (origin && isOriginAllowed(origin)) {
+  // Helper to check if origin matches the request host (same-origin)
+  const isSameOrigin = (origin: string | null, host: string | null): boolean => {
+    if (!origin || !host) return false;
+    try {
+      const originUrl = new URL(origin);
+      const originHost = originUrl.host;
+      // Compare hosts (with or without port)
+      return originHost === host || originHost === host.split(':')[0];
+    } catch {
+      return false;
+    }
+  };
+  
+  // Helper to check if referer is from allowed domain
+  const isRefererAllowed = (referer: string | null): boolean => {
+    if (!referer) return false;
+    try {
+      const refererUrl = new URL(referer);
+      const refererOrigin = refererUrl.origin;
+      return isOriginAllowed(refererOrigin);
+    } catch {
+      return false;
+    }
+  };
+  
+  // Allow same-origin requests (origin is null OR origin matches host)
+  // Also allow if referer is from an allowed domain (for iframe/embed contexts)
+  const isAllowed = 
+    !origin || // Same-origin request (no origin header)
+    isOriginAllowed(origin) || // Origin is in allowed list
+    isSameOrigin(origin, host) || // Origin matches request host
+    isRefererAllowed(referer); // Referer is from allowed domain
+  
+  if (isAllowed) {
     return new Response(null, {
       status: 200,
       headers: getCorsHeaders(origin),
     });
   }
   
-  // Block unauthorized origins
-  apiLogger.warn('OPTIONS', '/api/session-token', `Blocked unauthorized origin: ${origin}`);
+  // Block unauthorized cross-origin requests
+  apiLogger.warn('OPTIONS', '/api/session-token', `Blocked unauthorized origin: ${origin}, referer: ${referer}, host: ${host}`);
   return new Response(null, { 
     status: 403,
     headers: getSecurityHeaders()
@@ -133,10 +166,44 @@ export async function POST(req: NextRequest) {
   try {
     // CORS Protection - Only allow requests from approved origins
     const origin = req.headers.get('origin');
+    const referer = req.headers.get('referer');
+    const host = req.headers.get('host');
     
-    // Enhanced CORS Protection - Only allow requests from approved origins
-    if (origin && !isOriginAllowed(origin)) {
-      apiLogger.warn('POST', '/api/session-token', `Blocked unauthorized origin: ${origin}`);
+    // Helper to check if origin matches the request host (same-origin)
+    const isSameOrigin = (origin: string | null, host: string | null): boolean => {
+      if (!origin || !host) return false;
+      try {
+        const originUrl = new URL(origin);
+        const originHost = originUrl.host;
+        // Compare hosts (with or without port)
+        return originHost === host || originHost === host.split(':')[0];
+      } catch {
+        return false;
+      }
+    };
+    
+    // Helper to check if referer is from allowed domain
+    const isRefererAllowed = (referer: string | null): boolean => {
+      if (!referer) return false;
+      try {
+        const refererUrl = new URL(referer);
+        const refererOrigin = refererUrl.origin;
+        return isOriginAllowed(refererOrigin);
+      } catch {
+        return false;
+      }
+    };
+    
+    // Allow same-origin requests (origin is null OR origin matches host)
+    // Also allow if referer is from an allowed domain (for iframe/embed contexts)
+    const isAllowed = 
+      !origin || // Same-origin request (no origin header)
+      isOriginAllowed(origin) || // Origin is in allowed list
+      isSameOrigin(origin, host) || // Origin matches request host
+      isRefererAllowed(referer); // Referer is from allowed domain
+    
+    if (!isAllowed) {
+      apiLogger.warn('POST', '/api/session-token', `Blocked unauthorized origin: ${origin}, referer: ${referer}, host: ${host}`);
       return NextResponse.json(
         { error: 'Unauthorized origin' },
         { 

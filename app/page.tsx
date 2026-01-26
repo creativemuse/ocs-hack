@@ -631,7 +631,8 @@ export default function Home() {
                   <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
                     <Avatar />
                     <Name />
-                    <Address className="text-gray-400" />
+                    {/* Address shown only in wallet dropdown for wallet management - OnchainKit Name handles Basename display above */}
+                    <Address className="text-gray-400 text-xs" />
                     <EthBalance />
                   </Identity>
                   <button
