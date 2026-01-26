@@ -20,12 +20,15 @@ export type TransactionStep =
 
 export function usePaidGameEntry() {
   const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
+  const [finalTxHash, setFinalTxHash] = useState<string | undefined>(undefined);
   
   // For EOA (Normal Account) - uses ETH for gas
-  const { writeContractAsync: writeContractEOA, data: eoaData, error: eoaError } = useWriteContract();
-  const { data: eoaReceipt } = useWaitForTransactionReceipt({
-    hash: eoaData,
-    query: { enabled: !!eoaData }
+  const { writeContractAsync: writeContractEOA, error: eoaError } = useWriteContract();
+  
+  // Watch for the FINAL transaction receipt (Join Battle)
+  const { data: finalReceipt } = useWaitForTransactionReceipt({
+    hash: finalTxHash as `0x${string}`,
+    query: { enabled: !!finalTxHash }
   });
 
   // For Smart Account with ERC-20 gas payment (USDC for gas)
@@ -40,6 +43,7 @@ export function usePaidGameEntry() {
 
   const joinGameEOA = useCallback(async () => {
     const calls = createPaidGameCalls();
+    setFinalTxHash(undefined); // Reset previous hash
     
     // For EOA, we need to execute calls sequentially
     // First approve USDC
@@ -53,17 +57,21 @@ export function usePaidGameEntry() {
     });
     
     // Wait a moment for approval to be processed
+    // Note: Ideally we should wait for the approval receipt here, but sticking to existing pattern for now
     await new Promise(resolve => setTimeout(resolve, 2000));
     
     // Then join battle
     setCurrentStep('joining_battle');
     console.log('EOA: Joining battle...');
-    await writeContractEOA({
+    const hash = await writeContractEOA({
       address: calls[1].address,
       abi: calls[1].abi,
       functionName: calls[1].functionName as "joinBattle",
       args: calls[1].args as [],
     });
+    
+    // Only set the hash for the FINAL transaction we care about
+    setFinalTxHash(hash);
     
     setCurrentStep('complete');
   }, [writeContractEOA]);
@@ -74,6 +82,7 @@ export function usePaidGameEntry() {
   const joinGameUniversal = useCallback(async () => {
     // Reset step at the start
     setCurrentStep('idle');
+    setFinalTxHash(undefined);
     
     // First, ensure a blockchain game exists
     console.log('Ensuring blockchain game exists...');
@@ -131,17 +140,17 @@ export function usePaidGameEntry() {
     }
 
     // For EOA - check the transaction receipt (enterGame)
-    if (eoaReceipt) {
-      console.log('EOA transaction result:', eoaReceipt);
+    if (finalReceipt) {
+      console.log('EOA transaction result:', finalReceipt);
       return {
-        success: eoaReceipt.status === 'success',
-        transactionHash: eoaReceipt.transactionHash,
-        error: eoaReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
+        success: finalReceipt.status === 'success',
+        transactionHash: finalReceipt.transactionHash,
+        error: finalReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
       };
     }
 
     return { success: false };
-  }, [capabilities, erc20GasResult, eoaReceipt]);
+  }, [capabilities, erc20GasResult, finalReceipt]);
 
   // Handle errors
   const error = capabilities?.paymasterService?.supported ? erc20GasError : eoaError;
