@@ -31,7 +31,8 @@
     "test:cross-device": "tsx scripts/test-cross-device-persistence.ts"
   },
   "dependencies": {
-    "@base-org/account": "^2.5.1",
+    "@base-org/account": "latest",
+    "@base-org/account-ui": "latest",
     "@chainlink/cre-sdk": "^1.0.2",
     "@coinbase/cdp-sdk": "^1.38.2",
     "@coinbase/coinbase-sdk": "^0.25.0",
