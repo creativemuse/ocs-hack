@@ -17,13 +17,13 @@ const getBaseRpcUrl = () => {
   // The authenticated CDP endpoint should only be used for bundler/paymaster
   const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
 
-  // Only use public endpoints (not authenticated CDP endpoints)
+  // Only use public/Alchemy endpoints (not authenticated CDP endpoints for general transport)
   if (baseRpcUrl && !baseRpcUrl.includes('api.developer.coinbase.com')) {
     return baseRpcUrl;
   }
 
-  // Fallback to public Base RPC endpoint
-  return 'https://mainnet.base.org';
+  // Fallback to Alchemy RPC endpoint as requested
+  return 'https://base-mainnet.g.alchemy.com/v2/5Uele1-f9VradlbXgrDgqCeAO5_AefTd';
 };
 
 // Create wagmi config with MiniKit and Base Account support
@@ -70,7 +70,7 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
   }, []);
   return (
     <OnchainKitProvider
-      apiKey={process.env.NEXT_PUBLIC_CDP_API_KEY}
+      apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY}
       chain={base}
       projectId={process.env.NEXT_PUBLIC_CDP_PROJECT_ID || "5b09d242-5390-4db3-866f-bfc2ce575821"}
       miniKit={{ enabled: true }}
