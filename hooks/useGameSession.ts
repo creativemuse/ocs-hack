@@ -22,7 +22,7 @@ interface UseGameSessionReturn {
   waitingForPaidPlayer: boolean;
   playerId: string | null;
   entryToken: string | null;
-  joinGame: (isPaidPlayer?: boolean) => Promise<void>;
+  joinGame: (isPaidPlayer?: boolean, transactionHash?: string) => Promise<void>;
   leaveGame: () => Promise<void>;
   refetch: () => Promise<void>;
 }
@@ -101,12 +101,17 @@ export const useGameSession = (): UseGameSessionReturn => {
     }
   }, []);
 
-  const joinGame = useCallback(async (isPaidPlayer: boolean = false) => {
+  const joinGame = useCallback(async (isPaidPlayer: boolean = false, transactionHash?: string) => {
     try {
       setError(null);
       
       if (isPaidPlayer && !address) {
         throw new Error('Connect wallet to start a paid game');
+      }
+
+      // For paid games, transaction hash is required
+      if (isPaidPlayer && !transactionHash) {
+        console.warn('⚠️ Paid game started without transaction hash - this may cause issues');
       }
 
       // Generate a unique player ID if not already set
@@ -116,21 +121,33 @@ export const useGameSession = (): UseGameSessionReturn => {
       }
       
       // Request a server-verified entry token before joining
+      console.log('🔄 Joining game:', { isPaidPlayer, transactionHash, address });
       const sessionId = (await (await fetch('/api/game-session')).json()).session.session_id as string;
+      console.log('📋 Session ID:', sessionId);
+      
       const entryResp = await fetch('/api/game-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sessionId, isTrial: !isPaidPlayer, walletAddress: isPaidPlayer ? address : undefined }),
+        body: JSON.stringify({ 
+          sessionId, 
+          isTrial: !isPaidPlayer, 
+          walletAddress: isPaidPlayer ? address : undefined,
+          paidTxHash: isPaidPlayer ? transactionHash : undefined
+        }),
       });
+      
       if (!entryResp.ok) {
         let msg = 'Entry not allowed';
         try {
           const err = await entryResp.json();
           msg = err?.error || msg;
+          console.error('❌ Game entry failed:', err);
         } catch {}
         throw new Error(msg);
       }
+      
       const { entryId, token } = await entryResp.json();
+      console.log('✅ Game entry created:', { entryId, hasToken: !!token });
 
       const response = await fetch('/api/game-session', {
         method: 'POST',
@@ -152,6 +169,7 @@ export const useGameSession = (): UseGameSessionReturn => {
       }
 
       const data = await response.json();
+      console.log('✅ Successfully joined game session:', data);
       setSession(data.session);
       setTimeRemaining(data.timeRemaining);
       saveEntryToken(token); // Use helper function to persist token
@@ -159,8 +177,10 @@ export const useGameSession = (): UseGameSessionReturn => {
       setCanJoin(data.session.paid_player_count === 0 || data.timeRemaining > 0);
       setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
     } catch (err) {
-      console.error('Error joining game:', err);
-      setError(err instanceof Error ? err.message : 'Failed to join game');
+      console.error('❌ Error joining game:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to join game';
+      setError(errorMessage);
+      throw err; // Re-throw to allow caller to handle
     }
   }, [playerId, address]);
 

@@ -24,7 +24,7 @@ export interface ErrorContext {
  * Parse transaction error and provide user-friendly information
  */
 export function parseTransactionError(
-  error: any, 
+  error: any,
   context: ErrorContext
 ): TransactionError {
   console.log('🔍 Parsing transaction error:', { error, context });
@@ -65,12 +65,25 @@ function parseStringError(error: string, context: ErrorContext): TransactionErro
     };
   }
 
+  // Check for gas-specific insufficient funds first
+  if (lowerError.includes('insufficient funds for gas') ||
+    lowerError.includes('insufficient funds for transfer') ||
+    (lowerError.includes('gas') && lowerError.includes('insufficient'))) {
+    return {
+      code: 'INSUFFICIENT_ETH_FOR_GAS',
+      message: error,
+      recoverable: true,
+      userMessage: 'Insufficient ETH for gas fees. Please add more ETH to your wallet.',
+      retryable: false,
+    };
+  }
+
   if (lowerError.includes('insufficient funds') || lowerError.includes('insufficient balance')) {
     return {
       code: 'INSUFFICIENT_FUNDS',
       message: error,
       recoverable: true,
-      userMessage: 'Insufficient funds. Please add more USDC to your wallet.',
+      userMessage: 'Insufficient funds. Please check your ETH and USDC balance.',
       retryable: false,
     };
   }
@@ -80,7 +93,7 @@ function parseStringError(error: string, context: ErrorContext): TransactionErro
       code: 'GAS_TOO_LOW',
       message: error,
       recoverable: true,
-      userMessage: 'Transaction failed due to low gas. Please try again.',
+      userMessage: 'Transaction failed due to low gas limit. Please try again.',
       retryable: true,
     };
   }
@@ -232,6 +245,10 @@ export function getErrorRecoverySuggestions(error: TransactionError): string[] {
       suggestions.push('Add more USDC to your wallet');
       suggestions.push('Check your USDC balance');
       break;
+    case 'INSUFFICIENT_ETH_FOR_GAS':
+      suggestions.push('Add more ETH to your wallet for gas fees');
+      suggestions.push('Bridge ETH to Base network');
+      break;
     case 'GAS_TOO_LOW':
       suggestions.push('Try the transaction again');
       suggestions.push('Check your network connection');
@@ -263,7 +280,7 @@ export function getErrorRecoverySuggestions(error: TransactionError): string[] {
  * Log error with context for debugging
  */
 export function logTransactionError(
-  error: TransactionError, 
+  error: TransactionError,
   context: ErrorContext,
   additionalInfo?: any
 ): void {

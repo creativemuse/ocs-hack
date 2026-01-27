@@ -238,8 +238,10 @@ export default function Home() {
     setShowGameEntry(true);
   };
 
-  const handleGameStart = async ({ isTrial }: { isTrial: boolean }) => {
+  const handleGameStart = async ({ isTrial, transactionHash }: { isTrial: boolean; transactionHash?: string }) => {
     try {
+      console.log('🎮 Starting game:', { isTrial, transactionHash });
+      
       // Reset all game state before starting new game
       setGameCompleted(false);
       setScore(0);
@@ -253,14 +255,21 @@ export default function Home() {
       setCorrectAnswers(0);
       setTotalQuestionsAnswered(0);
       
-      // Join the game session accordingly
-      await joinGame(!isTrial);
+      // Join the game session accordingly, passing transaction hash for paid games
+      console.log('🔄 Joining game session...');
+      await joinGame(!isTrial, transactionHash);
+      console.log('✅ Game session joined successfully');
+      
       setIsTrialGame(isTrial);
       setGameStarted(true);
       setShowGameEntry(false);
+      console.log('🎯 Loading first question...');
       loadRandomQuestion();
     } catch (error) {
-      console.error('Error joining game:', error);
+      console.error('❌ Error starting game:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Failed to start game';
+      setGameError(errorMessage);
+      setShowGameEntry(true); // Show game entry again on error
       // Handle error - could show a message to user
     }
   };

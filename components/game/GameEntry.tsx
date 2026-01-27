@@ -24,7 +24,7 @@ import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 interface GameEntryProps {
-  onGameStart: (options: { isTrial: boolean }) => void;
+  onGameStart: (options: { isTrial: boolean; transactionHash?: string }) => void;
   entryToken?: string | null;
   className?: string;
   playerModeChoice?: 'trial' | 'paid';
@@ -122,11 +122,11 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   // Handle game result updates
   useEffect(() => {
     if (gameResult.success) {
-      console.log('✅ Paid game transaction successful!');
+      console.log('✅ Paid game transaction successful!', { transactionHash: gameResult.transactionHash });
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
-      onGameStart({ isTrial: false });
+      onGameStart({ isTrial: false, transactionHash: gameResult.transactionHash });
     } else if (gameResult.error) {
       setIsProcessingPayment(false);
       console.error('Transaction failed:', gameResult.error);

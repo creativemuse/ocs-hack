@@ -70,7 +70,8 @@ export function usePaidGameEntry() {
       args: calls[1].args as [],
     });
     
-    // Only set the hash for the FINAL transaction we care about
+    console.log('✅ EOA: Transaction hash received:', hash);
+    // Set the hash for the FINAL transaction we care about
     setFinalTxHash(hash);
     
     setCurrentStep('complete');
@@ -139,18 +140,27 @@ export function usePaidGameEntry() {
       }
     }
 
-    // For EOA - check the transaction receipt (enterGame)
-    if (finalReceipt) {
-      console.log('EOA transaction result:', finalReceipt);
+    // For EOA - use transaction hash immediately if available, or wait for receipt
+    if (finalTxHash) {
+      // If we have a receipt, use its status
+      if (finalReceipt) {
+        console.log('EOA transaction result (confirmed):', finalReceipt);
+        return {
+          success: finalReceipt.status === 'success',
+          transactionHash: finalReceipt.transactionHash,
+          error: finalReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
+        };
+      }
+      // Otherwise, return success with the hash (transaction is pending)
+      console.log('EOA transaction result (pending):', finalTxHash);
       return {
-        success: finalReceipt.status === 'success',
-        transactionHash: finalReceipt.transactionHash,
-        error: finalReceipt.status === 'reverted' ? 'Transaction reverted' : undefined,
+        success: true,
+        transactionHash: finalTxHash,
       };
     }
 
     return { success: false };
-  }, [capabilities, erc20GasResult, finalReceipt]);
+  }, [capabilities, erc20GasResult, finalReceipt, finalTxHash]);
 
   // Handle errors
   const error = capabilities?.paymasterService?.supported ? erc20GasError : eoaError;
