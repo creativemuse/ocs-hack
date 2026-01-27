@@ -226,8 +226,25 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       console.error('Failed to join game:', err);
       setIsProcessingPayment(false);
       
-      // Check for popup blocker error (common with Base Account)
+      // Check for execution reverted errors (contract revert)
       if (err instanceof Error && (
+        err.message.includes('execution reverted') ||
+        err.message.includes('reverted') ||
+        err.message.includes('revert')
+      )) {
+        // Check for specific revert reasons
+        if (err.message.includes('SessionNotActive') || err.message.includes('session not active')) {
+          setError('Game session is not active. Please wait for a new session to start.');
+        } else if (err.message.includes('AlreadyParticipated') || err.message.includes('already participated')) {
+          setError('You have already joined this game session. Please wait for the next session.');
+        } else if (err.message.includes('InsufficientEntryFee') || err.message.includes('insufficient')) {
+          setError('Insufficient USDC balance or allowance. Please check your balance and try again.');
+        } else {
+          setError(`Transaction reverted: ${err.message}. This usually means the contract requirements weren't met. Please try again or contact support if the issue persists.`);
+        }
+      }
+      // Check for popup blocker error (common with Base Account)
+      else if (err instanceof Error && (
         err.message.includes('Popup window was blocked') ||
         err.message.includes('popup') ||
         err.message.includes('blocked')
