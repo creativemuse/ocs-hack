@@ -1,9 +1,10 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useAccount } from 'wagmi';
 import { createPaidGameCalls } from '@/lib/transaction/paidGameCalls';
 import { useAccountCapabilities } from './useAccountCapabilities';
 import { usePaidGameEntryWithERC20Gas } from './usePaidGameEntryWithERC20Gas';
-import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS, USDC_ABI, USDC_CONTRACT_ADDRESS, ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
+import { parseUnits, decodeErrorResult } from 'viem';
 
 interface GameEntryResult {
   success: boolean;
@@ -11,7 +12,7 @@ interface GameEntryResult {
   error?: string;
 }
 
-export type TransactionStep = 
+export type TransactionStep =
   | 'idle'
   | 'approving_usdc'
   | 'joining_battle'
@@ -23,17 +24,18 @@ export function usePaidGameEntry() {
   const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
   const [finalTxHash, setFinalTxHash] = useState<string | undefined>(undefined);
   const [approvalHash, setApprovalHash] = useState<string | undefined>(undefined);
-  
+
   // For EOA (Normal Account) - uses ETH for gas
   const { writeContractAsync: writeContractEOA, error: eoaError } = useWriteContract();
   const publicClient = usePublicClient();
-  
+  const { address } = useAccount();
+
   // Watch for approval transaction receipt
   const { data: approvalReceipt } = useWaitForTransactionReceipt({
     hash: approvalHash as `0x${string}`,
     query: { enabled: !!approvalHash }
   });
-  
+
   // Watch for the FINAL transaction receipt (Join Battle)
   const { data: finalReceipt } = useWaitForTransactionReceipt({
     hash: finalTxHash as `0x${string}`,
@@ -54,8 +56,40 @@ export function usePaidGameEntry() {
     const calls = createPaidGameCalls();
     setFinalTxHash(undefined); // Reset previous hash
     setApprovalHash(undefined); // Reset approval hash
-    
+
     try {
+      // Pre-flight checks
+      if (!publicClient || !address) {
+        throw new Error('Wallet not connected or public client unavailable');
+      }
+
+      // 1. Check USDC Balance BEFORE any transactions
+      // This saves gas by preventing Approval if the user can't afford the Entry Fee
+      try {
+        const entryFeeWei = parseUnits(ENTRY_FEE_USDC, 6);
+        const balance = await publicClient.readContract({
+          address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+          abi: USDC_ABI,
+          functionName: 'balanceOf',
+          args: [address as `0x${string}`],
+        });
+        console.log('💰 USDC Balance:', balance.toString(), 'Required:', entryFeeWei.toString());
+
+        if (balance < entryFeeWei) {
+          throw new Error(`Insufficient USDC balance. You have ${Number(balance) / 1_000_000} USDC, but need ${ENTRY_FEE_USDC} USDC.`);
+        }
+        console.log('✅ Balance verified as sufficient');
+      } catch (error) {
+        // Re-throw if it's our insufficient balance error, otherwise log and continue (risky but consistent with other checks)
+        // Actually, for balance, we should probably fail hard if we can't read it? 
+        // But allow read errors to not block if it's just a temporary RPC issue? 
+        // No, if we can't read balance, we probably can't transact.
+        if (error instanceof Error && error.message.includes('Insufficient USDC balance')) {
+          throw error;
+        }
+        console.warn('⚠️ Could not verify balance (RPC error?), proceeding anyway:', error);
+      }
+
       // For EOA, we need to execute calls sequentially
       // First approve USDC
       setCurrentStep('approving_usdc');
@@ -66,28 +100,73 @@ export function usePaidGameEntry() {
         functionName: calls[0].functionName as "approve",
         args: calls[0].args as [`0x${string}`, bigint],
       });
-      
+
       console.log('✅ EOA: Approval transaction hash:', approvalTxHash);
       setApprovalHash(approvalTxHash);
-      
+
       // CRITICAL: Wait for approval transaction to be confirmed on-chain
       // This ensures the allowance is available before calling joinBattle
       if (!publicClient) {
         throw new Error('Public client not available');
       }
-      
+
       console.log('⏳ Waiting for approval transaction to be confirmed...');
       const approvalReceipt = await publicClient.waitForTransactionReceipt({
         hash: approvalTxHash,
         timeout: 120_000, // 2 minute timeout
       });
-      
+
       if (approvalReceipt.status !== 'success') {
         throw new Error('Approval transaction failed');
       }
-      
+
       console.log('✅ EOA: Approval confirmed on-chain');
-      
+
+      // Verify allowance is sufficient before joining
+      if (publicClient && address) {
+        try {
+          const entryFeeWei = parseUnits(ENTRY_FEE_USDC, 6);
+          const allowance = await publicClient.readContract({
+            address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+            abi: USDC_ABI,
+            functionName: 'allowance',
+            args: [address as `0x${string}`, TRIVIA_CONTRACT_ADDRESS as `0x${string}`],
+          });
+          console.log('📊 USDC Allowance:', allowance.toString(), 'Required:', entryFeeWei.toString());
+          if (allowance < entryFeeWei) {
+            throw new Error(`Insufficient allowance. Got ${allowance.toString()}, need ${entryFeeWei.toString()}`);
+          }
+          console.log('✅ Allowance verified as sufficient');
+        } catch (error) {
+          console.error('❌ Allowance check failed:', error);
+          throw error;
+        }
+      }
+
+
+
+      // Check if player has already participated (optional check, contract will revert if not)
+      if (publicClient && address) {
+        try {
+          const hasParticipated = await publicClient.readContract({
+            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+            abi: TRIVIA_ABI,
+            functionName: 'hasParticipated',
+            args: [address as `0x${string}`],
+          });
+          console.log('👤 Has participated status:', hasParticipated);
+          if (hasParticipated) {
+            // Check if they're in the current session's players array
+            // Note: We can't easily check the players array, but the contract will handle this
+            // The contract will clear the flag if they're not in the current session
+            console.warn('⚠️ Player has participated flag set. Contract will check if they\'re in current session and clear if not.');
+          }
+        } catch (error) {
+          // If we can't read the contract, log but continue (contract will validate)
+          console.warn('⚠️ Could not verify participation status:', error);
+        }
+      }
+
       // Verify session is active before joining (optional check, contract will revert if not)
       if (publicClient) {
         try {
@@ -105,7 +184,7 @@ export function usePaidGameEntry() {
           console.warn('⚠️ Could not verify session status:', error);
         }
       }
-      
+
       // Then join battle
       setCurrentStep('joining_battle');
       console.log('EOA: Joining battle...');
@@ -115,18 +194,77 @@ export function usePaidGameEntry() {
         functionName: calls[1].functionName as "joinBattle",
         args: calls[1].args as [],
       });
-      
+
       console.log('✅ EOA: Transaction hash received:', hash);
       // Set the hash for the FINAL transaction we care about
       setFinalTxHash(hash);
-      
+
       setCurrentStep('complete');
     } catch (error) {
       console.error('❌ EOA transaction error:', error);
+      console.error('❌ Error details:', JSON.stringify(error, null, 2));
+
+      // Try to decode the specific revert reason
+      let enhancedError = error;
+
+      // Check for error data in various possible locations
+      let errorData: `0x${string}` | undefined;
+      if (error && typeof error === 'object') {
+        // Viem/wagmi errors might have data in different places
+        if ('data' in error && typeof error.data === 'string' && error.data.startsWith('0x')) {
+          errorData = error.data as `0x${string}`;
+        } else if ('cause' in error && error.cause && typeof error.cause === 'object' && 'data' in error.cause) {
+          errorData = error.cause.data as `0x${string}`;
+        } else if ('shortMessage' in error && typeof (error as any).shortMessage === 'string') {
+          // Sometimes the error message contains the data
+          const match = ((error as any).shortMessage as string).match(/0x[a-fA-F0-9]+/);
+          if (match) {
+            errorData = match[0] as `0x${string}`;
+          }
+        }
+      }
+
+      if (errorData) {
+        try {
+          const decoded = decodeErrorResult({
+            abi: TRIVIA_ABI,
+            data: errorData,
+          });
+          console.error('📋 Decoded error:', decoded);
+
+          // Create a more helpful error message based on the decoded error
+          if (decoded.errorName === 'TriviaBattle__SessionNotActive') {
+            enhancedError = new Error('Session is not active. Please wait for a new session to start.');
+          } else if (decoded.errorName === 'TriviaBattle__AlreadyParticipated') {
+            enhancedError = new Error('You have already joined this game session. Please wait for the next session.');
+          } else if (decoded.errorName === 'TriviaBattle__InsufficientEntryFee') {
+            enhancedError = new Error('Insufficient USDC balance. Please ensure you have at least 1 USDC.');
+          } else if (decoded.errorName === 'SafeERC20FailedOperation') {
+            enhancedError = new Error('USDC transfer failed. Please check your allowance and balance.');
+          } else {
+            enhancedError = new Error(`Contract error: ${decoded.errorName || 'Unknown error'}`);
+          }
+        } catch (decodeError) {
+          // If decoding fails, use the original error
+          console.warn('⚠️ Could not decode error:', decodeError);
+          console.warn('⚠️ Error data was:', errorData);
+        }
+      } else {
+        // If no error data found, check the error message for clues
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('AlreadyParticipated') || errorMessage.includes('already participated')) {
+          enhancedError = new Error('You have already joined this game session. Please wait for the next session.');
+        } else if (errorMessage.includes('SessionNotActive') || errorMessage.includes('session not active')) {
+          enhancedError = new Error('Session is not active. Please wait for a new session to start.');
+        } else if (errorMessage.includes('InsufficientEntryFee') || errorMessage.includes('insufficient')) {
+          enhancedError = new Error('Insufficient USDC balance or allowance. Please check your balance and try again.');
+        }
+      }
+
       // Re-throw to be handled by caller
-      throw error;
+      throw enhancedError;
     }
-  }, [writeContractEOA, publicClient]);
+  }, [writeContractEOA, publicClient, address]);
 
   // Smart Account uses ERC-20 gas payment (handled by usePaidGameEntryWithERC20Gas)
   // No need for separate implementation - the hook handles everything
@@ -135,7 +273,7 @@ export function usePaidGameEntry() {
     // Reset step at the start
     setCurrentStep('idle');
     setFinalTxHash(undefined);
-    
+
     // First, ensure a blockchain game exists
     console.log('Ensuring blockchain game exists...');
     try {
@@ -143,7 +281,7 @@ export function usePaidGameEntry() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
       });
-      
+
       if (!response.ok) {
         // Get the error details from the response
         let errorMessage = 'Failed to create blockchain game';
@@ -157,7 +295,7 @@ export function usePaidGameEntry() {
         }
         throw new Error(errorMessage);
       }
-      
+
       const result = await response.json();
       console.log('Blockchain game status:', result);
     } catch (error) {

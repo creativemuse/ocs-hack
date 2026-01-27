@@ -200,6 +200,21 @@ function parseObjectError(error: any, context: ErrorContext): TransactionError {
     };
   }
 
+  // Handle explicit insufficient balance errors from our code
+  if (error.message && (
+    error.message.includes('Insufficient USDC balance') ||
+    error.message.includes('insufficient USDC balance')
+  )) {
+    return {
+      code: 'INSUFFICIENT_FUNDS',
+      message: error.message,
+      details: error,
+      recoverable: true,
+      userMessage: error.message, // Preserve the detailed message
+      retryable: false,
+    };
+  }
+
   // Default object error handling
   return {
     message: error.message || 'Unknown error',
