@@ -1,8 +1,9 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
 import { createPaidGameCalls } from '@/lib/transaction/paidGameCalls';
 import { useAccountCapabilities } from './useAccountCapabilities';
 import { usePaidGameEntryWithERC20Gas } from './usePaidGameEntryWithERC20Gas';
+import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 interface GameEntryResult {
   success: boolean;
@@ -21,9 +22,17 @@ export type TransactionStep =
 export function usePaidGameEntry() {
   const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
   const [finalTxHash, setFinalTxHash] = useState<string | undefined>(undefined);
+  const [approvalHash, setApprovalHash] = useState<string | undefined>(undefined);
   
   // For EOA (Normal Account) - uses ETH for gas
   const { writeContractAsync: writeContractEOA, error: eoaError } = useWriteContract();
+  const publicClient = usePublicClient();
+  
+  // Watch for approval transaction receipt
+  const { data: approvalReceipt } = useWaitForTransactionReceipt({
+    hash: approvalHash as `0x${string}`,
+    query: { enabled: !!approvalHash }
+  });
   
   // Watch for the FINAL transaction receipt (Join Battle)
   const { data: finalReceipt } = useWaitForTransactionReceipt({
@@ -44,22 +53,58 @@ export function usePaidGameEntry() {
   const joinGameEOA = useCallback(async () => {
     const calls = createPaidGameCalls();
     setFinalTxHash(undefined); // Reset previous hash
+    setApprovalHash(undefined); // Reset approval hash
     
     try {
       // For EOA, we need to execute calls sequentially
       // First approve USDC
       setCurrentStep('approving_usdc');
       console.log('EOA: Approving USDC...');
-      await writeContractEOA({
+      const approvalTxHash = await writeContractEOA({
         address: calls[0].address,
         abi: calls[0].abi,
         functionName: calls[0].functionName as "approve",
         args: calls[0].args as [`0x${string}`, bigint],
       });
       
-      // Wait a moment for approval to be processed
-      // Note: Ideally we should wait for the approval receipt here, but sticking to existing pattern for now
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      console.log('✅ EOA: Approval transaction hash:', approvalTxHash);
+      setApprovalHash(approvalTxHash);
+      
+      // CRITICAL: Wait for approval transaction to be confirmed on-chain
+      // This ensures the allowance is available before calling joinBattle
+      if (!publicClient) {
+        throw new Error('Public client not available');
+      }
+      
+      console.log('⏳ Waiting for approval transaction to be confirmed...');
+      const approvalReceipt = await publicClient.waitForTransactionReceipt({
+        hash: approvalTxHash,
+        timeout: 120_000, // 2 minute timeout
+      });
+      
+      if (approvalReceipt.status !== 'success') {
+        throw new Error('Approval transaction failed');
+      }
+      
+      console.log('✅ EOA: Approval confirmed on-chain');
+      
+      // Verify session is active before joining (optional check, contract will revert if not)
+      if (publicClient) {
+        try {
+          const isSessionActive = await publicClient.readContract({
+            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+            abi: TRIVIA_ABI,
+            functionName: 'isSessionActive',
+          });
+          console.log('📋 Session active status:', isSessionActive);
+          if (!isSessionActive) {
+            throw new Error('Session is not active. Please wait for a new session to start.');
+          }
+        } catch (error) {
+          // If we can't read the contract, log but continue (contract will validate)
+          console.warn('⚠️ Could not verify session status:', error);
+        }
+      }
       
       // Then join battle
       setCurrentStep('joining_battle');
@@ -81,7 +126,7 @@ export function usePaidGameEntry() {
       // Re-throw to be handled by caller
       throw error;
     }
-  }, [writeContractEOA]);
+  }, [writeContractEOA, publicClient]);
 
   // Smart Account uses ERC-20 gas payment (handled by usePaidGameEntryWithERC20Gas)
   // No need for separate implementation - the hook handles everything
