@@ -163,7 +163,8 @@ export function usePaidGameEntry() {
       const minTokenThreshold = parseUnits('1', 6);
       const tokenApprovalTopUp = parseUnits('20', 6);
       const currentAllowance = await checkPaymasterAllowance();
-      const needsPaymasterApproval = currentAllowance < minTokenThreshold;
+      // Verify if we actually need to approve the paymaster (skip if MagicSpend is supported)
+      const needsPaymasterApproval = !supportsMagicSpend && currentAllowance < minTokenThreshold;
 
       // 2. Prepare Batch Calls
       const batchCalls: any[] = []; // Using any to match wallet_sendCalls format flexibly
