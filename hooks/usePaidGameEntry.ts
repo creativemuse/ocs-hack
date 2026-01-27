@@ -155,13 +155,40 @@ export function usePaidGameEntry() {
             args: [address as `0x${string}`],
           });
           console.log('👤 Has participated status:', hasParticipated);
+
           if (hasParticipated) {
-            // Check if they're in the current session's players array
-            // Note: We can't easily check the players array, but the contract will handle this
-            // The contract will clear the flag if they're not in the current session
-            console.warn('⚠️ Player has participated flag set. Contract will check if they\'re in current session and clear if not.');
+            // CRITICAL FIX: Explicitly check if they are in the current session
+            // "hasParticipated" might be true from a previous session if it wasn't cleared 
+            // (though the contract should handle this, checking locally prevents simulation failures)
+            try {
+              const currentPlayers = await publicClient.readContract({
+                address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+                abi: TRIVIA_ABI,
+                functionName: 'getCurrentPlayers',
+              }) as string[];
+
+              const isAlreadyInSession = currentPlayers.some(
+                (player) => player.toLowerCase() === address.toLowerCase()
+              );
+
+              if (isAlreadyInSession) {
+                throw new Error('You have already joined this game session. Please wait for the next session.');
+              } else {
+                console.log('ℹ️ User has participated flag but is NOT in current players list. Proceeding.');
+              }
+            } catch (playerCheckError) {
+              // If we can't check players, or if the user IS found (we threw above), rethrow
+              if (playerCheckError instanceof Error && playerCheckError.message.includes('already joined')) {
+                throw playerCheckError;
+              }
+              console.warn('⚠️ Could not verify current players list:', playerCheckError);
+            }
           }
         } catch (error) {
+          // If it's our "already joined" error, rethrow it
+          if (error instanceof Error && error.message.includes('already joined')) {
+            throw error;
+          }
           // If we can't read the contract, log but continue (contract will validate)
           console.warn('⚠️ Could not verify participation status:', error);
         }
