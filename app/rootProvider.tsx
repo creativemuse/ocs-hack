@@ -16,12 +16,12 @@ const getBaseRpcUrl = () => {
   // Always use public RPC for wagmi general operations
   // The authenticated CDP endpoint should only be used for bundler/paymaster
   const baseRpcUrl = process.env.NEXT_PUBLIC_BASE_RPC_URL;
-  
+
   // Only use public endpoints (not authenticated CDP endpoints)
   if (baseRpcUrl && !baseRpcUrl.includes('api.developer.coinbase.com')) {
     return baseRpcUrl;
   }
-  
+
   // Fallback to public Base RPC endpoint
   return 'https://mainnet.base.org';
 };
@@ -87,7 +87,9 @@ function OnchainKitProviderWrapper({ children }: { children: ReactNode }) {
         // Disable analytics to prevent 401 errors
         analytics: false,
         // Paymaster configuration - using the CDP paymaster URL
-        paymaster: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT as string,
+        paymaster: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT?.startsWith('http')
+          ? process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT
+          : undefined,
       }}
     >
       {children}
