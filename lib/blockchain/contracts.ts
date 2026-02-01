@@ -6,17 +6,17 @@ export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 // Base Sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
 // Base Mainnet: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 // Use environment variable if set, otherwise default to Sepolia
-export const USDC_CONTRACT_ADDRESS = 
+export const USDC_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_USDC_ADDRESS) ||
-  '0x036CbD53842c5426634e7929541eC2318f3dCF7e'; // Base Sepolia default
+  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // Base Mainnet default
 
 // Trivia Battle smart contract address
 // Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
 // Base Mainnet: 0xc166a6FB38636e8430d6A2Efb7A601c226659425 (old deployment)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
-export const TRIVIA_CONTRACT_ADDRESS = 
+export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0xe72Fc03137A1412354ca97282071d173Ae592D96'; // Base Sepolia default
+  '0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f'; // Base Mainnet default
 
 // Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
 // NOTE: This is a session-based contract, not game-based. It does NOT have:
