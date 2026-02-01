@@ -1,6 +1,6 @@
 "use client";
 import { ReactNode, useEffect } from "react";
-import { base } from "wagmi/chains";
+import { base, mainnet } from "wagmi/chains";
 import { OnchainKitProvider } from "@coinbase/onchainkit";
 import "@coinbase/onchainkit/styles.css";
 import { WagmiProvider, createConfig, http } from "wagmi";
@@ -22,13 +22,17 @@ const getBaseRpcUrl = () => {
     return baseRpcUrl;
   }
 
-  // Fallback to Alchemy RPC endpoint as requested
-  return 'https://base-mainnet.g.alchemy.com/v2/5Uele1-f9VradlbXgrDgqCeAO5_AefTd';
+  // Fallback to Alchemy RPC endpoint
+  const alchemyApiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+  if (!alchemyApiKey) {
+    console.warn('⚠️ No Alchemy API Key found. Please set NEXT_PUBLIC_ALCHEMY_API_KEY.');
+  }
+  return `https://base-mainnet.g.alchemy.com/v2/${alchemyApiKey}`;
 };
 
 // Create wagmi config with MiniKit and Base Account support
 const wagmiConfig = createConfig({
-  chains: [base],
+  chains: [base, mainnet],
   connectors: [
     // Base Account connector for existing Base users
     baseAccount({
@@ -44,6 +48,7 @@ const wagmiConfig = createConfig({
   ssr: true,
   transports: {
     [base.id]: http(getBaseRpcUrl()),
+    [mainnet.id]: http(`https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`),
   },
 });
 

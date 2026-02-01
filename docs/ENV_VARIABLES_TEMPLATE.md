@@ -64,6 +64,7 @@ NODE_ENV=development
 # Blockchain RPC URLs (for contract deployment/testing)
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 BASE_RPC_URL=https://mainnet.base.org
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_alchemy_api_key_here
 PRIVATE_KEY=your_wallet_private_key_for_deployment
 
 # Etherscan API Key (for contract verification)
