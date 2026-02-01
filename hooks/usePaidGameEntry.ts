@@ -21,8 +21,7 @@ export type TransactionStep =
   | 'processing_paymaster'
   | 'complete';
 
-// Paymaster address for ERC-20 gas payments (CDP Paymaster)
-const PAYMASTER_ADDRESS = '0x2FAEB0760D4230Ef2aC21496Bb4F0b47D634FD4c';
+
 
 export function usePaidGameEntry() {
   const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
@@ -58,22 +57,7 @@ export function usePaidGameEntry() {
     isReady: erc20GasReady,
   } = usePaidGameEntryWithERC20Gas();
 
-  // Helper to check Paymaster Allowance
-  const checkPaymasterAllowance = useCallback(async (): Promise<bigint> => {
-    if (!address || !publicClient) return BigInt(0);
-    try {
-      const allowance = await publicClient.readContract({
-        address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-        abi: USDC_ABI,
-        functionName: 'allowance',
-        args: [address as `0x${string}`, PAYMASTER_ADDRESS as `0x${string}`],
-      });
-      return allowance as bigint;
-    } catch (err) {
-      console.error('Failed to check paymaster allowance:', err);
-      return BigInt(0);
-    }
-  }, [address, publicClient]);
+
 
 
   const joinGameEOA = useCallback(async () => {
@@ -159,28 +143,8 @@ export function usePaidGameEntry() {
         throw new Error('Wallet client not ready');
       }
 
-      // 1. Check Paymaster Allowance (for ERC20 gas)
-      const minTokenThreshold = parseUnits('1', 6);
-      const tokenApprovalTopUp = parseUnits('20', 6);
-      const currentAllowance = await checkPaymasterAllowance();
-      // Verify if we actually need to approve the paymaster (skip if MagicSpend is supported)
-      const needsPaymasterApproval = !supportsMagicSpend && currentAllowance < minTokenThreshold;
-
       // 2. Prepare Batch Calls
       const batchCalls: any[] = []; // Using any to match wallet_sendCalls format flexibly
-
-      // Paymaster Approval
-      if (needsPaymasterApproval) {
-        batchCalls.push({
-          to: USDC_CONTRACT_ADDRESS as `0x${string}`,
-          value: toHex(BigInt(0)),
-          data: encodeFunctionData({
-            abi: USDC_ABI,
-            functionName: 'approve',
-            args: [PAYMASTER_ADDRESS as `0x${string}`, tokenApprovalTopUp],
-          }),
-        });
-      }
 
       // Trivia Contract Approval
       const entryFeeWei = parseUnits(ENTRY_FEE_USDC, 6);
@@ -256,7 +220,7 @@ export function usePaidGameEntry() {
       console.error('❌ Batch transaction failed:', error);
       throw error;
     }
-  }, [walletClient, address, publicClient, checkPaymasterAllowance, capabilities]);
+  }, [walletClient, address, publicClient, capabilities]);
 
 
   const joinGameUniversal = useCallback(async () => {

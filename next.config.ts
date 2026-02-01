@@ -12,9 +12,9 @@ const nextConfig: NextConfig = {
       // Add your production asset domain here
       // Example for CDN:
       {
-         protocol: "https",
-         hostname: "beatme.creativeplatform.xyz",
-         pathname: "/assets/**",
+        protocol: "https",
+        hostname: "beatme.creativeplatform.xyz",
+        pathname: "/assets/**",
       },
       // Example for custom asset server:
       // {
@@ -50,14 +50,14 @@ const nextConfig: NextConfig = {
         'lib/chainlink': 'commonjs lib/chainlink',
       });
     }
-    
+
     // Optimize for production builds
     if (!dev) {
       // Enable tree shaking
       config.optimization = config.optimization || {};
       config.optimization.usedExports = true;
       config.optimization.sideEffects = false;
-      
+
       // Split chunks for better caching
       config.optimization.splitChunks = {
         chunks: 'all',
@@ -76,8 +76,22 @@ const nextConfig: NextConfig = {
         },
       };
     }
-    
+
     return config;
+  },
+  async headers() {
+    return [
+      {
+        source: '/:path*',
+        headers: [
+          {
+            key: 'Content-Security-Policy',
+            // Allow unsafe-eval for dev tools and Web3 libs, allow unsafe-inline for styles
+            value: "default-src 'self'; script-src 'self' 'unsafe-eval' 'unsafe-inline' blob: https:; style-src 'self' 'unsafe-inline' https:; img-src 'self' blob: data: https:; font-src 'self' data: https:; connect-src 'self' https: wss: http://localhost:*; frame-src 'self' https:;",
+          },
+        ],
+      },
+    ];
   },
 };
 
