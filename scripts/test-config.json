@@ -1,0 +1,79 @@
+{
+  "testConfig": {
+    "spacetime": {
+      "uri": "http://localhost:3000",
+      "moduleName": "beat-me"
+    },
+    "contract": {
+      "address": "0x...",
+      "rpcUrl": "https://mainnet.base.org",
+      "usdcAddress": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913"
+    },
+    "testWallets": {
+      "winner": "0x742d35Cc6634C0532925a3b8D4C9db96C4b4d8b6",
+      "loser": "0x8ba1f109551bD432803012645Hac136c4c8b4d8b6"
+    },
+    "testScores": {
+      "high": 850,
+      "medium": 750,
+      "low": 650,
+      "noPrize": 550
+    },
+    "expectedPrizes": {
+      "high": 0.1,
+      "medium": 0.05,
+      "low": 0.02,
+      "noPrize": 0
+    }
+  },
+  "testSuites": {
+    "prizeClaimingFlow": {
+      "enabled": true,
+      "description": "Tests the complete prize claiming flow from game completion to prize distribution"
+    },
+    "smartContractClaiming": {
+      "enabled": true,
+      "description": "Tests smart contract claiming functionality including double-claiming prevention"
+    },
+    "uiClaimingFlow": {
+      "enabled": true,
+      "description": "Tests UI claiming flow including component rendering and user interactions"
+    },
+    "integration": {
+      "enabled": true,
+      "description": "Tests the complete integration from game completion to prize claiming"
+    }
+  },
+  "environment": {
+    "development": {
+      "spacetime": {
+        "uri": "http://localhost:3000",
+        "moduleName": "beat-me"
+      },
+      "contract": {
+        "address": "0x...",
+        "rpcUrl": "http://localhost:8545"
+      }
+    },
+    "staging": {
+      "spacetime": {
+        "uri": "https://staging.spacetimedb.com",
+        "moduleName": "beat-me-staging"
+      },
+      "contract": {
+        "address": "0x...",
+        "rpcUrl": "https://sepolia.base.org"
+      }
+    },
+    "production": {
+      "spacetime": {
+        "uri": "https://mainnet.spacetimedb.com",
+        "moduleName": "beat-me"
+      },
+      "contract": {
+        "address": "0x...",
+        "rpcUrl": "https://mainnet.base.org"
+      }
+    }
+  }
+}

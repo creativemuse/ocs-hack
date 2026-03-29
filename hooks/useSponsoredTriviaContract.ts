@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from './useBaseAccount';
 import { parseUnits } from 'viem';
 import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
@@ -15,7 +15,7 @@ export interface SponsoredContractState {
 }
 
 export function useSponsoredTriviaContract() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const [state, setState] = useState<SponsoredContractState>({
     isApproving: false,
     isJoining: false,

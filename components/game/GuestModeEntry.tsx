@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { useAccount } from 'wagmi';
-import { Wallet, Gamepad2, Crown, Sparkles, Users, Trophy, Zap } from 'lucide-react';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { SignInWithBaseButton } from '@base-org/account-ui/react';
+import { Wallet, Gamepad2, Crown, Sparkles, Users, Trophy, Zap, Shield, Star } from 'lucide-react';
 
 interface GuestModeEntryProps {
   onGuestStart: (guestName: string) => void;
@@ -18,6 +19,7 @@ interface GuestModeEntryProps {
 export default function GuestModeEntry({ onGuestStart, onWalletConnect, className = '' }: GuestModeEntryProps) {
   const [guestName, setGuestName] = useState('');
   const [showGuestForm, setShowGuestForm] = useState(false);
+  const { isConnected } = useBaseAccount();
 
   const handleGuestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -134,43 +136,59 @@ export default function GuestModeEntry({ onGuestStart, onWalletConnect, classNam
         </CardContent>
       </Card>
 
-      {/* Wallet Connect Option */}
-      <Card className="bg-gradient-to-br from-yellow-900/20 to-orange-900/20 border-yellow-500/30">
+      {/* Base Account Connect Option */}
+      <Card className="bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-500/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg text-white">
-            <Crown className="h-5 w-5 text-yellow-400" />
-            Normal Mode
+            <Star className="h-5 w-5 text-blue-400" />
+            Base Account Mode
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-300">Entry Fee:</span>
-              <Badge variant="secondary" className="bg-yellow-500/20 text-yellow-400 border-yellow-500/30">
+              <Badge variant="secondary" className="bg-blue-500/20 text-blue-400 border-blue-500/30">
                 1 USDC
               </Badge>
             </div>
           </div>
           
-          <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-lg p-3">
-            <div className="text-xs text-yellow-300">
-              <p className="font-medium mb-1">Premium Benefits:</p>
-              <ul className="space-y-1 text-yellow-200/80">
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
+            <div className="text-xs text-blue-300">
+              <p className="font-medium mb-1">Base Account Benefits:</p>
+              <ul className="space-y-1 text-blue-200/80">
                 <li>• Win USDC rewards</li>
+                <li>• Gasless transactions via paymaster</li>
+                <li>• Cross-device stat persistence</li>
+                <li>• Sub Account for enhanced security</li>
                 <li>• Leaderboard ranking</li>
-                <li>• Exclusive achievements</li>
-                <li>• Early access to new features</li>
+                <li>• Spend Permissions for seamless gameplay</li>
               </ul>
             </div>
           </div>
 
-          <Button
-            onClick={onWalletConnect}
-            className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white"
-          >
-            <Wallet className="h-4 w-4 mr-2" />
-            Play for Rewards
-          </Button>
+          {isConnected ? (
+            <Button
+              onClick={onWalletConnect}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white"
+            >
+              <Shield className="h-4 w-4 mr-2" />
+              Continue with Base Account
+            </Button>
+          ) : (
+            <div className="space-y-3">
+              <SignInWithBaseButton colorScheme="light" />
+              <Button
+                onClick={onWalletConnect}
+                variant="outline"
+                className="w-full bg-white/10 border-white/20 text-white hover:bg-white/20"
+              >
+                <Wallet className="h-4 w-4 mr-2" />
+                Play for Rewards
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 

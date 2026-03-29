@@ -1,12 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect } from '@coinbase/onchainkit/wallet';
-import { Avatar, Name, Address, Identity } from '@coinbase/onchainkit/identity';
-import { cn, text as dsText, pressable } from '@coinbase/onchainkit/theme';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { SignInWithBaseButton, BasePayButton } from '@base-org/account-ui/react';
+import { pay, getPaymentStatus } from '@base-org/account';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
-import { useAccount } from 'wagmi';
-import { useOneClickBuy } from '@/hooks/useOneClickBuy';
 import { Coins, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -18,43 +16,56 @@ interface WalletWithBalanceProps {
 }
 
 export default function WalletWithBalance({ onFundingSuccess, className = '' }: WalletWithBalanceProps) {
-  const { address, isConnected } = useAccount();
+  const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
   const { balance, hasEnoughForEntry, isLoading, error, refreshBalance } = useUSDCBalance();
-  const { generateBuyUrl, openOnramp, isLoading: buyLoading, error: buyError, quoteData } = useOneClickBuy();
   const [fundingSuccess, setFundingSuccess] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
 
-  const handleAddFunds = async () => {
+  const handleBasePay = async () => {
     if (!address) return;
     
+    setPaymentLoading(true);
     try {
-      console.log('Generating One-Click-Buy URL for wallet:', address);
+      console.log('Initiating Base Pay for wallet:', address);
       
-      // Generate buy URL with $5 USDC preset on Base
-      const result = await generateBuyUrl(address, {
-        paymentAmount: '5.00',
-        paymentCurrency: 'USD',
-        purchaseCurrency: 'USDC',
-        purchaseNetwork: 'base',
-        paymentMethod: 'CARD',
-        country: 'US',
+      // Use Base Pay to add USDC funds
+      const payment = await pay({
+        amount: '5.00',
+        to: address,
+        testnet: false, // Use mainnet for production
       });
       
-      if (result?.url) {
-        console.log('Opening One-Click-Buy URL');
-        
-        // Open the onramp URL
-        openOnramp(result.url);
-        
-        // Show success feedback
-        setFundingSuccess(true);
-        setTimeout(() => {
-          setFundingSuccess(false);
-          onFundingSuccess?.();
-          refreshBalance(); // Refresh balance after funding
-        }, 2000);
-      }
+      console.log('Base Pay initiated:', payment.id);
+      
+      // Poll for payment status
+      const checkStatus = async () => {
+        try {
+          const status = await getPaymentStatus({ id: payment.id, testnet: false });
+          console.log('Payment status:', status);
+          
+          if (status.status === 'completed') {
+            setFundingSuccess(true);
+            onFundingSuccess?.();
+            refreshBalance();
+            setTimeout(() => setFundingSuccess(false), 3000);
+          } else if (status.status === 'failed') {
+            console.error('Payment failed');
+          } else {
+            // Still pending, check again in 2 seconds
+            setTimeout(checkStatus, 2000);
+          }
+        } catch (error) {
+          console.error('Error checking payment status:', error);
+        }
+      };
+      
+      // Start polling
+      setTimeout(checkStatus, 2000);
+      
     } catch (err) {
-      console.error('Failed to generate One-Click-Buy URL:', err);
+      console.error('Base Pay failed:', err);
+    } finally {
+      setPaymentLoading(false);
     }
   };
 
@@ -127,83 +138,43 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
         </Card>
       )}
 
-      {/* Wallet Component */}
+      {/* Base Account Component */}
       <div className="flex justify-center">
-        <Wallet>
-          <ConnectWallet>
-            <Avatar className="h-6 w-6" />
-            <Name />
-          </ConnectWallet>
-          <WalletDropdown>
-            <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-              <Avatar />
-              <Name />
-              {/* Address shown only in wallet dropdown for wallet management - OnchainKit Name handles Basename display above */}
-              <Address className="text-gray-400 text-xs" />
-            </Identity>
-            
-            {/* USDC Balance in Dropdown */}
-            {isConnected && (
-              <div className="px-3 py-2 border-t border-gray-200/10">
-                <div className="flex items-center justify-between text-sm">
-                  <div className="flex items-center gap-2">
-                    <Coins className="h-3 w-3 text-yellow-400" />
-                    <span className="text-gray-300">USDC Balance</span>
+        {isConnected ? (
+          <Card className="bg-gradient-to-br from-green-900/20 to-blue-900/20 border-green-500/30">
+            <CardContent className="p-4">
+              <div className="text-center space-y-3">
+                <div className="flex items-center justify-center gap-2 text-green-400">
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-sm font-medium">Base Account Connected</span>
+                </div>
+                
+                <div className="space-y-1">
+                  <div className="text-xs text-gray-400 font-mono">
+                    Sub Account: {address?.slice(0, 6)}...{address?.slice(-4)}
                   </div>
-                  <span className="font-medium text-white">
-                    {isLoading ? '...' : formatUSDCBalance(balance)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-xs mt-1">
-                  <span className="text-gray-400">Entry Fee: 1 USDC</span>
-                  <Badge 
-                    variant={hasEnoughForEntry ? "default" : "destructive"}
-                    className={`text-xs ${hasEnoughForEntry ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}
-                  >
-                    {hasEnoughForEntry ? 'Ready' : 'Need Funds'}
-                  </Badge>
-                </div>
-              </div>
-            )}
-            
-            {/* Add Funds Button */}
-            {isConnected && (
-              <button
-                type="button"
-                onClick={handleAddFunds}
-                disabled={buyLoading}
-                className={cn(
-                  pressable.default,
-                  'text-ock-foreground',
-                  'relative flex w-full items-center px-4 pt-3 pb-4',
-                  buyLoading && 'opacity-50 cursor-not-allowed'
-                )}
-              >
-                <div className="absolute left-4 flex h-[1.125rem] w-[1.125rem] items-center justify-center">
-                  {buyLoading ? (
-                    <Loader2 className="h-full w-full animate-spin" />
-                  ) : fundingSuccess ? (
-                    <CheckCircle className="h-full w-full text-green-500" />
-                  ) : (
-                    <Coins className="h-full w-full" />
+                  {universalAddress && universalAddress !== address && (
+                    <div className="text-xs text-gray-500 font-mono">
+                      Universal: {universalAddress?.slice(0, 6)}...{universalAddress?.slice(-4)}
+                    </div>
                   )}
                 </div>
-                <span className={cn(dsText.body, 'pl-6')}>
-                  {buyLoading ? 'Opening funding...' : fundingSuccess ? 'Funding opened!' : 'Add USDC Funds'}
-                </span>
-              </button>
-            )}
-            
-            {/* Error Messages */}
-            {buyError && (
-              <div className="px-3 py-2 text-xs text-red-400">
-                {buyError}
+                
+                <Badge variant="secondary" className="bg-green-500/20 text-green-300">
+                  Base Network
+                </Badge>
+                
+                {/* Add Funds with Base Pay */}
+                <BasePayButton
+                  colorScheme="light"
+                  onClick={handleBasePay}
+                />
               </div>
-            )}
-            
-            <WalletDropdownDisconnect />
-          </WalletDropdown>
-        </Wallet>
+            </CardContent>
+          </Card>
+        ) : (
+          <SignInWithBaseButton colorScheme="light" />
+        )}
       </div>
     </div>
   );

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from 'react';
 import { useAccount, useChainId, useWalletClient } from 'wagmi';
 import { createBundlerClient } from 'viem/account-abstraction';
 import { toCoinbaseSmartAccount } from 'viem/account-abstraction';
-import { createPublicClient, http, custom, fallback } from 'viem';
+import { createPublicClient, http, custom, fallback, type EIP1193Provider } from 'viem';
 import { base, baseSepolia } from 'viem/chains';
 import type { SmartAccount } from 'viem/account-abstraction';
 
@@ -47,9 +47,9 @@ export function useBundlerClient() {
     // Add public RPC endpoint for reads
     transports.push(http(publicRpcUrl));
     
-    // Add wallet provider for signing operations
-    if (window.ethereum) {
-      transports.push(custom(window.ethereum));
+    const injected = (window as Window & { ethereum?: EIP1193Provider }).ethereum;
+    if (injected) {
+      transports.push(custom(injected));
     }
     
     return createPublicClient({

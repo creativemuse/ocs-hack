@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from './useBaseAccount';
 
 interface GameSession {
   session_id: string;
@@ -36,7 +36,7 @@ export const useGameSession = (): UseGameSessionReturn => {
   const [waitingForPaidPlayer, setWaitingForPaidPlayer] = useState(false);
   const [playerId, setPlayerId] = useState<string | null>(null);
   const [entryToken, setEntryToken] = useState<string | null>(null);
-  const { address } = useAccount();
+  const { address } = useBaseAccount();
 
   // Load entryToken from localStorage on mount
   useEffect(() => {

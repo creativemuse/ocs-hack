@@ -1,8 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Avatar, Name } from '@coinbase/onchainkit/identity';
+// OnchainKit Avatar component removed - using Base Account instead
 import { base } from 'viem/chains';
+import { Avatar } from '@coinbase/onchainkit/identity';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -10,9 +11,6 @@ import { Trophy, Users, Calendar, Share2, ExternalLink, Sparkles } from 'lucide-
 import type { ActivePlayer } from '@/hooks/useActivePlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
 import { usePlayerProfile } from '@/hooks/usePlayerProfile';
-import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
-import { useAccount } from 'wagmi';
-import Image from 'next/image';
 
 interface SocialProfileViewerProps {
   player: ActivePlayer | null;
@@ -27,8 +25,6 @@ export default function SocialProfileViewer({
 }: SocialProfileViewerProps) {
   const { sharePlayerActivity } = useSocialShare();
   const [isSharing, setIsSharing] = useState(false);
-  const { user: currentUserProfile, isInMiniApp } = useMiniAppProfile();
-  const { address: currentUserAddress } = useAccount();
 
   // Fetch real blockchain profile data
   const { profile: blockchainProfile, isLoading: profileLoading } = usePlayerProfile({
@@ -37,10 +33,6 @@ export default function SocialProfileViewer({
   });
 
   if (!player) return null;
-
-  // Check if viewing current user's profile
-  const isCurrentUser = currentUserAddress?.toLowerCase() === player.address.toLowerCase();
-  const useMiniAppData = isInMiniApp && isCurrentUser && currentUserProfile;
 
   // Use blockchain data if available, otherwise fall back to player data
   const displayStats = {
@@ -51,8 +43,12 @@ export default function SocialProfileViewer({
     isLiveData: !!blockchainProfile
   };
 
-  // Address formatting removed per Product Guidelines - avoid showing 0x addresses
-  // Use Mini App profile data or OnchainKit Name component for Basename resolution instead
+  const formatAddress = (address: string) => {
+    if (address.startsWith('anon_')) {
+      return address.slice(5, 13) + '...';
+    }
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
 
   const formatLastActive = (lastActive: string) => {
     const now = new Date();
@@ -110,29 +106,16 @@ export default function SocialProfileViewer({
           {/* Player Avatar and Basic Info */}
           <div className="text-center space-y-4">
             <div className="relative inline-block">
-              {/* Use Mini App profile picture for current user, otherwise use OnchainKit Avatar */}
-              {useMiniAppData && currentUserProfile.pfpUrl ? (
-                <div className="relative w-20 h-20 border-4 border-gray-700 rounded-full overflow-hidden">
-                  <Image
-                    src={currentUserProfile.pfpUrl}
-                    alt={currentUserProfile.displayName || currentUserProfile.username || 'Your avatar'}
-                    fill
-                    className="object-cover"
-                    unoptimized // Farcaster CDN images
-                  />
-                </div>
-              ) : (
-                <Avatar
-                  address={player.isWalletUser ? (player.address as `0x${string}`) : undefined}
-                  chain={base}
-                  className="w-20 h-20 border-4 border-gray-700 rounded-full"
-                  defaultComponent={
-                    <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">
-                      {player.username.slice(0, 2).toUpperCase()}
-                    </div>
-                  }
-                />
-              )}
+              <Avatar
+                address={player.isWalletUser ? (player.address as `0x${string}`) : undefined}
+                chain={base}
+                className="w-20 h-20 border-4 border-gray-700 rounded-full"
+                defaultComponent={
+                  <div className="w-20 h-20 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-2xl font-bold">
+                    {player.username.slice(0, 2).toUpperCase()}
+                  </div>
+                }
+              />
               <div className="absolute -bottom-2 -right-2">
                 <Badge className={`${getRankColor(getPlayerRank())} text-white border-0`}>
                   {getPlayerRank()}
@@ -141,26 +124,10 @@ export default function SocialProfileViewer({
             </div>
             
             <div>
-              {/* Show Mini App profile name for current user, otherwise show username or Basename */}
-              <h2 className="text-xl font-bold text-white">
-                {useMiniAppData && (currentUserProfile.displayName || currentUserProfile.username) 
-                  ? (currentUserProfile.displayName || currentUserProfile.username)
-                  : player.username || (player.isWalletUser ? (
-                    <Name 
-                      address={player.address as `0x${string}`}
-                      chain={base}
-                    />
-                  ) : 'Anonymous Player')}
-              </h2>
-              {/* Removed address display per Product Guidelines - avoid showing 0x addresses */}
-              {player.isWalletUser && !useMiniAppData && (
-                <p className="text-gray-400 text-sm">
-                  <Name 
-                    address={player.address as `0x${string}`}
-                    chain={base}
-                  />
-                </p>
-              )}
+              <h2 className="text-xl font-bold text-white">{player.username}</h2>
+              <p className="text-gray-400 text-sm">
+                {player.isWalletUser ? formatAddress(player.address) : 'Anonymous Player'}
+              </p>
             </div>
           </div>
 

@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useReadContract } from 'wagmi';
+import { createBaseAccountSDK } from '@base-org/account';
+import { base } from 'viem/chains';
 
 // Contract addresses (Base Mainnet)
 const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xd8F082fa4EF6a4C59F8366c19a196d488485682b';
@@ -51,90 +52,128 @@ export function useContractUSDCBalance() {
     decimals: 6,
   });
 
-  // Read USDC balance of the TriviaBattle contract
-  const { 
-    data: balanceWei, 
-    isLoading: balanceLoading, 
-    error: balanceError,
-    refetch: refetchBalance 
-  } = useReadContract({
-    address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-    abi: USDC_ABI,
-    functionName: 'balanceOf',
-    args: [TRIVIA_CONTRACT_ADDRESS as `0x${string}`],
-    query: {
-      refetchInterval: 10000, // Refetch every 10 seconds
-      staleTime: 5000, // Consider data stale after 5 seconds
-    },
-  });
+  // Initialize Base Account SDK client-side only
+  const [provider, setProvider] = useState<any>(null);
 
-  // Read USDC decimals
-  const { 
-    data: decimals,
-    error: decimalsError 
-  } = useReadContract({
-    address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-    abi: USDC_ABI,
-    functionName: 'decimals',
-    query: {
-      refetchInterval: 60000, // Decimals don't change, refetch every minute
-    },
-  });
-
-  // Read USDC symbol
-  const { 
-    data: symbol,
-    error: symbolError 
-  } = useReadContract({
-    address: USDC_CONTRACT_ADDRESS as `0x${string}`,
-    abi: USDC_ABI,
-    functionName: 'symbol',
-    query: {
-      refetchInterval: 60000, // Symbol doesn't change, refetch every minute
-    },
-  });
-
-  // Update state when data changes
   useEffect(() => {
-    if (balanceWei !== undefined && decimals !== undefined && symbol !== undefined) {
-      const balance = Number(balanceWei) / (10 ** decimals);
+    if (typeof window !== "undefined") {
+      try {
+        const sdk = createBaseAccountSDK({
+          appName: 'BEAT ME',
+          appLogoUrl: 'https://base.org/logo.png',
+          appChainIds: [base.id],
+          subAccounts: {
+            creation: 'on-connect',
+            defaultAccount: 'sub',
+          },
+          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
+        });
+        setProvider(sdk.getProvider());
+      } catch (error) {
+        console.error('Failed to initialize Base Account SDK:', error);
+      }
+    }
+  }, []);
+
+  // Fetch contract data using Base Account SDK
+  const fetchContractData = useCallback(async () => {
+    if (!provider) return;
+    
+    setState(prev => ({ ...prev, isLoading: true, error: null }));
+
+    try {
+      // Read USDC balance of the TriviaBattle contract
+      const balanceWei = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: USDC_CONTRACT_ADDRESS,
+          data: `0x70a08231${TRIVIA_CONTRACT_ADDRESS.slice(2).padStart(64, '0')}`, // balanceOf(address)
+        }, 'latest']
+      });
+
+      // Read USDC decimals
+      const decimals = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: USDC_CONTRACT_ADDRESS,
+          data: '0x313ce567', // decimals()
+        }, 'latest']
+      });
+
+      // Read USDC symbol
+      const symbol = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: USDC_CONTRACT_ADDRESS,
+          data: '0x95d89b41', // symbol()
+        }, 'latest']
+      });
+
+      // Parse the results
+      const balanceWeiBigInt = BigInt(balanceWei as string);
+      const decimalsNum = parseInt(decimals as string, 16);
+      const symbolStr = decodeString(symbol as string);
+
+      const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);
       
       setState(prev => ({
         ...prev,
         balance,
-        balanceWei,
-        decimals,
-        symbol: symbol as string,
-        isLoading: balanceLoading,
-        error: balanceError?.message || decimalsError?.message || symbolError?.message || null,
+        balanceWei: balanceWeiBigInt,
+        decimals: decimalsNum,
+        symbol: symbolStr,
+        isLoading: false,
+        error: null,
       }));
-    } else {
+    } catch (error) {
+      console.error('Error fetching contract data:', error);
       setState(prev => ({
         ...prev,
-        balance: 0,
-        balanceWei: BigInt(0),
-        isLoading: balanceLoading,
-        error: balanceError?.message || decimalsError?.message || symbolError?.message || null,
+        isLoading: false,
+        error: error instanceof Error ? error.message : 'Failed to fetch contract data',
       }));
     }
-  }, [balanceWei, decimals, symbol, balanceLoading, balanceError, decimalsError, symbolError]);
+  }, [provider]);
 
-  // Debug logging
+  // Helper function to decode hex string to string
+  const decodeString = (hex: string): string => {
+    try {
+      // Remove 0x prefix and convert hex to string
+      const hexString = hex.slice(2);
+      const bytes = [];
+      for (let i = 0; i < hexString.length; i += 2) {
+        bytes.push(parseInt(hexString.substr(i, 2), 16));
+      }
+      // Find the length (first 32 bytes) and extract the string
+      const length = parseInt(hexString.slice(64, 128), 16);
+      const stringBytes = bytes.slice(32, 32 + length);
+      return String.fromCharCode(...stringBytes);
+    } catch {
+      return 'USDC'; // fallback
+    }
+  };
+
+  // Initial fetch and periodic refetch
   useEffect(() => {
-    if (balanceError) {
-      console.error('Contract USDC Balance Error:', balanceError);
+    if (provider) {
+      fetchContractData();
+      
+      // Set up periodic refetch every 10 seconds
+      const interval = setInterval(fetchContractData, 10000);
+      
+      return () => clearInterval(interval);
     }
-    if (decimalsError) {
-      console.error('USDC Decimals Error:', decimalsError);
+  }, [fetchContractData, provider]);
+
+  useEffect(() => {
+    if (state.error) {
+      console.error('Contract USDC Balance Error:', state.error);
     }
-    if (symbolError) {
-      console.error('USDC Symbol Error:', symbolError);
-    }
-  }, [balanceError, decimalsError, symbolError]);
+  }, [state.error]);
 
   const refreshBalance = useCallback(() => {
-    refetchBalance();
-  }, [refetchBalance]);
+    fetchContractData();
+  }, [fetchContractData]);
 
   return {
     ...state,

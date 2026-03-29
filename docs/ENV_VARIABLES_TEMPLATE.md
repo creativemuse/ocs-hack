@@ -49,14 +49,19 @@ ADMIN_API_SECRET=your_super_secret_admin_key_here
 # OPTIONAL CONFIGURATION
 ############################################
 
-# OnchainKit API Key (for enhanced wallet features) - REQUIRED for OnchainKit
-NEXT_PUBLIC_CDP_API_KEY=your_onchainkit_api_key
-# Legacy name for backward compatibility (deprecated - use NEXT_PUBLIC_CDP_API_KEY)
-# NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
+# Base Account Configuration
+NEXT_PUBLIC_BASE_ACCOUNT_APP_NAME=BEAT ME
+NEXT_PUBLIC_BASE_ACCOUNT_LOGO_URL=https://your-domain.com/logo.png
+NEXT_PUBLIC_SPEND_PERMISSION_SPENDER=0xYourTreasuryAddress
 
 # CDP Paymaster & Bundler Endpoint (for gasless transactions)
 # Get from: https://portal.cdp.coinbase.com/products/bundler-and-paymaster -> Configuration tab
 NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT=https://api.developer.coinbase.com/rpc/v1/base/your_key_here
+
+# OnchainKit API Key (for enhanced wallet features) - OPTIONAL with Base Account
+NEXT_PUBLIC_CDP_API_KEY=your_onchainkit_api_key
+# Legacy name for backward compatibility (deprecated - use NEXT_PUBLIC_CDP_API_KEY)
+# NEXT_PUBLIC_ONCHAINKIT_API_KEY=your_onchainkit_api_key
 
 # Environment
 NODE_ENV=development

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useSponsoredTriviaContract } from '@/hooks/useSponsoredTriviaContract';
 import SponsoredTransaction from './SponsoredTransaction';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { CheckCircle, XCircle, Loader2, Zap } from 'lucide-react';
 
 export default function SponsoredTransactionExample() {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const [sessionId] = useState('example-session-123');
   const [score] = useState(85);
 

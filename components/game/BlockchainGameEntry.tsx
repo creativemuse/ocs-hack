@@ -29,9 +29,7 @@ export default function BlockchainGameEntry({
   const entryFee = BigInt(1_000_000);
 
   const {
-    sessionCounter,
-    isSessionActive,
-    currentSessionPrizePool,
+    sessionActive,
     error,
     joinBattle,
     joinTrialBattle,
@@ -77,8 +75,8 @@ export default function BlockchainGameEntry({
   };
 
   // Check if player can join
-  const canJoinPaid = isSessionActive ?? false;
-  const canJoinTrial = isSessionActive ?? false;
+  const canJoinPaid = sessionActive ?? false;
+  const canJoinTrial = sessionActive ?? false;
   const hasJoined = false; // We'll need to track this differently
 
   if (hasJoined) {
@@ -123,22 +121,20 @@ export default function BlockchainGameEntry({
         
         <CardContent className="space-y-6">
         {/* Session Status */}
-        {(sessionCounter !== undefined || currentSessionPrizePool !== undefined) && (
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2">
-              <Clock className="w-4 h-4 text-blue-400" />
-              <span>Session: {sessionCounter?.toString() ?? 'N/A'}</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <DollarSign className="w-4 h-4 text-green-400" />
-              <span>Prize Pool: {currentSessionPrizePool ? (Number(currentSessionPrizePool) / 1e6).toFixed(3) : '0.000'} USDC</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <Trophy className="w-4 h-4 text-yellow-400" />
-              <span>Status: {isSessionActive ? 'Active' : 'Inactive'}</span>
-            </div>
+        <div className="grid grid-cols-2 gap-4 text-sm">
+          <div className="flex items-center gap-2">
+            <Clock className="w-4 h-4 text-blue-400" />
+            <span>Session: see contract</span>
           </div>
-        )}
+          <div className="flex items-center gap-2">
+            <DollarSign className="w-4 h-4 text-green-400" />
+            <span>Prize Pool: on-chain</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Trophy className="w-4 h-4 text-yellow-400" />
+            <span>Status: {sessionActive ? 'Active' : 'Inactive'}</span>
+          </div>
+        </div>
 
         {/* Error Display */}
         {error && (
@@ -150,7 +146,7 @@ export default function BlockchainGameEntry({
         )}
 
         {/* No Active Session */}
-        {!isSessionActive && (
+        {!sessionActive && (
           <Alert className="border-yellow-500/20 bg-yellow-500/10">
             <AlertDescription className="text-yellow-300">
               No active session. Please wait for the next battle to begin.
@@ -159,7 +155,7 @@ export default function BlockchainGameEntry({
         )}
 
         {/* Join Options */}
-        {isSessionActive && (
+        {sessionActive && (
           <div className="space-y-4">
             {/* Paid Player Option */}
             <div className="border border-purple-500/20 rounded-lg p-4 bg-purple-500/5">

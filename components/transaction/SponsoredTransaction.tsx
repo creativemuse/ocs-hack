@@ -1,13 +1,12 @@
 'use client';
 
 import { ReactNode } from 'react';
-import { Transaction, TransactionButton, TransactionSponsor, TransactionStatus, TransactionStatusLabel, TransactionStatusAction } from '@coinbase/onchainkit/transaction';
-import type { LifecycleStatus, TransactionResponseType } from '@coinbase/onchainkit/transaction';
+import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
 
 interface SponsoredTransactionProps {
   children: ReactNode;
   calls: any[];
-  onSuccess?: (response: TransactionResponseType) => void;
+  onSuccess?: (response: any) => void;
   onError?: (error: any) => void;
   className?: string;
 }
@@ -19,21 +18,21 @@ export default function SponsoredTransaction({
   onError, 
   className = ''
 }: SponsoredTransactionProps) {
+  const handleStatus = (status: 'pending' | 'success' | 'error', message?: string) => {
+    if (status === 'success') {
+      onSuccess?.({ status: 'success', message });
+    } else if (status === 'error') {
+      onError?.(new Error(message || 'Transaction failed'));
+    }
+  };
+
   return (
-    <Transaction
-      isSponsored
+    <BaseAccountTransaction
       calls={calls}
-      onSuccess={onSuccess}
-      onError={onError}
+      onStatus={handleStatus}
       className={className}
     >
-      {/* TransactionSponsor enables gas sponsorship via CDP Paymaster */}
-      <TransactionSponsor />
       {children}
-      <TransactionStatus>
-        <TransactionStatusLabel />
-        <TransactionStatusAction />
-      </TransactionStatus>
-    </Transaction>
+    </BaseAccountTransaction>
   );
 }

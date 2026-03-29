@@ -1,13 +1,11 @@
 'use client';
 
-import { useState, useCallback } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
-import { parseUnits } from 'viem';
-// import { useTransactionContext } from '@coinbase/onchainkit/transaction';
+import { useState, useCallback, useEffect } from 'react';
+import { useBaseAccount } from './useBaseAccount';
+import { createBaseAccountSDK } from '@base-org/account';
+import { base } from 'viem/chains';
+import { parseUnits, encodeFunctionData } from 'viem';
 import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
-
-// Contract owner (not currently fetched, set to undefined)
-const contractOwner: string | undefined = undefined;
 
 export interface ContractState {
   isApproving: boolean;
@@ -23,7 +21,7 @@ export interface ContractState {
 }
 
 export function useTriviaContract(useGasless: boolean = true, requireSession: boolean = false) {
-  const { address, isConnected } = useAccount();
+  const { address, isConnected } = useBaseAccount();
   const [state, setState] = useState<ContractState>({
     isApproving: false,
     isJoining: false,
@@ -37,73 +35,135 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     sessionActive: false,
   });
 
-  const { writeContract: writeContractAsync, data: hash, error: writeError, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({
-    hash,
-  });
+  const [sessionInfo, setSessionInfo] = useState<any>(null);
+  const [contractOwner, setContractOwner] = useState<string | null>(null);
+  const [isPending, setIsPending] = useState(false);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [isConfirmed, setIsConfirmed] = useState(false);
+  const [hash, setHash] = useState<string | null>(null);
+  const [writeError, setWriteError] = useState<Error | null>(null);
 
-  // Read current session counter
-  const { data: sessionCounter } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'sessionCounter',
-  });
+  // Initialize Base Account SDK client-side only
+  const [provider, setProvider] = useState<any>(null);
 
-  // Read session active status
-  const { data: isSessionActive, refetch: refetchSession } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'isSessionActive',
-  });
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const sdk = createBaseAccountSDK({
+          appName: 'BEAT ME',
+          appLogoUrl: 'https://base.org/logo.png',
+          appChainIds: [base.id],
+          subAccounts: {
+            creation: 'on-connect',
+            defaultAccount: 'sub',
+          },
+          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
+        });
+        setProvider(sdk.getProvider());
+      } catch (error) {
+        console.error('Failed to initialize Base Account SDK:', error);
+      }
+    }
+  }, []);
 
-  // Read current session prize pool
-  const { data: currentSessionPrizePool } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'currentSessionPrizePool',
-  });
+  // Fetch session info using Base Account SDK
+  const fetchSessionInfo = useCallback(async () => {
+    if (!provider) return;
+    
+    try {
+      const data = encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'isSessionActive',
+        args: [],
+      });
 
-  // Read session interval
-  const { data: sessionInterval, refetch: refetchSessionInterval } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'sessionInterval',
-  });
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }, 'latest']
+      });
+      setSessionInfo(result);
+    } catch (error) {
+      console.error('Error fetching session info:', error);
+    }
+  }, [provider]);
 
-  // Read last session time
-  const { data: lastSessionTime, refetch: refetchLastSessionTime } = useReadContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'lastSessionTime',
-  });
+  // Fetch contract owner using Base Account SDK
+  const fetchContractOwner = useCallback(async () => {
+    if (!provider) return;
+    
+    try {
+      const data = encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'owner',
+        args: [],
+      });
+      
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }, 'latest']
+      });
+      
+      // Parse the result - owner() returns an address (20 bytes padded to 32 bytes)
+      if (result && result !== '0x') {
+        const ownerAddress = '0x' + result.slice(-40); // Last 40 characters = 20 bytes = address
+        setContractOwner(ownerAddress);
+      }
+    } catch (error) {
+      console.error('Error fetching contract owner:', error);
+    }
+  }, [provider]);
 
-  // Contract owner is fetched via wagmi hook below if needed
+  // Fetch data on mount
+  useEffect(() => {
+    if (provider) {
+      fetchSessionInfo();
+      fetchContractOwner();
+    }
+  }, [fetchSessionInfo, fetchContractOwner, provider]);
 
   // Note: OnchainKit gasless transactions require Transaction component wrapper
   // For now, we'll use regular wagmi transactions
 
   // Start a new trivia session
-  // Note: New contract uses startNewSession() with no parameters (uses configured sessionInterval)
-  const startSession = useCallback(async () => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+  const startSession = useCallback(async (_duration: number = 300) => {
+    if (!address || !isConnected || !provider) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
       return false;
     }
 
     setState(prev => ({ ...prev, isStartingSession: true, error: null }));
+    setIsPending(true);
 
     try {
-      console.log('Starting new trivia session...');
+      console.log('Starting new trivia session (contract uses configured interval; duration arg ignored)');
       console.log('⚠️  WARNING: Only contract owner can start sessions!');
       console.log('Current user address:', address);
       console.log('Contract address:', TRIVIA_CONTRACT_ADDRESS);
       
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      const data = encodeFunctionData({
         abi: TRIVIA_ABI,
         functionName: 'startNewSession',
         args: [],
       });
+      
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }]
+      });
+      
+      setHash(txHash as string);
+      setIsPending(false);
+      setIsConfirming(true);
       
       // Wait for transaction to be confirmed
       console.log('Session start transaction submitted, waiting for confirmation...');
@@ -118,20 +178,42 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         isStartingSession: false,
         error: error instanceof Error ? error.message : 'Failed to start session - you may not be the contract owner',
       }));
+      setIsPending(false);
+      setWriteError(error as Error);
       return false;
     }
-  }, [address, isConnected, writeContractAsync]);
+  }, [address, isConnected, provider]);
 
   // Check if session is active
   const checkSessionStatus = useCallback(async () => {
+    if (!provider) {
+      console.log('Provider not ready, cannot check session status');
+      setState(prev => ({ ...prev, sessionActive: false }));
+      return false;
+    }
+
     try {
       console.log('Checking session status...');
-      const result = await refetchSession();
-      console.log('Session refetch result:', result);
       
-      // isSessionActive is a boolean from the contract
-      const isActive = Boolean(result?.data ?? false);
-      
+      const data = encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'isSessionActive',
+        args: [],
+      });
+
+      const result = await provider.request({
+        method: 'eth_call',
+        params: [{
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }, 'latest']
+      });
+
+      console.log('isSessionActive result:', result);
+
+      const isActive =
+        result && result !== '0x' ? BigInt(result as string) !== BigInt(0) : false;
+
       setState(prev => ({ ...prev, sessionActive: isActive }));
       console.log('Session status:', { isActive });
       return isActive;
@@ -140,7 +222,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       setState(prev => ({ ...prev, sessionActive: false }));
       return false;
     }
-  }, [refetchSession]);
+  }, [provider]);
 
   // Ensure session is active before joining
   const ensureActiveSession = useCallback(async () => {
@@ -181,47 +263,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         return false; // Don't allow transaction if user is not owner
       }
       
-      console.log('✅ You are the contract owner, checking session interval...');
-      
-      // Check if enough time has elapsed since last session
-      // Note: If values aren't loaded yet, we'll proceed and let the contract validate
-      if (sessionInterval !== undefined && lastSessionTime !== undefined && sessionInterval !== null && lastSessionTime !== null) {
-        const currentTime = BigInt(Math.floor(Date.now() / 1000));
-        const lastSession = BigInt(lastSessionTime.toString());
-        const interval = BigInt(sessionInterval.toString());
-        const nextSessionTime = lastSession + interval;
-        
-        if (currentTime < nextSessionTime) {
-          const timeRemaining = Number(nextSessionTime - currentTime);
-          const daysRemaining = Math.floor(timeRemaining / 86400);
-          const hoursRemaining = Math.floor((timeRemaining % 86400) / 3600);
-          const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
-          const nextSessionDate = new Date(Number(nextSessionTime) * 1000);
-          
-          let timeMessage = '';
-          if (daysRemaining > 0) {
-            timeMessage = `${daysRemaining}d ${hoursRemaining}h`;
-          } else if (hoursRemaining > 0) {
-            timeMessage = `${hoursRemaining}h ${minutesRemaining}m`;
-          } else {
-            timeMessage = `${minutesRemaining}m`;
-          }
-          
-          const errorMessage = `Session interval not elapsed. Next session can start in ${timeMessage} (${nextSessionDate.toLocaleString()})`;
-          console.error('⏰', errorMessage);
-          
-          setState(prev => ({
-            ...prev,
-            error: errorMessage,
-          }));
-          
-          return false;
-        }
-      } else {
-        console.log('⚠️ Session interval data not loaded yet, proceeding with contract validation...');
-      }
-      
-      console.log('✅ Session interval has elapsed, attempting to start session...');
+      console.log('✅ You are the contract owner, attempting to start session...');
       
       try {
         const sessionStarted = await startSession();
@@ -243,59 +285,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         
       } catch (sessionError) {
         console.error('Session start failed:', sessionError);
-        
-        // Check if the error is about session interval
-        const errorMessage = sessionError instanceof Error ? sessionError.message : String(sessionError);
-        const errorString = JSON.stringify(sessionError);
-        if (errorMessage.includes('SessionIntervalNotElapsed') || 
-            errorString.includes('SessionIntervalNotElapsed') ||
-            errorMessage.includes('session interval') ||
-            errorMessage.includes('interval not elapsed')) {
-          // Re-read the values to get the most current data
-          const [intervalResult, lastTimeResult] = await Promise.all([
-            refetchSessionInterval(),
-            refetchLastSessionTime(),
-          ]);
-          const interval = intervalResult.data ? BigInt(intervalResult.data.toString()) : null;
-          const lastTime = lastTimeResult.data ? BigInt(lastTimeResult.data.toString()) : null;
-          
-          if (interval && lastTime) {
-            const currentTime = BigInt(Math.floor(Date.now() / 1000));
-            const nextSessionTime = lastTime + interval;
-            const timeRemaining = Number(nextSessionTime - currentTime);
-            const daysRemaining = Math.floor(timeRemaining / 86400);
-            const hoursRemaining = Math.floor((timeRemaining % 86400) / 3600);
-            const minutesRemaining = Math.floor((timeRemaining % 3600) / 60);
-            const nextSessionDate = new Date(Number(nextSessionTime) * 1000);
-            
-            let timeMessage = '';
-            if (daysRemaining > 0) {
-              timeMessage = `${daysRemaining}d ${hoursRemaining}h`;
-            } else if (hoursRemaining > 0) {
-              timeMessage = `${hoursRemaining}h ${minutesRemaining}m`;
-            } else {
-              timeMessage = `${minutesRemaining}m`;
-            }
-            
-            const friendlyError = `Session interval not elapsed. Next session can start in ${timeMessage} (${nextSessionDate.toLocaleString()})`;
-            
-            setState(prev => ({
-              ...prev,
-              error: friendlyError,
-            }));
-          } else {
-            setState(prev => ({
-              ...prev,
-              error: 'Session interval not elapsed. Please wait before starting a new session.',
-            }));
-          }
-        } else {
-          setState(prev => ({
-            ...prev,
-            error: errorMessage,
-          }));
-        }
-        
         return false;
       }
       
@@ -303,27 +292,39 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.error('Error in ensureActiveSession:', error);
       return false;
     }
-  }, [checkSessionStatus, startSession, requireSession, contractOwner, address, sessionInterval, lastSessionTime]);
+  }, [checkSessionStatus, startSession, requireSession, contractOwner, address]);
 
   // Approve USDC spending for the trivia contract
   const approveUSDC = useCallback(async () => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+    if (!address || !isConnected || !provider) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
       return;
     }
 
     setState(prev => ({ ...prev, isApproving: true, error: null }));
+    setIsPending(true);
 
     try {
       const entryFeeWei = parseUnits(ENTRY_FEE_USDC.toString(), 6); // USDC has 6 decimals
       
-      // Use regular wagmi transaction (gasless transactions require Transaction component wrapper)
-      await writeContractAsync({
-        address: USDC_CONTRACT_ADDRESS as `0x${string}`,
+      const data = encodeFunctionData({
         abi: USDC_ABI,
         functionName: 'approve',
         args: [TRIVIA_CONTRACT_ADDRESS as `0x${string}`, entryFeeWei],
       });
+      
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: USDC_CONTRACT_ADDRESS,
+          data,
+        }]
+      });
+      
+      setHash(txHash as string);
+      setIsPending(false);
+      setIsConfirming(true);
     } catch (error) {
       console.error('Error approving USDC:', error);
       setState(prev => ({
@@ -331,17 +332,20 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         isApproving: false,
         error: error instanceof Error ? error.message : 'Failed to approve USDC',
       }));
+      setIsPending(false);
+      setWriteError(error as Error);
     }
-    }, [address, isConnected, writeContractAsync]);
+    }, [address, isConnected, provider]);
 
   // Join the trivia battle (paid players)
   const joinBattle = useCallback(async () => {
-    if (!address || !isConnected) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+    if (!address || !isConnected || !provider) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
       return;
     }
 
     setState(prev => ({ ...prev, isJoining: true, error: null }));
+    setIsPending(true);
 
     try {
       // First ensure there's an active session
@@ -354,12 +358,24 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       
       console.log('Session is active, proceeding with join battle...');
       
-      // Use regular wagmi transaction (gasless transactions require Transaction component wrapper)
-      await writeContractAsync({
-        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      const data = encodeFunctionData({
         abi: TRIVIA_ABI,
         functionName: 'joinBattle',
+        args: [],
       });
+      
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }]
+      });
+      
+      setHash(txHash as string);
+      setIsPending(false);
+      setIsConfirming(true);
     } catch (error) {
       console.error('Error joining battle:', error);
       setState(prev => ({
@@ -367,69 +383,117 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         isJoining: false,
         error: error instanceof Error ? error.message : 'Failed to join battle',
       }));
+      setIsPending(false);
+      setWriteError(error as Error);
     }
-    }, [address, isConnected, writeContractAsync, ensureActiveSession]);
+    }, [address, isConnected, provider, ensureActiveSession]);
 
-  // Join trial battle (trial players)
-  // NOTE: This function does NOT exist in the deployed contract
-  // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
-  const joinTrialBattle = useCallback(async (sessionId: string) => {
-    const errorMessage = 'Trial mode is not available on-chain. Trial battles must be implemented off-chain via SpacetimeDB. Use joinBattle() to join as a paid player.';
-    console.error(errorMessage);
+  const joinTrialBattle = useCallback(async (_sessionId: string) => {
     setState(prev => ({
       ...prev,
       isJoining: false,
-      error: errorMessage,
+      error: 'On-chain trial battles are not supported by this contract; use joinBattle (paid).',
     }));
-    throw new Error(errorMessage);
+    setIsPending(false);
   }, []);
 
   // Submit score
-  // NOTE: This function does NOT exist for regular players in the deployed contract
-  // Contract has submitScores(address[] calldata, uint256[] calldata) for batch submission by owner/chainlink only
-  // Scores should be tracked off-chain during gameplay, then submitted in batch after session ends
   const submitScore = useCallback(async (score: number) => {
-    const errorMessage = 'Individual score submission is not available. Scores are submitted in batch by owner/chainlink via submitScores() after the session ends. Your score will be tracked off-chain during gameplay.';
-    console.error(errorMessage);
+    if (!address || !isConnected || !provider) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isSubmitting: true, error: null }));
+    setIsPending(true);
+
+    try {
+      const data = encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'submitScores',
+        args: [[address as `0x${string}`], [BigInt(score)]],
+      });
+      
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }]
+      });
+      
+      setHash(txHash as string);
+      setIsPending(false);
+      setIsConfirming(true);
+    } catch (error) {
+      console.error('Error submitting score:', error);
+      setState(prev => ({
+        ...prev,
+        isSubmitting: false,
+        error: error instanceof Error ? error.message : 'Failed to submit score',
+      }));
+      setIsPending(false);
+      setWriteError(error as Error);
+    }
+    }, [address, isConnected, provider]);
+
+  const submitTrialScore = useCallback(async (_sessionId: string, _score: number) => {
     setState(prev => ({
       ...prev,
       isSubmitting: false,
-      error: errorMessage,
+      error: 'On-chain trial scores are not supported; use SpacetimeDB trial flow or paid submitScores.',
     }));
-    throw new Error(errorMessage);
+    setIsPending(false);
   }, []);
 
-  // Submit trial score
-  // NOTE: This function does NOT exist in the deployed contract
-  // Trial mode must be implemented off-chain (e.g., via SpacetimeDB)
-  const submitTrialScore = useCallback(async (sessionId: string, score: number) => {
-    const errorMessage = 'Trial score submission is not available on-chain. Trial mode must be implemented off-chain via SpacetimeDB.';
-    console.error(errorMessage);
-    setState(prev => ({
-      ...prev,
-      isSubmitting: false,
-      error: errorMessage,
-    }));
-    throw new Error(errorMessage);
-  }, []);
-
-  // Claim winnings - NOTE: TriviaBattle.sol auto-distributes prizes via distributePrizes()
-  // There is no claimPrize() function. Prizes are automatically sent to winners when
-  // distributePrizes() is called by the owner or Chainlink automation.
+  // Claim winnings (contract exposes executeWithdrawal for pending USDC)
   const claimWinnings = useCallback(async (winningAmount: string) => {
-    const errorMessage = 'Prizes are automatically distributed when the session ends. There is no claim function. Check your wallet for USDC transfers after prize distribution.';
-    console.warn(errorMessage);
-    setState(prev => ({
-      ...prev,
-      isClaiming: false,
-      error: errorMessage,
-    }));
-    throw new Error(errorMessage);
-  }, []);
+    if (!address || !isConnected || !provider) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
+      return;
+    }
+
+    setState(prev => ({ ...prev, isClaiming: true, error: null }));
+    setIsPending(true);
+
+    try {
+      console.log(`Claiming ${winningAmount} USDC for player ${address}`);
+      
+      const data = encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'executeWithdrawal',
+        args: [],
+      });
+      
+      const txHash = await provider.request({
+        method: 'eth_sendTransaction',
+        params: [{
+          from: address,
+          to: TRIVIA_CONTRACT_ADDRESS,
+          data,
+        }]
+      });
+      
+      setHash(txHash as string);
+      setIsPending(false);
+      setIsConfirming(true);
+      console.log('✅ Claim winnings transaction submitted');
+    } catch (error) {
+      console.error('Error claiming winnings:', error);
+      setState(prev => ({
+        ...prev,
+        isClaiming: false,
+        error: error instanceof Error ? error.message : 'Failed to claim winnings',
+      }));
+      setIsPending(false);
+      setWriteError(error as Error);
+    }
+  }, [address, isConnected, provider]);
 
   // Update state based on transaction status
   const updateTransactionState = useCallback(() => {
-    // Handle regular wagmi transactions
+    // Handle Base Account SDK transactions
     if (hash) {
       setState(prev => ({ ...prev, transactionHash: hash }));
     }
@@ -456,14 +520,12 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
         error: writeError.message,
       }));
     }
-
-    // Note: Gasless transactions would require Transaction component wrapper
   }, [hash, isConfirmed, writeError]);
 
   // Update state when transaction status changes
-  useState(() => {
+  useEffect(() => {
     updateTransactionState();
-  });
+  }, [updateTransactionState]);
 
   // Reset state
   const resetState = useCallback(() => {
@@ -487,11 +549,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     isConfirming,
     isConfirmed,
     transactionHash: hash,
-    sessionCounter,
-    isSessionActive,
-    currentSessionPrizePool,
-    sessionInterval,
-    lastSessionTime,
+    sessionInfo,
     contractOwner,
     startSession,
     checkSessionStatus,

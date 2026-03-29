@@ -269,6 +269,36 @@ class SpacetimeDBClient {
     }
   }
 
+  /**
+   * Link Base Account addresses to SpacetimeDB identity for persistent stats
+   */
+  async linkBaseAccountToIdentity(universalAddress: string, subAccountAddress: string): Promise<void> {
+    if (!this.connection) {
+      console.warn('⚠️ Not connected to SpacetimeDB');
+      return;
+    }
+
+    try {
+      // Link the Sub Account address (primary) to SpacetimeDB identity
+      this.connection.reducers.linkWalletToIdentity(subAccountAddress);
+      
+      // Store both addresses in localStorage for reference
+      localStorage.setItem('base_account_addresses', JSON.stringify({
+        universal: universalAddress,
+        subAccount: subAccountAddress,
+        timestamp: Date.now(),
+      }));
+      
+      console.log(`✅ Linked Base Account to SpacetimeDB identity`, {
+        universal: universalAddress,
+        subAccount: subAccountAddress
+      });
+    } catch (error) {
+      console.error('❌ Failed to link Base Account:', error);
+      throw error;
+    }
+  }
+
   // ============================================================================
   // PLAYER MANAGEMENT
   // ============================================================================

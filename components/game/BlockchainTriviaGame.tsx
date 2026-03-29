@@ -47,9 +47,6 @@ export default function BlockchainTriviaGame({
   const [trialSessionId, setTrialSessionId] = useState<string>('');
 
   const {
-    sessionCounter,
-    isSessionActive,
-    currentSessionPrizePool,
     error: contractError,
     submitScore,
     submitTrialScore,
@@ -230,7 +227,7 @@ export default function BlockchainTriviaGame({
               </div>
               <div className="flex items-center gap-1">
                 <DollarSign className="w-4 h-4" />
-                <span>{(currentSessionPrizePool ? (Number(currentSessionPrizePool) / 1e6).toFixed(3) : '0.000')} USDC</span>
+                <span>on-chain</span>
               </div>
             </div>
           </CardTitle>

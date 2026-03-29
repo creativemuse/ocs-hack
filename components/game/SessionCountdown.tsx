@@ -6,11 +6,11 @@ import { useSessionCountdown } from '@/hooks/useSessionCountdown';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 
 export default function SessionCountdown() {
-  const { lastSessionTime, sessionInterval, isSessionActive } = useTriviaContract();
-  const countdown = useSessionCountdown(lastSessionTime, sessionInterval);
+  const { sessionActive } = useTriviaContract();
+  // useTriviaContract (Base Account) does not expose lastSessionTime/sessionInterval yet
+  const countdown = useSessionCountdown(undefined, undefined);
 
-  // Don't show countdown if session is active or countdown is expired
-  if (isSessionActive || !countdown || countdown.isExpired) {
+  if (sessionActive || !countdown || countdown.isExpired) {
     return null;
   }
 

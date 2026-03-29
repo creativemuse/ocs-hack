@@ -31,9 +31,6 @@ export function useOneClickBuy(): UseOneClickBuyReturn {
     setQuoteData(null);
 
     try {
-      // Add a small delay to ensure any previous requests are fully cleared
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
       const result = await generateOneClickBuyUrl(walletAddress, options);
       
       if (result.quote) {
@@ -56,9 +53,6 @@ export function useOneClickBuy(): UseOneClickBuyReturn {
 
   const openOnramp = useCallback((url: string) => {
     try {
-      // Clear any existing error before opening
-      setError(null);
-      
       // Open in new window with specific features for security
       const width = 500;
       const height = 700;
@@ -68,21 +62,16 @@ export function useOneClickBuy(): UseOneClickBuyReturn {
       const popup = window.open(
         url,
         'CoinbaseOnramp',
-        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes,status=no`
+        `width=${width},height=${height},left=${left},top=${top},toolbar=no,menubar=no,scrollbars=yes,resizable=yes,noopener,noreferrer`
       );
 
       if (!popup) {
-        setError('Failed to open onramp window. Please allow popups for this site and try again.');
+        setError('Failed to open onramp window. Please allow popups for this site.');
         return;
       }
 
-      // Check if popup was blocked after a short delay
-      setTimeout(() => {
-        if (popup.closed) {
-          setError('Popup was blocked. Please allow popups for this site and try again.');
-        }
-      }, 1000);
-
+      // Set proper opener reference for security
+      popup.opener = null;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to open onramp window';
       setError(errorMessage);

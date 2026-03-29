@@ -1,7 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import Image from 'next/image';
+import { useState, useCallback, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -9,22 +8,26 @@ import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useSessionToken } from '@/hooks/useSessionToken';
 import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
-import { usePaidGameEntry } from '@/hooks/usePaidGameEntry';
-import { useAccount } from 'wagmi';
+import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { SignInWithBaseButton } from '@base-org/account-ui/react';
 import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
-import SessionCountdown from './SessionCountdown';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Zap } from 'lucide-react';
-import { Wallet, ConnectWallet, WalletDropdown, WalletDropdownDisconnect, WalletDropdownFundLink } from '@coinbase/onchainkit/wallet';
-import { Avatar, Name, Address, Identity, EthBalance } from '@coinbase/onchainkit/identity';
-import { base } from 'wagmi/chains';
+import WalletWithBalance from '@/components/wallet/WalletWithBalance';
+import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
+import SpendPermissionBadge from '@/components/base-account/SpendPermissionBadge';
+import GaslessBadge from '@/components/base-account/GaslessBadge';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Shield } from 'lucide-react';
+// Removed OnchainKit transaction imports - using Base Account native methods instead
+import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
+import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
 import { parseTransactionError, logTransactionError, type TransactionError, type ErrorContext } from '@/lib/utils/errorHandling';
 import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import { base } from 'viem/chains';
 
 interface GameEntryProps {
-  onGameStart: (options: { isTrial: boolean; transactionHash?: string }) => void;
+  onGameStart: (options: { isTrial: boolean }) => void;
   entryToken?: string | null;
   className?: string;
   playerModeChoice?: 'trial' | 'paid';
@@ -32,22 +35,13 @@ interface GameEntryProps {
 
 export default function GameEntry({ onGameStart, entryToken, className = '', playerModeChoice = 'trial' }: GameEntryProps) {
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
-  const { address, isConnected } = useAccount();
-  
-  // Clear any existing errors on component mount
-  useEffect(() => {
-    setError(null);
-    setTransactionError(null);
-  }, []);
-  
-  const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address, entryToken || undefined);
+  const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
+  const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
   const { 
     sessionActive, 
-    sessionCounter,
-    isSessionActive,
-    currentSessionPrizePool,
+    sessionInfo, 
     contractOwner,
     startSession, 
     checkSessionStatus, 
@@ -55,17 +49,6 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     isStartingSession,
     error: contractError 
   } = useTriviaContract(true, false); // Sessions now start automatically
-  
-  // New paymaster implementation
-  const { 
-    joinGameUniversal, 
-    result: gameResult, 
-    error: gameError, 
-    isSmartAccount, 
-    isEOA,
-    currentStep
-  } = usePaidGameEntry();
-  
   const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
@@ -73,14 +56,6 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
-
-  // Clear errors when wallet connects
-  useEffect(() => {
-    if (address) {
-      setError(null);
-      setTransactionError(null);
-    }
-  }, [address]);
 
   // Auto-generate funding URL with CDP session token when address is available
   useEffect(() => {
@@ -119,57 +94,108 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     generateInitialFundingUrl();
   }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
 
-  // Handle game result updates
-  useEffect(() => {
-    if (gameResult.success) {
-      console.log('✅ Paid game transaction successful!', { transactionHash: gameResult.transactionHash });
+  // Handle transaction status updates
+  const handleTransactionStatus = useCallback((status: 'pending' | 'success' | 'error', message?: string) => {
+    console.log('Transaction status:', status, message);
+    
+    if (status === 'success') {
+      console.log('Paid game transaction successful!');
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
-      onGameStart({ isTrial: false, transactionHash: gameResult.transactionHash });
-    } else if (gameResult.error) {
+      onGameStart({ isTrial: false });
+    } else if (status === 'error') {
       setIsProcessingPayment(false);
-      console.error('Transaction failed:', gameResult.error);
       
-      const paymasterError: TransactionError = {
-        code: 'TRANSACTION_ERROR',
-        message: gameResult.error,
-        userMessage: gameResult.error,
-        recoverable: true,
-        retryable: true,
-        details: {
-          suggestion: isSmartAccount ? 'Smart Account transaction failed' : 'EOA transaction failed',
-          accountType: isSmartAccount ? 'Smart Account' : 'EOA',
-          paymasterSupported: isSmartAccount
-        }
+      // Check if user cancelled/rejected the transaction
+      const isUserRejection = 
+        message?.includes('rejected by user') ||
+        message?.includes('User rejected') ||
+        message?.includes('User cancelled') ||
+        message?.includes('Request denied') ||
+        message?.includes('UserRejectedRequestError') ||
+        message?.includes('code: 4001');
+      
+      if (isUserRejection) {
+        console.log('ℹ️ User cancelled transaction - no error to display');
+        // User cancelled - just reset state without showing error
+        setTransactionError(null);
+        setError(null);
+        return;
+      }
+      
+      // Only log errors if it's not a user rejection
+      // Safely serialize error message to avoid BigInt issues
+      const safeMessage = message || 'Unknown transaction error';
+      console.error('Transaction failed:', safeMessage);
+      
+      // Check if error is paymaster/bundler related
+      const isPaymasterError = 
+        safeMessage?.includes('paymaster') ||
+        safeMessage?.includes('bundler') ||
+        safeMessage?.includes('sponsor') ||
+        safeMessage?.includes('allowlist') ||
+        safeMessage?.includes('Transaction too large');
+      
+      if (isPaymasterError) {
+        console.error('⚠️ Paymaster/bundler issue detected');
+        console.error('Common causes:');
+        console.error('1. Contracts not in paymaster allowlist');
+        console.error('2. Paymaster out of funds');
+        console.error('3. Smart wallet capabilities not supported');
+        
+        // Provide helpful error message
+        const paymasterError: TransactionError = {
+          code: 'PAYMASTER_ERROR',
+          message: 'Transaction rejected by paymaster',
+          userMessage: 'Unable to sponsor transaction. Please ensure contracts are allowlisted in CDP Dashboard.',
+          recoverable: true,
+          retryable: false,
+          details: {
+            suggestion: 'Check CDP Dashboard > Paymaster > Contract Allowlist',
+            contracts: [
+              'USDC: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
+              `TriviaBattle: ${TRIVIA_CONTRACT_ADDRESS}`
+            ],
+            link: 'https://portal.cdp.coinbase.com/products/bundler-and-paymaster'
+          }
+        };
+        
+        setTransactionError(paymasterError);
+        setError(paymasterError.userMessage);
+        logTransactionError(paymasterError, {
+          operation: 'paid_game_entry',
+          contractAddress: TRIVIA_CONTRACT_ADDRESS,
+          functionName: 'joinBattle',
+          userAddress: address || undefined,
+          chainId: base.id,
+        }, { message: safeMessage, isPaymasterError: true });
+        return;
+      }
+      
+      // Parse the error with enhanced handling
+      const errorContext: ErrorContext = {
+        operation: 'paid_game_entry',
+        contractAddress: TRIVIA_CONTRACT_ADDRESS,
+        functionName: 'joinBattle',
+        userAddress: address || undefined,
+        chainId: base.id,
       };
       
-      setTransactionError(paymasterError);
-      setError(paymasterError.userMessage);
-    }
-  }, [gameResult, onGameStart, isSmartAccount]);
-
-  // Handle game errors - only show errors when processing payment
-  useEffect(() => {
-    if (gameError && isProcessingPayment) {
-      setIsProcessingPayment(false);
-      console.error('Game entry error:', gameError);
+      // Create a simple error object from the message
+      const errorData = { message: safeMessage };
+      const parsedError = parseTransactionError(errorData, errorContext);
+      logTransactionError(parsedError, errorContext, { message: safeMessage });
       
-      const errorMessage = gameError.message || 'Unknown error occurred';
-      setError(errorMessage);
+      setTransactionError(parsedError);
+      setError(parsedError.userMessage);
     }
-  }, [gameError, isProcessingPayment]);
+  }, [onGameStart, address]);
 
   const handleStartGame = async () => {
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
     console.log('Trial status:', trialStatus);
     console.log('Player mode choice:', playerModeChoice);
-    
-    // Prevent trial mode if trial is exhausted
-    if (playerModeChoice === 'trial' && trialStatus.gamesRemaining === 0) {
-      setError('Your free trial has been used. Please switch to Paid Mode.');
-      return;
-    }
     
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
       // Trial player - start game immediately
@@ -215,63 +241,28 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     
     console.log('Starting paid game entry process for wallet:', address);
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
-    console.log('Account type:', isSmartAccount ? 'Smart Account (Paymaster)' : 'EOA');
     setIsProcessingPayment(true);
     setError(null);
-    // Step will be set by the hook during transaction execution
 
     try {
-      await joinGameUniversal();
-    } catch (err) {
-      console.error('Failed to join game:', err);
-      setIsProcessingPayment(false);
+      console.log('Starting paid game entry - session will be created automatically by the contract...');
+      // The contract now automatically starts sessions when players join
+      // No need for manual session management
       
-      // Check for execution reverted errors (contract revert)
-      if (err instanceof Error && (
-        err.message.includes('execution reverted') ||
-        err.message.includes('reverted') ||
-        err.message.includes('revert')
-      )) {
-        // Check for specific revert reasons
-        if (err.message.includes('SessionNotActive') || err.message.includes('session not active')) {
-          setError('Game session is not active. Please wait for a new session to start.');
-        } else if (err.message.includes('AlreadyParticipated') || err.message.includes('already participated')) {
-          setError('You have already joined this game session. Please wait for the next session.');
-        } else if (err.message.includes('InsufficientEntryFee') || err.message.includes('insufficient')) {
-          setError('Insufficient USDC balance or allowance. Please check your balance and try again.');
-        } else {
-          setError(`Transaction reverted: ${err.message}. This usually means the contract requirements weren't met. Please try again or contact support if the issue persists.`);
-        }
-      }
-      // Check for popup blocker error (common with Base Account)
-      else if (err instanceof Error && (
-        err.message.includes('Popup window was blocked') ||
-        err.message.includes('popup') ||
-        err.message.includes('blocked')
-      )) {
-        setError('Popup was blocked. Please allow popups for this site and try again. If using Base Account, you may need to approve the popup permission when prompted.');
-      } 
-      // Check if it's a user rejection
-      else if (err instanceof Error && (err.message.includes('User rejected') || err.message.includes('User cancelled'))) {
-        setError('Transaction was cancelled. Please try again when ready.');
-      } 
-      // Check for blockchain game creation error
-      else if (err instanceof Error && err.message.includes('Failed to create blockchain game')) {
-        setError(`Unable to start game: ${err.message}. Please try again or contact support.`);
-      } 
-      // Generic error
-      else {
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-        setError(`Failed to join game: ${errorMessage}. Please try again.`);
-      }
+      // The actual game start will be handled by the transaction success callback
+      console.log('Proceeding with paid game entry...');
+      
+    } catch (error) {
+      console.error('Error in paid game entry:', error);
+      setError(error instanceof Error ? error.message : 'Failed to start game session');
+      setIsProcessingPayment(false);
     }
   };
-
 
   const handlePaymentSuccess = () => {
     setError(null);
     setShowPayment(false);
-    // Do not start the game here: user must click Start to run approve + joinBattle and get a transaction hash.
+    onGameStart({ isTrial: false });
   };
 
   const handlePaymentError = (errorMessage: string) => {
@@ -379,11 +370,9 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     <div className={`space-y-4 ${className}`}>
       {/* Show trial status only if player chose trial mode */}
       {playerModeChoice === 'trial' && (
-        <TrialStatusDisplay walletAddress={address} entryToken={entryToken} />
+        <TrialStatusDisplay walletAddress={address || undefined} entryToken={entryToken || undefined} />
       )}
 
-      {/* Session countdown - shows when next session can start */}
-      <SessionCountdown />
       
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">
@@ -424,34 +413,15 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
             </>
           ) : playerModeChoice === 'paid' ? (
             <>
-              {/* Enhanced Wallet Component with CDP Onramp Integration */}
-              <div className="mb-4 flex justify-center">
-                <Wallet>
-                  <ConnectWallet 
-                    className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500"
-                  >
-                    <Avatar className="h-6 w-6" />
-                    <Name />
-                  </ConnectWallet>
-                  <WalletDropdown>
-                    <Identity className="px-4 pt-3 pb-2" hasCopyAddressOnClick>
-                      <Avatar />
-                      <Name />
-                      {/* Address shown only in wallet dropdown for wallet management - OnchainKit Name handles Basename display above */}
-                      <Address className="text-gray-400 text-xs" />
-                      <EthBalance />
-                    </Identity>
-                    <WalletDropdownFundLink 
-                      text="Add USDC"
-                      fundingUrl={fundingUrl || undefined}
-                      openIn="popup"
-                      popupSize="md"
-                      rel="noopener noreferrer"
-                      className="text-gray-800 dark:text-gray-300 font-semibold hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-gray-700 transition-all duration-200 border-l-4 border-blue-500"
-                    />
-                    <WalletDropdownDisconnect />
-                  </WalletDropdown>
-                </Wallet>
+              {/* Base Account Display */}
+              <div className="mb-4">
+                {isConnected ? (
+                  <SubAccountDisplay showActions={true} />
+                ) : (
+                  <div className="text-center">
+                    <SignInWithBaseButton colorScheme="light" />
+                  </div>
+                )}
               </div>
 
               {/* CDP Onramp Status */}
@@ -485,109 +455,48 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
               {/* <WalletDebugInfo /> */}
               {/* <PaymasterTest /> */}
               {/* <SponsoredTransactionExample /> */}
-              
-
-              {/* Account Type and Gas Sponsorship Info - Only show when wallet is connected */}
-              {address && (
-                <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <Zap className="h-4 w-4 text-blue-400" />
-                      <span className="text-sm text-gray-300">Account Type</span>
-                    </div>
-                    <Badge 
-                      variant="secondary" 
-                      className={isSmartAccount 
-                        ? "bg-blue-500/20 text-blue-400 border-blue-500/30" 
-                        : "bg-gray-500/20 text-gray-400 border-gray-500/30"
-                      }
-                    >
-                      {isSmartAccount ? 'Smart Account' : 'EOA'}
-                    </Badge>
-                  </div>
-                  <div className="text-xs text-gray-400">
-                    {isSmartAccount 
-                      ? '✅ Gas sponsored by Creative Organization DAO' 
-                      : '⚠️ You will pay gas fees'
-                    }
-                  </div>
-                </div>
-              )}
 
               {/* USDC Purchase Info */}
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                {address && (
-                  <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30 ml-2">
-                    {isSmartAccount ? 'Gasless' : 'Gas Required'}
-                  </Badge>
-                )}
+                <GaslessBadge isGasless={true} />
+                <SpendPermissionBadge showDetails={false} />
               </div>
 
-              {!address ? (
+              {!isConnected || !address ? (
                 <div className="text-center">
                   <div className="text-yellow-400 text-sm font-medium mb-2">
-                    🔗 Wallet Required
+                    🔗 Base Account Required
                   </div>
                   <div className="text-xs text-gray-400">
-                    Please connect your wallet above to continue
+                    Please connect your Base Account above to continue
                   </div>
                 </div>
               ) : (
                 <>
-                  {/* Enhanced Balance Display - Show both ETH and USDC for EOA, USDC only for Smart Accounts */}
-                  <div className="mb-4 space-y-3">
-                    {/* ETH Balance - Only show for EOA wallets */}
-                    {isEOA && (
-                      <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2">
-                            <div className="w-5 h-5 rounded-full flex items-center justify-center">
-                              <Image src="/tokens/eth-logo.svg" alt="ETH" width={20} height={20} />
-                            </div>
-                            <span className="text-sm text-gray-300">ETH Balance</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            {balanceLoading ? (
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                            ) : (
-                              <CheckCircle className="h-4 w-4 text-blue-400" />
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-lg font-bold text-white">
-                          <EthBalance address={address} />
-                        </div>
-                        <div className="text-xs text-gray-400 mt-1">
-                          For gas fees
-                        </div>
+                  {/* USDC Balance Status */}
+                  <div className="mb-4 p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="h-4 w-4 text-blue-400" />
+                        <span className="text-sm text-gray-300">USDC Balance</span>
                       </div>
-                    )}
-
-                    {/* USDC Balance - Always show */}
-                    <div className="p-3 bg-gray-800/50 rounded-lg border border-gray-700/50">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <Image src="/tokens/usdc-logo.svg" alt="USDC" width={20} height={20} />
-                          <span className="text-sm text-gray-300">USDC Balance</span>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          {balanceLoading ? (
-                            <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
-                          ) : hasEnoughForEntry ? (
-                            <CheckCircle className="h-4 w-4 text-green-400" />
-                          ) : (
-                            <AlertCircle className="h-4 w-4 text-yellow-400" />
-                          )}
-                        </div>
+                      <div className="flex items-center gap-2">
+                        {balanceLoading ? (
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                        ) : hasEnoughForEntry ? (
+                          <CheckCircle className="h-4 w-4 text-green-400" />
+                        ) : (
+                          <AlertCircle className="h-4 w-4 text-yellow-400" />
+                        )}
                       </div>
-                      <div className="text-lg font-bold text-white">
-                        {balanceLoading ? '...' : balance.toFixed(2)} USDC
-                      </div>
-                      <div className="text-xs text-gray-400 mt-1">
-                        {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
-                      </div>
+                    </div>
+                    <div className="text-lg font-bold text-white">
+                      {balanceLoading ? '...' : balance.toFixed(2)} USDC
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
                     </div>
                   </div>
 
@@ -597,60 +506,22 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                   
                   {isProcessingPayment ? (
                     <div className="space-y-4">
-                      <div className="p-4 bg-yellow-500/10 border border-yellow-500/30 rounded-lg space-y-3">
-                        {/* Transaction Step Display */}
-                        {isSmartAccount ? (
-                          // Smart Account: Batched transaction
-                          <>
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
-                              <span className="text-yellow-400 text-sm font-medium">
-                                {currentStep === 'batching_transaction' 
-                                  ? 'Batching transaction (approval + payment)...'
-                                  : currentStep === 'processing_paymaster'
-                                  ? 'Processing with Paymaster...'
-                                  : 'Processing batched transaction...'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-400 text-center space-y-1">
-                              <div className="flex items-center justify-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${currentStep === 'batching_transaction' || currentStep === 'processing_paymaster' || currentStep === 'complete' ? 'bg-green-400' : 'bg-gray-500'}`}></div>
-                                <span>Approving USDC & Joining battle (batched)</span>
-                              </div>
-                            </div>
-                          </>
-                        ) : (
-                          // EOA: Sequential transactions
-                          <>
-                            <div className="flex items-center justify-center gap-2">
-                              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-yellow-400"></div>
-                              <span className="text-yellow-400 text-sm font-medium">
-                                {currentStep === 'approving_usdc' 
-                                  ? 'Step 1/2: Approving USDC spending...'
-                                  : currentStep === 'joining_battle'
-                                  ? 'Step 2/2: Joining battle...'
-                                  : 'Processing transaction...'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-gray-400 text-center space-y-1">
-                              <div className="flex items-center justify-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${currentStep === 'approving_usdc' || currentStep === 'joining_battle' || currentStep === 'complete' ? 'bg-green-400' : 'bg-gray-500'}`}></div>
-                                <span>Step 1: Approve USDC</span>
-                              </div>
-                              <div className="flex items-center justify-center gap-2">
-                                <div className={`w-2 h-2 rounded-full ${currentStep === 'joining_battle' || currentStep === 'complete' ? 'bg-green-400' : currentStep === 'approving_usdc' ? 'bg-yellow-400 animate-pulse' : 'bg-gray-500'}`}></div>
-                                <span>Step 2: Join battle</span>
-                              </div>
-                            </div>
-                          </>
-                        )}
-                      </div>
+                      <BaseAccountTransaction
+          calls={createBaseAccountPaidGameCalls()}
+          onStatus={handleTransactionStatus}
+          className="w-full"
+        >
+                        <Button 
+                          type="button"
+                          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-medium border-0"
+                        >
+                          Transact
+                        </Button>
+                      </BaseAccountTransaction>
                       <Button
-                        onClick={() => {
-                          setIsProcessingPayment(false);
-                        }}
+                        onClick={() => setIsProcessingPayment(false)}
                         variant="outline"
-                        className="w-full border-red-400 text-white hover:bg-red-500/10 cursor-pointer"
+                        className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
                       >
                         Cancel
                       </Button>
@@ -663,7 +534,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
                     >
                       <Play className="h-4 w-4 mr-2" />
-                      {isSmartAccount ? 'Start Gasless Game' : 'Start Paid Game'}
+                      Start Paid Game
                     </Button>
                   )}
                   
@@ -685,28 +556,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                       <div className="text-red-400 text-sm text-center mb-2">
                         {error}
                       </div>
-                      {error?.includes('Popup') || error?.includes('popup') || error?.includes('blocked') ? (
-                        <div className="space-y-2">
-                          <div className="text-xs text-gray-400 text-center">
-                            If you're using Base Account, please:
-                          </div>
-                          <ol className="text-xs text-gray-300 list-decimal list-inside space-y-1">
-                            <li>Click "Try again" when the popup permission prompt appears</li>
-                            <li>Allow popups for this site in your browser settings</li>
-                            <li>Then click "Start Paid Game" again</li>
-                          </ol>
-                          <div className="text-center pt-2">
-                            <Button
-                              onClick={handlePaidGameEntry}
-                              size="sm"
-                              variant="outline"
-                              className="border-blue-500 text-blue-400 hover:bg-blue-500/10"
-                            >
-                              Try Again
-                            </Button>
-                          </div>
-                        </div>
-                      ) : error?.includes('wallet') ? (
+                      {error?.includes('wallet') && (
                         <div className="text-center">
                           <button
                             onClick={() => window.location.reload()}
@@ -715,7 +565,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                             Try reconnecting your wallet
                           </button>
                         </div>
-                      ) : null}
+                      )}
                     </div>
                   )}
                 </>
@@ -729,9 +579,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30 ml-2">
-                  Gasless
-                </Badge>
+                <GaslessBadge isGasless={true} />
+                <SpendPermissionBadge showDetails={false} />
               </div>
               <Button
                 onClick={handleStartGame}

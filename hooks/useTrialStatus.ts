@@ -12,7 +12,7 @@ interface TrialStatus {
   playerType?: 'trial' | 'paid';
 }
 
-export const useTrialStatus = (walletAddress?: string, entryToken?: string) => {
+export const useTrialStatus = (walletAddress?: string, entryToken?: string | null) => {
   // Check if trial bypass is enabled via environment variable
   const bypassTrial = process.env.NEXT_PUBLIC_BYPASS_TRIAL === 'true';
   
