@@ -365,7 +365,7 @@ export default function Game() {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <GameEntry onGameStart={handleGameStart} />
+          <GameEntry onGameStart={handleGameStart} playerModeChoice="paid" />
         </div>
       </div>
     );
