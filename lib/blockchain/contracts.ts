@@ -202,6 +202,7 @@ export const TRIVIA_ABI = [
     "name": "getPlayerScore",
     "outputs": [
       { "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "internalType": "bool", "name": "hasJoined", "type": "bool" },
       { "internalType": "bool", "name": "hasSubmitted", "type": "bool" },
       { "internalType": "uint256", "name": "submissionTime", "type": "uint256" }
     ],
@@ -230,19 +231,9 @@ export const TRIVIA_ABI = [
     "name": "getTrialPlayerScore",
     "outputs": [
       { "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "internalType": "bool", "name": "hasJoined", "type": "bool" },
       { "internalType": "bool", "name": "hasSubmitted", "type": "bool" },
       { "internalType": "uint256", "name": "submissionTime", "type": "uint256" }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      { "internalType": "address", "name": "", "type": "address" }
-    ],
-    "name": "hasClaimed",
-    "outputs": [
-      { "internalType": "bool", "name": "", "type": "bool" }
     ],
     "stateMutability": "view",
     "type": "function"

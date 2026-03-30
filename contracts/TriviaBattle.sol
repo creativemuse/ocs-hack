@@ -31,9 +31,8 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     // Platform fee recipient address
     address public platformFeeRecipient;
     
-    // Prize claim system
+    // Prize claim system — winnings accumulate across sessions, claimable anytime
     mapping(address => uint256) public playerWinnings;
-    mapping(address => bool) public hasClaimed;
     
     // Game session structure
     struct GameSession {
@@ -52,12 +51,14 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
     
     struct PlayerScore {
         uint256 score;
+        bool hasJoined;
         bool hasSubmitted;
         uint256 submissionTime;
     }
-    
+
     struct TrialPlayerScore {
         uint256 score;
+        bool hasJoined;
         bool hasSubmitted;
         uint256 submissionTime;
     }
@@ -128,7 +129,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * Automatically starts a session if none is active
      */
     function joinBattle() external nonReentrant {
-        require(currentSession.playerScores[msg.sender].score == 0, "Already joined");
+        require(!currentSession.playerScores[msg.sender].hasJoined, "Already joined");
         
         // If no active session OR the previous session has ended, start a new one automatically
         if (!currentSession.isActive || block.timestamp > currentSession.endTime) {
@@ -166,6 +167,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         // Initialize player score
         currentSession.playerScores[msg.sender] = PlayerScore({
             score: 0,
+            hasJoined: true,
             hasSubmitted: false,
             submissionTime: 0
         });
@@ -181,7 +183,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      */
     function joinTrialBattle(string calldata sessionId) external {
         require(bytes(sessionId).length > 0, "Invalid session ID");
-        require(currentSession.trialPlayerScores[sessionId].score == 0, "Session ID already used");
+        require(!currentSession.trialPlayerScores[sessionId].hasJoined, "Session ID already used");
         
         // If no active session OR the previous session has ended, start a new one automatically
         if (!currentSession.isActive || block.timestamp > currentSession.endTime) {
@@ -198,6 +200,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
         // Initialize trial player score
         currentSession.trialPlayerScores[sessionId] = TrialPlayerScore({
             score: 0,
+            hasJoined: true,
             hasSubmitted: false,
             submissionTime: 0
         });
@@ -210,7 +213,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * @param score Player's final score
      */
     function submitScore(uint256 score) external onlyActiveSession {
-        require(currentSession.playerScores[msg.sender].score > 0, "Player not joined");
+        require(currentSession.playerScores[msg.sender].hasJoined, "Player not joined");
         require(!currentSession.playerScores[msg.sender].hasSubmitted, "Score already submitted");
         
         currentSession.playerScores[msg.sender].score = score;
@@ -227,7 +230,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * @param score Player's final score
      */
     function submitTrialScore(string calldata sessionId, uint256 score) external onlyActiveSession {
-        require(currentSession.trialPlayerScores[sessionId].score > 0, "Trial player not joined");
+        require(currentSession.trialPlayerScores[sessionId].hasJoined, "Trial player not joined");
         require(!currentSession.trialPlayerScores[sessionId].hasSubmitted, "Score already submitted");
         
         currentSession.trialPlayerScores[sessionId].score = score;
@@ -293,7 +296,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             if (i == 0) prizeAmount = firstPrize;
             else if (i == 1) prizeAmount = secondPrize;
             else if (i == 2) prizeAmount = thirdPrize;
-            else prizeAmount = participationPrize / (scoreIndex - 3); // Split participation among remaining
+            else if (scoreIndex > 3) prizeAmount = participationPrize / (scoreIndex - 3); // Split participation among remaining
             
             // All players in this array are paid players (trial players excluded)
             winners[winnerIndex] = paidPlayerScores[i].playerAddress;
@@ -322,18 +325,17 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * Players can claim their accumulated winnings from prize distributions
      */
     function claimWinnings() external nonReentrant {
-        require(playerWinnings[msg.sender] > 0, "No winnings to claim");
-        require(!hasClaimed[msg.sender], "Already claimed");
-        
         uint256 amount = playerWinnings[msg.sender];
+        require(amount > 0, "No winnings to claim");
+
+        // Zero balance before transfer to prevent reentrancy
         playerWinnings[msg.sender] = 0;
-        hasClaimed[msg.sender] = true;
-        
+
         require(
             usdcToken.transfer(msg.sender, amount),
             "Claim transfer failed"
         );
-        
+
         emit WinningsClaimed(msg.sender, amount);
     }
     
@@ -365,11 +367,12 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      */
     function getPlayerScore(address player) external view returns (
         uint256 score,
+        bool hasJoined,
         bool hasSubmitted,
         uint256 submissionTime
     ) {
         PlayerScore memory playerScore = currentSession.playerScores[player];
-        return (playerScore.score, playerScore.hasSubmitted, playerScore.submissionTime);
+        return (playerScore.score, playerScore.hasJoined, playerScore.hasSubmitted, playerScore.submissionTime);
     }
     
     /**
@@ -377,11 +380,12 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      */
     function getTrialPlayerScore(string calldata sessionId) external view returns (
         uint256 score,
+        bool hasJoined,
         bool hasSubmitted,
         uint256 submissionTime
     ) {
         TrialPlayerScore memory trialScore = currentSession.trialPlayerScores[sessionId];
-        return (trialScore.score, trialScore.hasSubmitted, trialScore.submissionTime);
+        return (trialScore.score, trialScore.hasJoined, trialScore.hasSubmitted, trialScore.submissionTime);
     }
     
     /**
