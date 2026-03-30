@@ -3,9 +3,11 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Trophy, Medal, Award, TrendingUp, Clock, Target } from 'lucide-react';
+import { Avatar, Name } from '@coinbase/onchainkit/identity';
+import { base } from 'viem/chains';
 import type { LeaderboardEntry } from '@/types/game';
+import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
 
 interface LiveRankingsProps {
   entries: LeaderboardEntry[];
@@ -22,12 +24,14 @@ export default function LiveRankings({
 }: LiveRankingsProps) {
   const [displayEntries, setDisplayEntries] = useState<LeaderboardEntry[]>([]);
   const [isUpdating, setIsUpdating] = useState(false);
+  const { user: currentUserProfile } = useMiniAppProfile();
 
   useEffect(() => {
-    // Sort entries by total score in descending order and take top 10
-    const sortedEntries = [...entries]
+    // Filter for paid players only, sort by total score in descending order, take top 10
+    const paidPlayersOnly = entries.filter(entry => !entry.isTrialPlayer);
+    const sortedEntries = paidPlayersOnly
       .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 10)
+      .slice(0, 10) // Top 10 only
       .map((entry, index) => ({
         ...entry,
         rank: index + 1 // Reassign ranks based on sorted position
@@ -80,9 +84,8 @@ export default function LiveRankings({
     }
   };
 
-  const formatAddress = (address: string): string => {
-    return `${address.slice(0, 6)}...${address.slice(-4)}`;
-  };
+  // Address formatting removed per Product Guidelines - avoid showing 0x addresses
+  // Use OnchainKit Name component for Basename resolution instead
 
   const formatEarnings = (earnings: number): string => {
     return earnings > 0 ? `$${earnings.toFixed(2)}` : '$0.00';
@@ -146,23 +149,51 @@ export default function LiveRankings({
                     {/* Player Info */}
                     <div>
                       <div className="flex items-center space-x-2">
-                        <Avatar className="h-8 w-8">
-                          <AvatarFallback className="bg-gradient-to-br from-purple-400 to-pink-400 text-white text-xs font-bold">
-                            {entry.playerName?.slice(0, 2).toUpperCase() || 
-                             entry.playerAddress.slice(2, 4).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+                        {/* Use OnchainKit Avatar for Basename/ENS resolution */}
+                        {isCurrentPlayer && currentUserProfile?.pfpUrl ? (
+                          // Show Mini App profile picture for current user
+                          <div className="relative h-8 w-8 rounded-full overflow-hidden">
+                            <img
+                              src={currentUserProfile.pfpUrl}
+                              alt={currentUserProfile.displayName || currentUserProfile.username || 'Your avatar'}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        ) : (
+                          <Avatar
+                            address={entry.playerAddress as `0x${string}`}
+                            chain={base}
+                            className="h-8 w-8"
+                            defaultComponent={
+                              <div className="h-8 w-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
+                                {entry.playerName?.slice(0, 2).toUpperCase() || 
+                                 entry.playerAddress.slice(2, 4).toUpperCase()}
+                              </div>
+                            }
+                          />
+                        )}
                         <div>
-                          <div className="font-semibold text-gray-800">
-                            {entry.playerName || formatAddress(entry.playerAddress)}
+                          <div className="font-semibold text-gray-800 flex items-center gap-2">
+                            {/* Show Mini App profile name for current user, otherwise use OnchainKit Name for Basename resolution */}
+                            {isCurrentPlayer && (currentUserProfile?.displayName || currentUserProfile?.username) ? (
+                              <span>{currentUserProfile.displayName || currentUserProfile.username}</span>
+                            ) : entry.playerName ? (
+                              <span>{entry.playerName}</span>
+                            ) : (
+                              <Name 
+                                address={entry.playerAddress as `0x${string}`}
+                                chain={base}
+                              />
+                            )}
                             {isCurrentPlayer && (
                               <Badge variant="outline" className="ml-2 text-xs">
                                 You
                               </Badge>
                             )}
                           </div>
-                          <div className="text-sm text-gray-500">
-                            {entry.gamesPlayed} games played
+                          {/* Removed address display per Product Guidelines - avoid showing 0x addresses */}
+                          <div className="text-sm text-gray-500 flex items-center gap-2">
+                            <span>{entry.gamesPlayed} games played</span>
                           </div>
                         </div>
                       </div>

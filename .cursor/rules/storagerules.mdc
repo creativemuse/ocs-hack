@@ -1,0 +1,482 @@
+---
+description: Storage that uses Lighthouse to access IPFS
+alwaysApply: false
+---
+# File
+
+Any kind of file can be uploaded to Lighthouse refer to the code example given below. For developers building on other programming languages use the API directly.
+
+{% hint style="info" %}
+Lighthouse currently allows a maximum file size of 24GB to be uploaded in a single request.
+{% endhint %}
+
+{% tabs %}
+{% tab title="JS SDK" %}
+**Method 1: NodeJS:**
+
+```javascript
+import lighthouse from '@lighthouse-web3/sdk'
+
+/**
+ * This function allows you to upload a file or a folder to Lighthouse.
+ * 
+ * @param {string} path - The location of your file or folder.
+ * @param {string} apiKey - Your personal API key for Lighthouse.
+ * @param {object} dealParameters - Custom parameters for file storage deals(check FVM section).
+ * @return {object} - Returns details about the uploaded file.
+*/
+const uploadResponse = await lighthouse.upload(
+  '/home/cosmos/Desktop/wow.jpg', 
+  'YOUR_API_KEY_HERE'
+)
+
+console.log(uploadResponse)
+
+/*Sample response
+{
+  data: {
+    Name: 'wow.jpg',
+    Hash: 'QmUHDKv3NNL1mrg4NTW4WwJqetzwZbGNitdjr2G6Z5Xe6s',
+    Size: '31735'
+  }
+}
+*/
+```
+
+**Method 2: Browser**
+
+```javascript
+import React from "react"
+import lighthouse from '@lighthouse-web3/sdk'
+
+function App() {
+
+  const progressCallback = (progressData) => {
+    let percentageDone =
+      100 - (progressData?.total / progressData?.uploaded)?.toFixed(2)
+    console.log(percentageDone)
+  }
+
+  const uploadFile = async(file) =>{
+    // Push file to lighthouse node
+    // Both file and folder are supported by upload function
+    // Third parameter is for multiple files, if multiple files are to be uploaded at once make it true
+    // Fourth parameter is the deal parameters, default null
+    const output = await lighthouse.upload(file, "YOUR_API_KEY", null, progressCallback)
+    console.log('File Status:', output)
+    /*
+      output:
+        data: {
+          Name: "filename.txt",
+          Size: 88000,
+          Hash: "QmWNmn2gr4ZihNPqaC5oTeePsHvFtkWNpjY3cD6Fd5am1w"
+        }
+      Note: Hash in response is CID.
+    */
+
+      console.log('Visit at https://gateway.lighthouse.storage/ipfs/' + output.data.Hash)
+  }
+
+  return (
+    <div className="App">
+      <input onChange={e=>uploadFile(e.target.files)} type="file" />
+    </div>
+  )
+}
+
+export default App
+```
+{% endtab %}
+
+{% tab title="API" %}
+{% code overflow="wrap" %}
+```bash
+curl -X POST -H 'Authorization: Bearer API_KEY' -F 'file=@/mnt/c/Users/ravis/Desktop/unnamed.jpeg' 'https://upload.lighthouse.storage/api/v0/add'
+```
+{% endcode %}
+{% endtab %}
+
+{% tab title="CLI" %}
+The given command can be used to upload a file or directory on Lighthouse\
+`lighthouse-web3 upload <path>`
+{% endtab %}
+{% endtabs %}
+
+# Text/JSON
+
+Follow the given code example, in the case of JSON use Stringify
+
+{% tabs %}
+{% tab title="JS SDK" %}
+```javascript
+import lighthouse from '@lighthouse-web3/sdk'
+
+const text = "Sometimes, I Wish I Was A Cloud, Just Floating Along"
+const apiKey = "YOUR_API_KEY"
+const name = "shikamaru" //Optional
+
+const response = await lighthouse.uploadText(text, apiKey, name)
+
+console.log(response)
+// Sample response
+{
+  data: {
+    Name: 'shikamaru',
+    Hash: 'QmY77L7JzF8E7Rio4XboEpXL2kTZnW2oBFdzm6c53g5ay8',
+    Size: '91'
+  }
+}
+```
+
+Note: The name parameter is optional, it's just used to give a name to text that will appear in the response, if not provided Name parameter in the response will be the same as Hash.
+{% endtab %}
+{% endtabs %}
+
+# Text/JSON
+
+Follow the given code example, in the case of JSON use Stringify
+
+{% tabs %}
+{% tab title="JS SDK" %}
+```javascript
+import lighthouse from '@lighthouse-web3/sdk'
+
+const text = "Sometimes, I Wish I Was A Cloud, Just Floating Along"
+const apiKey = "YOUR_API_KEY"
+const name = "shikamaru" //Optional
+
+const response = await lighthouse.uploadText(text, apiKey, name)
+
+console.log(response)
+// Sample response
+{
+  data: {
+    Name: 'shikamaru',
+    Hash: 'QmY77L7JzF8E7Rio4XboEpXL2kTZnW2oBFdzm6c53g5ay8',
+    Size: '91'
+  }
+}
+```
+
+Note: The name parameter is optional, it's just used to give a name to text that will appear in the response, if not provided Name parameter in the response will be the same as Hash.
+{% endtab %}
+{% endtabs %}
+
+# List Files
+
+All uploaded files can be viewed using the given function, the results are paginated with 2000 records in one page.
+
+{% tabs %}
+{% tab title="JS SDK" %}
+```javascript
+const getUploads = async() =>{
+  /*
+    @param {string} apiKey - Your API key.
+    @param {number} [lastKey=null] - id of last object of previous response, defaults to null.
+  */
+  const response = await lighthouse.getUploads("YOUR_API_KEY",null)
+  console.log(response)
+  
+  /* Sample response
+    {
+      data: {
+        "fileList": [
+          {
+              "sentForDeal": "",
+              "publicKey": "",
+              "fileName": "",
+              "mimeType": "",
+              "createdAt":,
+              "fileSizeInBytes": "",
+              "cid": "",
+              "id": "b5f60ba0-b708-41a3-b0f2-5c808ce63b48",
+              "lastUpdate":,
+              "encryption": true
+          },
+        ],
+        "totalFiles": 2000
+      }
+    }
+  */
+  
+  /* Based on the totalFiles send user can evaluate if the next request needs to be send in the next request id of the last element of the previous response needs to be send.*/
+  const response = await lighthouse.getUploads("YOUR_API_KEY","b5f60ba0-b708-41a3-b0f2-5c808ce63b48")
+
+}
+```
+{% endtab %}
+
+{% tab title="API" %}
+```bash
+curl -H 'Authorization: Bearer API_KEY' 'https://api.lighthouse.storage/api/user/files_uploaded?lastKey=null'
+```
+{% endtab %}
+
+{% tab title="CLI" %}
+```bash
+lighthouse-web3 get-uploads
+```
+{% endtab %}
+{% endtabs %}
+
+**Note:** To navigate to different pages of results, you need to pass the `id` of the last object from the previous response as the `lastKey` parameter in the function call. This will fetch the next set of records starting from the given `lastKey`.
+
+# File Info
+
+Use file info API to get metadata of your file stored at Lighthouse.
+
+{% tabs %}
+{% tab title="JS SDK" %}
+```javascript
+const fileInfo = async() => {
+  /*
+    @param {string} cid - cid of file.
+  */
+  const cid = "QmeMsykMDyD76zpAbinCy1cjb1KL6CVNBfB44am15U1XHh"
+  const fileInfo = await lighthouse.getFileInfo(cid)
+  /* Sample Response
+    {
+      data: {
+        fileSizeInBytes: '95077',
+        cid: 'QmeMsykMDyD76zpAbinCy1cjb1KL6CVNBfB44am15U1XHh',
+        encryption: false,
+        fileName: 'itachi.jpg',
+        mimeType: 'image/jpeg',
+        txHash: ''
+      }
+    }
+  */
+}
+```
+{% endtab %}
+
+{% tab title="API" %}
+```bash
+curl https://api.lighthouse.storage/api/lighthouse/file_info?cid=QmeMsykMDyD76zpAbinCy1cjb1KL6CVNBfB44am15U1XHh
+```
+{% endtab %}
+{% endtabs %}
+
+---
+description: >-
+  Files stored on the platform can be retrieved directly via the IPFS gateway
+  using the Content Identifier (CID) associated with each file. Here's how to
+  retrieve a file using the CID.
+---
+
+# Retrieve File
+
+{% tabs %}
+{% tab title="JS" %}
+```javascript
+const fs = require('fs');
+const fetch = require('node-fetch'); // node-fetch must be installed if you are using Node version less than 18
+
+const downloadFile = (cid, path) => {
+  fetch(`https://gateway.lighthouse.storage/ipfs/${cid}`)
+    .then(response => {
+      if (response.ok) return response.buffer();
+      throw new Error('Network response was not ok.');
+    })
+    .then(buffer => {
+      fs.writeFile(path, buffer, () => {
+        console.log(`File saved to ${path}`);
+      });
+    })
+    .catch(error => {
+      console.error('Failed to save the file:', error);
+    });
+};
+
+// Replace 'CID' with the actual Content Identifier of your file and 'path' with your desired file path.
+downloadFile('CID', 'path/to/your/directory/filename.ext');
+
+```
+{% endtab %}
+
+{% tab title="CLI" %}
+```sh
+curl https://gateway.lighthouse.storage/ipfs/CID
+
+# Make sure to replace 'CID' with the actual Content Identifier of your file.
+```
+{% endtab %}
+
+{% tab title="Web Browser" %}
+To retrieve a file using a web browser, simply navigate to the following URL:
+
+[https://gateway.lighthouse.storage/ipfs/CID](https://gateway.lighthouse.storage/ipfs/CID)
+
+Replace `CID` with the actual Content Identifier of the file you wish to access.
+{% endtab %}
+{% endtabs %}
+
+---
+description: Using IPNS to handle mutable data
+---
+
+# IPNS - Handle Mutable Data
+
+IPNS (InterPlanetary Name System) is a system that allows you to create mutable pointers to data in the IPFS network. In simpler terms, it's like a dynamic address that always points to the latest version of your content. Using the Lighthouse SDK, you can easily create, publish, fetch, and remove IPNS records.
+
+### 1. What is IPNS?
+
+Think of IPNS as a dynamic domain name for your content on IPFS. While IPFS hashes are static and change when content changes, IPNS provides a static address that can be updated to point to new content.
+
+### 2. Basic steps involved
+
+1. Create an IPNS key
+2. Map the IPNS key with a CID
+3. In case of CID change just update the mapping, the IPNS key remains the same
+4. View the file using: \
+   [https://gateway.lighthouse.storage/ipns/k51qzi5uqu5dlr99jbwpbli7iqtdd60c8hk0wgrsxyvzu3lhymapd1rn4npdd8/](https://gateway.lighthouse.storage/ipns/k51qzi5uqu5dlr99jbwpbli7iqtdd60c8hk0wgrsxyvzu3lhymapd1rn4npdd8/)
+
+{% tabs %}
+{% tab title="JS SDK" %}
+#### Step 1: Create a New IPNS Key
+
+```javascript
+const keyResponse = await lighthouse.generateKey(apiKey)
+/* Sample response
+{
+  data: {
+    "ipnsName": "6cda213e3a534f8388665dee77a26458",
+    "ipnsId": "k51qzi5uqu5dm6uvby6428rfpcv1vcba6hxq6vcu52qtfsx3np4536jkr71gnu"
+  }
+}
+*/
+```
+
+Upon successful creation, you will receive an IPNS name and its corresponding ID.
+
+#### Step 2: Publish an IPFS Hash to IPNS
+
+```javascript
+const pubResponse = await lighthouse.publishRecord(
+  "YOUR_IPFS_HASH", // replace with your IPFS hash
+  keyResponse.data.ipnsName,
+  apiKey
+)
+/* Sample response
+{
+  data: {
+    "Name": "k51qzi5uqu5dm6uvby6428rfpcv1vcba6hxq6vcu52qtfsx3np4536jkr71gnu",
+    "Value": "/ipfs/Qmd5MBBScDUV3Ly8qahXtZFqyRRfYSmUwEcxpYcV4hzKfW"
+  }
+}
+*/
+```
+
+The response will show the IPNS name and the IPFS path it points to.
+
+#### Step 3: Retrieve All IPNS Keys
+
+```javascript
+const allKeys = await lighthouse.getAllKeys(apiKey)
+/* Sample response
+{
+  data: [
+    {
+      "ipnsName": "6cda213e3a534f8388665dee77a26458",
+      "ipnsId": "k51qzi5uqu5dm6uvby6428rfpcv1vcba6hxq6vcu52qtfsx3np4536jkr71gnu",
+      "publicKey": "0xc88c729ef2c18baf1074ea0df537d61a54a8ce7b",
+      "cid": "Qmd5MBBScDUV3Ly8qahXtZFqyRRfYSmUwEcxpYcV4hzKfW",
+      "lastUpdate": 1684855771773
+    }
+  ]
+}
+*/
+```
+
+#### Step 4: Remove an IPNS Key
+
+```javascript
+const pubResponse = await lighthouse.publishRecord("YOUR_IPFS_HASH",ipns_name,apiKey)
+```
+
+#### Step 5: Update an IPNS Key
+
+```javascript
+const removeRes = await lighthouse.removeKey(keyResponse.data.ipnsName, apiKey)
+/* Sample Response
+{
+  data: { 
+    Keys: [
+      {
+        "Name": "3090a315e92c495ea36444f2bbaeefaf",
+        "Id": "k51qzi5uqu5dm8gfelll8own1epd9osmlig49il5mmphkrcxbnhydkmx101x15"
+      }
+    ]
+  }
+}
+*/
+```
+{% endtab %}
+
+{% tab title="API" %}
+```bash
+# Generate Key
+curl -H 'Authorization: Bearer API_KEY' 'https://api.lighthouse.storage/api/ipns/generate_key'
+
+# Publish CID
+curl -H 'Authorization: Bearer API_KEY' 'https://api.lighthouse.storage/api/ipns/publish_record?cid=<cid>&keyName=<key>'
+
+# Get All Keys
+curl -H 'Authorization: Bearer API_KEY' 'https://api.lighthouse.storage/api/ipns/get_ipns_records'
+
+# Remove Key
+curl -H 'Authorization: Bearer API_KEY' 'https://api.lighthouse.storage/api/ipns/remove_key?keyName=<keyName>'
+```
+{% endtab %}
+
+{% tab title="CLI" %}
+```bash
+lighthouse-web3 ipns --generate-key
+#Returns:
+#ipnsName: ca9e19dcf8e54e86a4dce40b155ffcad
+#ipnsId: k51qzi5uqu5dlk72k0t8c80gg8c4lb9bzd0jsd9xtauso88hfkx9ytgm05caao
+
+lighthouse-web3 ipns --publish --key=ca9e19dcf8e54e86a4dce40b155ffcad --cid=QmWC9AkGa6vSbR4yizoJrFMfmZh4XjZXxvRDknk2LdJffc
+#Returns:
+#Published:
+#Visit: https://gateway.lighthouse.storage/ipns/k51qzi5uqu5dlk72k0t8c80gg8c4lb9bzd0jsd9xtauso88hfkx9ytgm05caao
+
+lighthouse-web3 ipns --list
+#Returns:
+#List of ipns records:
+#  Key:     ca9e19dcf8e54e86a4dce40b155ffcad
+#  IPNS ID: k51qzi5uqu5dlk72k0t8c80gg8c4lb9bzd0jsd9xtauso88hfkx9ytgm05caao
+#  CID:     QmWC9AkGa6vSbR4yizoJrFMfmZh4XjZXxvRDknk2LdJffc
+  
+lighthouse-web3 ipns --remove ca9e19dcf8e54e86a4dce40b155ffcad
+#Returns:
+#Record Removed!!!
+```
+{% endtab %}
+{% endtabs %}
+
+# Pin CID
+
+A user can create an additional copy of your file in the IPFS network or migrate a file to the Lighthouse IPFS node pinning service can be used.
+
+{% tabs %}
+{% tab title="API" %}
+A POST request has to be made with cid(required) and fileName(optional) parameters. API key is required for authentication.
+
+{% code overflow="wrap" %}
+```bash
+curl -X POST -H 'Authorization: Bearer API_KEY' -H "Content-Type: application/json" -d '{"cid": "QmWC9AkGa6vSbR4yizoJrFMfmZh4XjZXxvRDknk2LdJffc","fileName": "abc.png"}' https://api.lighthouse.storage/api/lighthouse/pin
+```
+{% endcode %}
+{% endtab %}
+{% endtabs %}
+
+# Add Video Player in UI
+
+To add a video player on your own site you can use video tag in similar fashion.
+
+```javascript
+  <video controls autoplay name="media">
+    <source src="https://gateway.lighthouse.storage/ipfs/QmdQN5R6F8mU4X8qZ3bUXCnCRNKCeaRZ1L2YjPKrbaEmh8" type="video/webm"/>
+  </video>
+```

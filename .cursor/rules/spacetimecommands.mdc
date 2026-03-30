@@ -1,0 +1,24 @@
+---
+description: commands for spacetimedb cli
+alwaysApply: false
+---
+Commands:
+  publish    Create and update a SpacetimeDB database
+  delete     Deletes a SpacetimeDB database
+  logs       Prints logs from a SpacetimeDB database
+  call       Invokes a reducer function in a database. WARNING: This command is UNSTABLE and subject to breaking changes.
+  describe   Describe the structure of a database or entities within it. WARNING: This command is UNSTABLE and subject to breaking changes.
+  energy     Invokes commands related to database budgets. WARNING: This command is UNSTABLE and subject to breaking changes.
+  sql        Runs a SQL query on the database. WARNING: This command is UNSTABLE and subject to breaking changes.
+  rename     Rename a database
+  generate   Generate client files for a spacetime module.
+  list       Lists the databases attached to an identity. WARNING: This command is UNSTABLE and subject to breaking changes.
+  login      Manage your login to the SpacetimeDB CLI
+  logout     
+  init       Initializes a new spacetime project. WARNING: This command is UNSTABLE and subject to breaking changes.
+  build      Builds a spacetime module.
+  server     Manage the connection to the SpacetimeDB server. WARNING: This command is UNSTABLE and subject to breaking changes.
+  subscribe  Subscribe to SQL queries on the database. WARNING: This command is UNSTABLE and subject to breaking changes.
+  start      Start a local SpacetimeDB instance
+  version    Manage installed spacetime versions
+  help       Print this message or the help of the given subcommand(s)

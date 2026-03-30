@@ -1,4 +1,5 @@
 @import "tailwindcss";
+/* stylelint-disable-next-line at-rule-no-unknown */
 @plugin "tailwindcss-animate";
 
 @layer theme, base, components, utilities;
@@ -6,6 +7,11 @@
 @layer utilities {
   .text-balance {
     text-wrap: balance;
+  }
+  
+  /* Audiowide font utility class */
+  .font-audiowide {
+    font-family: var(--font-audiowide), cursive;
   }
 }
 

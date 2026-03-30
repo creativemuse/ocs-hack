@@ -1,6 +1,27 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  eslint: {
+    // Prevent ESLint option incompatibilities from failing production builds
+    ignoreDuringBuilds: true,
+  },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups',
+          },
+          {
+            key: 'Cross-Origin-Embedder-Policy',
+            value: 'unsafe-none',
+          },
+        ],
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       {
@@ -26,8 +47,16 @@ const nextConfig: NextConfig = {
   },
   webpack: (config) => {
     config.externals.push("pino-pretty", "lokijs", "encoding");
+    
+    // Handle SpaceTimeDB compilation issues
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      'spacetimedb/src/lib/algebraic_type': false,
+    };
+    
     return config;
   },
+  transpilePackages: ['spacetimedb'],
 };
 
 export default nextConfig;

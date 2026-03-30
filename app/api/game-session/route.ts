@@ -1,0 +1,246 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { spacetimeClient } from '@/lib/apis/spacetime';
+import { getActiveSession as memGet, joinActiveSession as memJoin, leaveActiveSession as memLeave, getTimeRemainingSeconds as memTime } from './state';
+import { verifyEntryToken, getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
+
+interface GameSession {
+  session_id: string;
+  status: 'waiting' | 'active' | 'completed';
+  player_count: number;
+  paid_player_count: number;
+  trial_player_count: number;
+  prize_pool: number;
+  entry_fee: number;
+  start_time: number;
+  created_at: number;
+}
+
+export async function GET() {
+  // Attempt SpacetimeDB first; if it fails, fall back to memory session
+  try {
+    await spacetimeClient.initialize();
+    
+    // Check if SpacetimeDB is properly configured and connected
+    if (spacetimeClient.isConfigured()) {
+      try {
+        const activeSession = await spacetimeClient.getActiveGameSession();
+
+        if (activeSession) {
+          const now = Date.now();
+          const sessionStatus = activeSession.status?.tag || activeSession.status || 'waiting';
+          
+          // Calculate time remaining only for Active sessions with paid players
+          let timeRemaining = 0;
+          if (sessionStatus === 'Active' && activeSession.paidPlayerCount > 0) {
+            const elapsed = Math.floor((now - Number(activeSession.startTime)) / 1000);
+            timeRemaining = Math.max(0, 300 - elapsed);
+          }
+          
+          // CRITICAL FIX: Allow joining if:
+          // 1. Session is Waiting (trial players can join, waiting for paid player)
+          // 2. Session is Active with paid players AND time hasn't expired
+          // 3. Session is Active but has no paid players (shouldn't happen, but handle gracefully)
+          const isWaiting = sessionStatus === 'Waiting';
+          const isActiveWithTime = sessionStatus === 'Active' && activeSession.paidPlayerCount > 0 && timeRemaining > 0;
+          const hasNoPaidPlayers = activeSession.paidPlayerCount === 0;
+          
+          const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+          const waitingForPaidPlayer = activeSession.paidPlayerCount === 0;
+          
+          return NextResponse.json({ 
+            session: activeSession, 
+            timeRemaining, 
+            canJoin,
+            waitingForPaidPlayer,
+            source: 'spacetime'
+          });
+        }
+      } catch (spacetimeError) {
+        console.warn('⚠️ SpacetimeDB session query failed, using memory fallback:', spacetimeError);
+      }
+    } else {
+      console.log('ℹ️ SpacetimeDB not configured - using memory session');
+    }
+  } catch (err) {
+    console.warn('⚠️ SpacetimeDB initialization failed, using in-memory session fallback');
+  }
+
+  // Memory fallback
+  const session = memGet();
+  const timeRemaining = memTime(session);
+  
+  // CRITICAL FIX: Allow joining if:
+  // 1. Session is Waiting (trial players can join, waiting for paid player)
+  // 2. Session is Active with paid players AND time hasn't expired
+  // 3. Session has no paid players (shouldn't block joining)
+  const isWaiting = session.status === 'waiting';
+  const isActiveWithTime = session.status === 'active' && session.paid_player_count > 0 && timeRemaining > 0;
+  const hasNoPaidPlayers = session.paid_player_count === 0;
+  
+  const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+  const waitingForPaidPlayer = session.paid_player_count === 0;
+  
+  return NextResponse.json({ 
+    session, 
+    timeRemaining, 
+    canJoin,
+    waitingForPaidPlayer,
+    source: 'memory'
+  });
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const { action, playerAddress, isPaidPlayer = false, playerId, entryId, token } = await req.json();
+
+    if (action === 'join') {
+      try {
+        await spacetimeClient.initialize();
+        
+        // Check if SpacetimeDB is properly configured and connected
+        if (spacetimeClient.isConfigured()) {
+          try {
+            await spacetimeClient.joinActiveGameSession();
+            const updatedSession = await spacetimeClient.getActiveGameSession();
+            if (updatedSession) {
+              const now = Date.now();
+              const sessionStatus = updatedSession.status?.tag || updatedSession.status || 'waiting';
+              
+              // Calculate time remaining only for Active sessions with paid players
+              let timeRemaining = 0;
+              if (sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0) {
+                const elapsed = Math.floor((now - Number(updatedSession.startTime)) / 1000);
+                timeRemaining = Math.max(0, 300 - elapsed);
+              }
+              
+              const isFirstPaidPlayer = isPaidPlayer && updatedSession.paidPlayerCount === 1 && sessionStatus === 'Active';
+              const waitingForPaidPlayer = updatedSession.paidPlayerCount === 0;
+              
+              // CRITICAL FIX: Calculate canJoin same as GET endpoint
+              const isWaiting = sessionStatus === 'Waiting';
+              const isActiveWithTime = sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0 && timeRemaining > 0;
+              const hasNoPaidPlayers = updatedSession.paidPlayerCount === 0;
+              const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+              
+              return NextResponse.json({ 
+                session: updatedSession, 
+                timeRemaining, 
+                isFirstPaidPlayer,
+                waitingForPaidPlayer,
+                canJoin,
+                source: 'spacetime'
+              });
+            }
+          } catch (spacetimeError) {
+            console.warn('⚠️ SpacetimeDB join failed, using memory fallback:', spacetimeError);
+          }
+        } else {
+          console.log('ℹ️ SpacetimeDB not configured - using memory session for join');
+        }
+      } catch (e) {
+        console.warn('⚠️ SpacetimeDB initialization failed, using memory fallback');
+      }
+
+      // Verify JWT entry token and extract player information
+      if (!token) {
+        console.error('No entry token provided');
+        return NextResponse.json({ error: 'Entry token required' }, { status: 401 });
+      }
+
+      console.log('Validating entry token...');
+      const validation = validatePlayerAccess(token);
+      if (!validation.isValid) {
+        console.error('Token validation failed:', validation.error);
+        return NextResponse.json({ 
+          error: validation.error || 'Invalid or expired entry token' 
+        }, { status: 401 });
+      }
+
+      const playerInfo = validation.playerInfo!;
+      
+      // Verify entry ID matches
+      if (playerInfo.entryId !== entryId) {
+        return NextResponse.json({ error: 'Entry ID mismatch' }, { status: 401 });
+      }
+
+      // Override isPaidPlayer based on JWT token
+      const actualIsPaidPlayer = playerInfo.playerType === 'paid';
+      
+      console.log(`🎯 Player ${playerInfo.playerType} joining with ${playerInfo.walletAddress || playerInfo.anonId}`);
+
+      // Memory fallback - use actual player type from JWT
+      const s = memJoin(actualIsPaidPlayer, playerId);
+      const timeRemaining = memTime(s);
+      const isFirstPaidPlayer = actualIsPaidPlayer && s.paid_player_count === 1 && s.status === 'active';
+      const waitingForPaidPlayer = s.paid_player_count === 0;
+      
+      // CRITICAL FIX: Calculate canJoin same as GET endpoint
+      const isWaiting = s.status === 'waiting';
+      const isActiveWithTime = s.status === 'active' && s.paid_player_count > 0 && timeRemaining > 0;
+      const hasNoPaidPlayers = s.paid_player_count === 0;
+      const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+      
+      return NextResponse.json({ 
+        session: s, 
+        timeRemaining, 
+        isFirstPaidPlayer,
+        waitingForPaidPlayer,
+        canJoin,
+        source: 'memory'
+      });
+    }
+
+    if (action === 'leave') {
+      if (!playerId) {
+        return NextResponse.json({ error: 'Player ID required for leave action' }, { status: 400 });
+      }
+
+      try {
+        await spacetimeClient.initialize();
+        
+        // NOTE: SpacetimeDB handles player disconnection automatically via the 
+        // identity_disconnected reducer, which cleans up active connections.
+        // For explicit "leave" actions during an active session, we use the 
+        // memory implementation since game state management happens in-memory
+        // during the 5-minute battle window. The SpacetimeDB game_sessions table
+        // is updated at the end of each game (via end_game_session reducer).
+        // This hybrid approach optimizes for:
+        // 1. Fast in-memory state updates during active gameplay
+        // 2. Persistent storage of completed game results
+        // 3. Automatic cleanup on network disconnection
+        
+      } catch (e) {
+        console.warn('⚠️ SpacetimeDB connection check failed, using memory fallback:', e);
+      }
+
+      // Use memory implementation for active session management
+      const s = memLeave(playerId);
+      const timeRemaining = memTime(s);
+      const waitingForPaidPlayer = s.paid_player_count === 0;
+      
+      // CRITICAL FIX: Calculate canJoin same as GET endpoint
+      const isWaiting = s.status === 'waiting';
+      const isActiveWithTime = s.status === 'active' && s.paid_player_count > 0 && timeRemaining > 0;
+      const hasNoPaidPlayers = s.paid_player_count === 0;
+      const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+      
+      return NextResponse.json({ 
+        session: s, 
+        timeRemaining, 
+        waitingForPaidPlayer,
+        canJoin,
+        gameCancelled: s.status === 'waiting' && s.player_count === 0,
+        source: 'memory'
+      });
+    }
+
+    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+
+  } catch (error) {
+    console.error('Error in game session:', error);
+    return NextResponse.json(
+      { error: 'Failed to process game session action' },
+      { status: 500 }
+    );
+  }
+}
