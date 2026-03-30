@@ -127,29 +127,33 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
      * Only paid players are eligible for prize pool distributions
      * Platform fee of 2.5% is deducted from entry fee
      * Automatically starts a session if none is active
+     * Players may re-enter (paying again) after submitting their previous score,
+     * growing the prize pool with each entry.
      */
     function joinBattle() external nonReentrant {
-        require(!currentSession.playerScores[msg.sender].hasJoined, "Already joined");
-        
+        // Block re-entry only if player joined but hasn't played yet (prevents double-pay without playing)
+        PlayerScore storage existing = currentSession.playerScores[msg.sender];
+        require(!existing.hasJoined || existing.hasSubmitted, "Already joined - submit score first");
+
         // If no active session OR the previous session has ended, start a new one automatically
         if (!currentSession.isActive || block.timestamp > currentSession.endTime) {
             _startNewSession(300); // Default 5 minutes
         }
-        
+
         // Ensure session is active and has started
         require(currentSession.isActive, "No active session");
         require(block.timestamp >= currentSession.startTime, "Session not started");
-        
+
         // Calculate platform fee (2.5% of entry fee)
         uint256 platformFee = (ENTRY_FEE * PLATFORM_FEE_BPS) / 10000;
         uint256 prizePoolContribution = ENTRY_FEE - platformFee;
-        
+
         // Transfer USDC entry fee
         require(
             usdcToken.transferFrom(msg.sender, address(this), ENTRY_FEE),
             "USDC transfer failed"
         );
-        
+
         // Transfer platform fee to recipient
         if (platformFee > 0 && platformFeeRecipient != address(0)) {
             require(
@@ -158,20 +162,24 @@ contract TriviaBattle is ReentrancyGuard, Ownable {
             );
             emit PlatformFeeCollected(platformFee, platformFeeRecipient);
         }
-        
+
         // Add remaining amount to prize pool
         currentSession.prizePool += prizePoolContribution;
-        currentSession.paidPlayerCount++;
-        currentSession.paidPlayers.push(msg.sender);
-        
-        // Initialize player score
+
+        // Only add to paidPlayers array on first entry to avoid duplicates in prize distribution
+        if (!existing.hasJoined) {
+            currentSession.paidPlayerCount++;
+            currentSession.paidPlayers.push(msg.sender);
+        }
+
+        // Reset player score for new game (keeps hasJoined true, clears submission)
         currentSession.playerScores[msg.sender] = PlayerScore({
             score: 0,
             hasJoined: true,
             hasSubmitted: false,
             submissionTime: 0
         });
-        
+
         emit PlayerJoined(msg.sender, ENTRY_FEE, platformFee);
     }
     
