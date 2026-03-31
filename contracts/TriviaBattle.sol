@@ -56,32 +56,12 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     // --- Events ---
     event SessionStarted(uint256 indexed sessionId, uint256 startTime);
     event PlayerJoined(address indexed player, uint256 sessionId);
-    event PrizesDistributed(
-        uint256 indexed sessionId,
-        address[] winners,
-        uint256[] prizeAmounts
-    );
-    event PlatformFeeDistributed(
-        uint256 indexed sessionId,
-        address indexed recipient,
-        uint256 amount
-    );
-    event EmergencyWithdrawalInitiated(
-        address indexed initiator,
-        uint256 amount,
-        uint256 releaseTime
-    );
+    event PrizesDistributed(uint256 indexed sessionId, address[] winners, uint256[] prizeAmounts);
+    event PlatformFeeDistributed(uint256 indexed sessionId, address indexed recipient, uint256 amount);
+    event EmergencyWithdrawalInitiated(address indexed initiator, uint256 amount, uint256 releaseTime);
     event WithdrawalExecuted(address indexed recipient, uint256 amount);
-    event ChainlinkRequestSent(
-        bytes32 indexed requestId,
-        address indexed sender,
-        string functionName
-    );
-    event ChainlinkResponseReceived(
-        bytes32 indexed requestId,
-        bytes response,
-        bytes error
-    );
+    event ChainlinkRequestSent(bytes32 indexed requestId, address indexed sender, string functionName);
+    event ChainlinkResponseReceived(bytes32 indexed requestId, bytes response, bytes error);
 
     // --- Errors ---
     error TriviaBattle__SessionAlreadyActive();
@@ -172,7 +152,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         if (!isSessionActive) {
             revert TriviaBattle__SessionNotActive();
         }
-        
+
         // Check if player participated in current session
         // If hasParticipated is true but player is not in current players array,
         // they're from a previous session, so clear the flag and allow them to join
@@ -212,10 +192,11 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         emit PlayerJoined(msg.sender, sessionCounter); // Bug 1 Fix: Use sessionCounter instead of block.timestamp
     }
 
-    function submitScores(
-        address[] calldata playerAddresses,
-        uint256[] calldata scores
-    ) external onlyOwnerOrChainlink nonReentrant {
+    function submitScores(address[] calldata playerAddresses, uint256[] calldata scores)
+        external
+        onlyOwnerOrChainlink
+        nonReentrant
+    {
         if (!isSessionActive) {
             revert TriviaBattle__SessionNotActive();
         }
@@ -281,23 +262,20 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         // Calculate prize pool from current session's entry fees, excluding pending withdrawals
         uint256 contractBalance = USDC_TOKEN.balanceOf(address(this));
         uint256 pendingWithdrawalAmount = pendingWithdrawals[owner()];
-        
+
         // Prize pool is the minimum of:
         // 1. Current session's collected entry fees
         // 2. Contract balance minus pending withdrawals (to prevent distributing funds reserved for withdrawal)
-        uint256 availableBalance = contractBalance > pendingWithdrawalAmount 
-            ? contractBalance - pendingWithdrawalAmount 
-            : 0;
-        uint256 totalPrizePool = currentSessionPrizePool < availableBalance 
-            ? currentSessionPrizePool 
-            : availableBalance;
-        
+        uint256 availableBalance =
+            contractBalance > pendingWithdrawalAmount ? contractBalance - pendingWithdrawalAmount : 0;
+        uint256 totalPrizePool = currentSessionPrizePool < availableBalance ? currentSessionPrizePool : availableBalance;
+
         require(totalPrizePool > 0, "No prize pool available");
 
         // Calculate and send platform fee to owner
         uint256 platformFee = (totalPrizePool * PLATFORM_FEE_PERCENTAGE) / 100;
         uint256 winnerPool = totalPrizePool - platformFee;
-        
+
         // Automatically send platform fee to owner
         if (platformFee > 0) {
             USDC_TOKEN.safeTransfer(owner(), platformFee);
@@ -309,10 +287,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         require(topPlayers.length > 0, "No winners found");
 
         // Calculate prize amounts from winner pool (90% of total after platform fee deduction)
-        uint256[] memory prizeAmounts = _calculatePrizeAmounts(
-            winnerPool,
-            topPlayers.length
-        );
+        uint256[] memory prizeAmounts = _calculatePrizeAmounts(winnerPool, topPlayers.length);
 
         // Distribute prizes
         _transferPrizes(topPlayers, prizeAmounts);
@@ -331,18 +306,11 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         isSessionActive = false; // Mark session as inactive after prize distribution
     }
 
-    function _findTopPlayers(uint256 numWinners)
-        private
-        view
-        returns (address[] memory)
-    {
+    function _findTopPlayers(uint256 numWinners) private view returns (address[] memory) {
         // Create an array of PlayerScore
         PlayerScore[] memory playerScoresArray = new PlayerScore[](players.length);
         for (uint256 i = 0; i < players.length; i++) {
-            playerScoresArray[i] = PlayerScore({
-                player: players[i],
-                score: playerScores[players[i]]
-            });
+            playerScoresArray[i] = PlayerScore({player: players[i], score: playerScores[players[i]]});
         }
 
         // Bug 4 Fix: Handle empty or single-element arrays
@@ -357,10 +325,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         // Simple bubble sort (for arrays with 2+ elements)
         for (uint256 i = 0; i < playerScoresArray.length - 1; i++) {
             for (uint256 j = 0; j < playerScoresArray.length - i - 1; j++) {
-                if (
-                    playerScoresArray[j].score <
-                    playerScoresArray[j + 1].score
-                ) {
+                if (playerScoresArray[j].score < playerScoresArray[j + 1].score) {
                     PlayerScore memory temp = playerScoresArray[j];
                     playerScoresArray[j] = playerScoresArray[j + 1];
                     playerScoresArray[j + 1] = temp;
@@ -369,9 +334,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         }
 
         // Prepare result
-        uint256 resultLength = numWinners < playerScoresArray.length
-            ? numWinners
-            : playerScoresArray.length;
+        uint256 resultLength = numWinners < playerScoresArray.length ? numWinners : playerScoresArray.length;
         address[] memory topPlayers = new address[](resultLength);
         for (uint256 i = 0; i < resultLength; i++) {
             topPlayers[i] = playerScoresArray[i].player;
@@ -380,10 +343,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         return topPlayers;
     }
 
-    function _calculatePrizeAmounts(
-        uint256 winnerPool,
-        uint256 numWinners
-    ) private pure returns (uint256[] memory) {
+    function _calculatePrizeAmounts(uint256 winnerPool, uint256 numWinners) private pure returns (uint256[] memory) {
         uint256[] memory prizeAmounts = new uint256[](numWinners);
 
         // Distribute winner pool (90% of total prize pool) based on number of winners:
@@ -410,15 +370,12 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         return prizeAmounts;
     }
 
-    function _transferPrizes(
-        address[] memory winners,
-        uint256[] memory amounts
-    ) private {
+    function _transferPrizes(address[] memory winners, uint256[] memory amounts) private {
         // Validate array lengths match
         if (winners.length != amounts.length) {
             revert("Winners and amounts arrays length mismatch");
         }
-        
+
         for (uint256 i = 0; i < winners.length; i++) {
             // Validate winner address is not zero
             if (winners[i] == address(0)) {
@@ -451,11 +408,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         // Set (not accumulate) the withdrawal amount to prevent exceeding contract balance
         pendingWithdrawals[owner()] = contractBalance;
 
-        emit EmergencyWithdrawalInitiated(
-            msg.sender,
-            contractBalance,
-            timeLockEnd
-        );
+        emit EmergencyWithdrawalInitiated(msg.sender, contractBalance, timeLockEnd);
     }
 
     function executeWithdrawal() external onlyOwner nonReentrant {
@@ -481,10 +434,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     }
 
     // --- Chainlink Integration ---
-    function sendChainlinkRequest(
-        string memory functionToCall,
-        bytes memory params
-    ) external onlyOwner {
+    function sendChainlinkRequest(string memory functionToCall, bytes memory params) external onlyOwner {
         // Validate all parameters BEFORE transferring LINK to minimize risk of fund loss
         if (LINK_TOKEN.balanceOf(address(this)) < CHAINLINK_FEE) {
             revert("Insufficient LINK balance");
@@ -516,11 +466,10 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         emit ChainlinkRequestSent(requestId, msg.sender, functionToCall);
     }
 
-    function fulfillOracleRequest(
-        bytes32 requestId,
-        bytes memory response,
-        bytes memory error
-    ) external onlyOwnerOrChainlink {
+    function fulfillOracleRequest(bytes32 requestId, bytes memory response, bytes memory error)
+        external
+        onlyOwnerOrChainlink
+    {
         emit ChainlinkResponseReceived(requestId, response, error);
     }
 
@@ -546,11 +495,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         sessionInterval = _newInterval;
     }
 
-    function setSessionInterval(uint256 _newInterval)
-        external
-        onlyOwner
-        nonReentrant
-    {
+    function setSessionInterval(uint256 _newInterval) external onlyOwner nonReentrant {
         _setSessionInterval(_newInterval);
     }
 
@@ -561,7 +506,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     function setEntryFee(uint256 _newFee) external onlyOwner nonReentrant {
         _setEntryFee(_newFee);
     }
-
 
     function setTimeLockDelay(uint256 _newDelay) external onlyOwner {
         require(_newDelay > 0, "Time lock delay must be greater than 0");
@@ -577,11 +521,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         return playerScores[player];
     }
 
-    function getPendingWithdrawal(address account)
-        external
-        view
-        returns (uint256)
-    {
+    function getPendingWithdrawal(address account) external view returns (uint256) {
         return pendingWithdrawals[account];
     }
 
@@ -590,16 +530,19 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     }
 
     // --- Chainlink CRE Integration (IReceiver) ---
-    
+
     /// @notice Receives reports from Chainlink CRE workflow
     /// @dev This function is called by the Chainlink KeystoneForwarder when a CRE workflow
     ///      writes data onchain. The report contains encoded function call data (e.g., distributePrizes()).
     ///      We verify the caller is the configured chainlinkOracle (forwarder), then execute the report.
     /// @param report Encoded function call data from the CRE workflow
     function onReport(
-        bytes calldata /* metadata */,
+        bytes calldata,
+        /* metadata */
         bytes calldata report
-    ) external {
+    )
+        external
+    {
         // Security: Verify caller is the Chainlink forwarder (set via setChainlinkOracle)
         if (msg.sender != chainlinkOracle) {
             revert TriviaBattle__Unauthorized();
@@ -609,7 +552,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         // The report contains the encoded function call (e.g., distributePrizes())
         // Use a low-level call to execute it
         (bool success, bytes memory returnData) = address(this).call(report);
-        
+
         if (!success) {
             // Decode error if possible, otherwise revert with generic message
             if (returnData.length > 0) {
@@ -628,8 +571,6 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     /// @param interfaceId The interface identifier to check
     /// @return true if the contract implements the interface
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
-        return 
-            interfaceId == type(IReceiver).interfaceId ||
-            interfaceId == type(IERC165).interfaceId;
+        return interfaceId == type(IReceiver).interfaceId || interfaceId == type(IERC165).interfaceId;
     }
 }

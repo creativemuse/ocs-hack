@@ -17,7 +17,7 @@ contract DeployAutomationCounter is Script {
     function run() external {
         // Get the update interval from environment variable or use default
         uint256 updateInterval = vm.envOr("UPDATE_INTERVAL", DEFAULT_UPDATE_INTERVAL);
-        
+
         // Get the deployer's private key from environment
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
 

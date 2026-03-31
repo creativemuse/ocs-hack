@@ -31,11 +31,7 @@ contract DeployTriviaBattlev2Automation is Script {
         vm.startBroadcast(deployerPrivateKey);
 
         // Deploy the TriviaGame contract
-        TriviaGame game = new TriviaGame(
-            usdcAddress,
-            gameOracle,
-            platformFeeRecipient
-        );
+        TriviaGame game = new TriviaGame(usdcAddress, gameOracle, platformFeeRecipient);
 
         vm.stopBroadcast();
 

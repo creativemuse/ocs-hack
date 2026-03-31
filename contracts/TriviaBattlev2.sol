@@ -22,18 +22,18 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     uint256 public constant PLATFORM_FEE_PERCENTAGE = 300; // 3% (in basis points: 300/10000)
     uint256 public constant TOP_PRIZE_PERCENTAGE = 9215; // 95% of 97% (after platform fee)
     uint256 public constant REMAINING_PERCENTAGE = 485; // 5% of 97% (after platform fee)
-    
+
     // Game state
     uint256 public currentGameId;
     address public gameOracle; // Address authorized to submit rankings
     address public platformFeeRecipient; // Address to receive platform fees
     uint256 public accumulatedPlatformFees; // Track total platform fees collected
-    
+
     // Prize distribution for top 3 (out of 95%)
     uint256 public firstPlacePct = 50; // 50% of 95% = 47.5% of total
     uint256 public secondPlacePct = 30; // 30% of 95% = 28.5% of total
-    uint256 public thirdPlacePct = 20;  // 20% of 95% = 19% of total
-    
+    uint256 public thirdPlacePct = 20; // 20% of 95% = 19% of total
+
     struct Game {
         uint256 gameId;
         uint256 prizePool;
@@ -48,9 +48,9 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         mapping(address => bool) hasClaimed;
         mapping(address => uint256) playerRanking; // 0 = not ranked, 1-10 = ranking
     }
-    
+
     mapping(uint256 => Game) public games;
-    
+
     // Events
     event GameCreated(uint256 indexed gameId, uint256 startTime, uint256 endTime);
     event PlayerEntered(uint256 indexed gameId, address indexed player, uint256 totalPlayers);
@@ -60,7 +60,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     event OracleUpdated(address indexed oldOracle, address indexed newOracle);
     event PlatformFeeRecipientUpdated(address indexed oldRecipient, address indexed newRecipient);
     event PlatformFeesWithdrawn(address indexed recipient, uint256 amount);
-    
+
     // Errors
     error GameNotActive();
     error GameAlreadyFinalized();
@@ -74,7 +74,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     error RankingsAlreadySubmitted();
     error NoActiveGame();
     error GameAlreadyActive();
-    
+
     constructor(address _usdc, address _gameOracle, address _platformFeeRecipient) Ownable(msg.sender) {
         require(_usdc != address(0), "Invalid USDC address");
         require(_gameOracle != address(0), "Invalid oracle address");
@@ -83,23 +83,25 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         gameOracle = _gameOracle;
         platformFeeRecipient = _platformFeeRecipient;
     }
-    
+
     modifier onlyOracle() {
         _onlyOracle();
         _;
     }
-    
+
     function _onlyOracle() internal view {
         if (msg.sender != gameOracle) revert NotOracle();
     }
-    
+
     /**
      * @notice Chainlink Automation - Check if game needs finalization
      * @dev Called offchain by Chainlink to determine if upkeep is needed
      * @return upkeepNeeded True if a game is ready to finalize
      * @return performData Encoded gameId to finalize
      */
-    function checkUpkeep(bytes calldata /* checkData */)
+    function checkUpkeep(
+        bytes calldata /* checkData */
+    )
         external
         view
         override
@@ -109,26 +111,22 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         if (currentGameId == 0) {
             return (false, "");
         }
-        
+
         Game storage game = games[currentGameId];
-        
+
         // Game is ready to finalize if:
         // 1. Game is active
         // 2. Game end time has passed
         // 3. Rankings have been submitted
         // 4. Not already finalized
-        if (game.isActive && 
-            block.timestamp >= game.endTime && 
-            game.rankingsSubmitted && 
-            !game.isFinalized) {
-            
+        if (game.isActive && block.timestamp >= game.endTime && game.rankingsSubmitted && !game.isFinalized) {
             upkeepNeeded = true;
             performData = abi.encode(currentGameId);
         }
-        
+
         return (upkeepNeeded, performData);
     }
-    
+
     /**
      * @notice Chainlink Automation - Finalize game automatically
      * @dev Called onchain by Chainlink when checkUpkeep returns true
@@ -137,20 +135,20 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     function performUpkeep(bytes calldata performData) external override {
         uint256 gameId = abi.decode(performData, (uint256));
         Game storage game = games[gameId];
-        
+
         // Re-validate all conditions (critical for security)
         require(game.isActive, "Game not active");
         require(block.timestamp >= game.endTime, "Game not ended");
         require(game.rankingsSubmitted, "Rankings not submitted");
         require(!game.isFinalized, "Already finalized");
-        
+
         // Finalize the game
         game.isActive = false;
         game.isFinalized = true;
-        
+
         emit GameFinalized(gameId, game.prizePool, game.platformFee);
     }
-    
+
     /**
      * @notice Create a new game ON-DEMAND
      * @dev Can be called by owner anytime to start a new game
@@ -171,44 +169,44 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
                 }
             }
         }
-        
+
         currentGameId++;
         Game storage game = games[currentGameId];
         game.gameId = currentGameId;
         game.startTime = block.timestamp;
         game.endTime = block.timestamp + GAME_DURATION; // Exactly 5 minutes from now
         game.isActive = true;
-        
+
         emit GameCreated(currentGameId, game.startTime, game.endTime);
     }
-    
+
     /**
      * @notice Enter the current game by paying entry fee
      */
     function enterGame() external nonReentrant {
         if (currentGameId == 0) revert NoActiveGame();
         Game storage game = games[currentGameId];
-        
+
         if (!game.isActive) revert GameNotActive();
         if (game.hasEntered[msg.sender]) revert AlreadyEntered();
         if (block.timestamp >= game.endTime) revert GameNotActive();
-        
+
         // Transfer USDC from player to contract
         USDC.safeTransferFrom(msg.sender, address(this), ENTRY_FEE);
-        
+
         // Calculate platform fee (3% of entry fee)
         uint256 platformFee = (ENTRY_FEE * PLATFORM_FEE_PERCENTAGE) / 10000;
         uint256 prizePoolContribution = ENTRY_FEE - platformFee;
-        
+
         game.hasEntered[msg.sender] = true;
         game.playerCount++;
         game.prizePool += prizePoolContribution;
         game.platformFee += platformFee;
         accumulatedPlatformFees += platformFee;
-        
+
         emit PlayerEntered(currentGameId, msg.sender, game.playerCount);
     }
-    
+
     /**
      * @notice Submit rankings after game ends (called by oracle/backend)
      * @dev This triggers Chainlink Automation to finalize the game
@@ -217,12 +215,12 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
      */
     function submitRankings(uint256 gameId, address[] calldata rankedPlayers) external onlyOracle {
         Game storage game = games[gameId];
-        
+
         if (!game.isActive) revert GameNotActive();
         if (block.timestamp < game.endTime) revert GameNotEnded();
         if (game.rankingsSubmitted) revert RankingsAlreadySubmitted();
         if (rankedPlayers.length > 10) revert InvalidRanking();
-        
+
         // Allow empty rankings if no one played
         if (rankedPlayers.length > 0) {
             // Validate all ranked players actually entered
@@ -233,33 +231,33 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
                 game.playerRanking[player] = i + 1; // 1-indexed ranking
             }
         }
-        
+
         game.rankingsSubmitted = true;
-        
+
         emit RankingsSubmitted(gameId);
-        
+
         // Note: Chainlink Automation will detect rankingsSubmitted = true
         // and automatically call performUpkeep to finalize the game
     }
-    
+
     /**
      * @notice Manual finalization fallback (if Automation fails)
      * @param gameId The game to finalize
      */
     function manuallyFinalizeGame(uint256 gameId) external onlyOwner {
         Game storage game = games[gameId];
-        
+
         require(game.isActive, "Game not active");
         require(block.timestamp >= game.endTime, "Game not ended");
         require(game.rankingsSubmitted, "Rankings not submitted");
         require(!game.isFinalized, "Already finalized");
-        
+
         game.isActive = false;
         game.isFinalized = true;
-        
+
         emit GameFinalized(gameId, game.prizePool, game.platformFee);
     }
-    
+
     /**
      * @notice Withdraw accumulated platform fees
      * @dev Only owner can withdraw to the designated platform fee recipient
@@ -267,13 +265,13 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     function withdrawPlatformFees() external onlyOwner nonReentrant {
         uint256 amount = accumulatedPlatformFees;
         require(amount > 0, "No fees to withdraw");
-        
+
         accumulatedPlatformFees = 0;
         USDC.safeTransfer(platformFeeRecipient, amount);
-        
+
         emit PlatformFeesWithdrawn(platformFeeRecipient, amount);
     }
-    
+
     /**
      * @notice Update platform fee recipient address
      * @param newRecipient New recipient address
@@ -284,7 +282,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         platformFeeRecipient = newRecipient;
         emit PlatformFeeRecipientUpdated(oldRecipient, newRecipient);
     }
-    
+
     /**
      * @notice Calculate prize amount for a given ranking
      * @param gameId The game ID
@@ -293,9 +291,9 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
     function calculatePrize(uint256 gameId, uint256 ranking) public view returns (uint256) {
         Game storage game = games[gameId];
         uint256 prizePool = game.prizePool;
-        
+
         if (ranking == 0 || ranking > 10 || prizePool == 0) return 0;
-        
+
         if (ranking == 1) {
             // First place: 50% of 95%
             return (prizePool * TOP_PRIZE_PERCENTAGE * firstPlacePct) / 10000;
@@ -308,7 +306,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         } else {
             // 4th-10th place: Split 5% equally
             uint256 remainingPool = (prizePool * REMAINING_PERCENTAGE) / 100;
-            
+
             // Count how many players ranked 4th-10th
             uint256 shareCount = 0;
             for (uint256 i = 4; i <= 10; i++) {
@@ -316,34 +314,34 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
                     shareCount++;
                 }
             }
-            
+
             if (shareCount == 0) return 0;
             return remainingPool / shareCount;
         }
     }
-    
+
     /**
      * @notice Claim prize for a finalized game
      * @param gameId The game to claim from
      */
     function claimPrize(uint256 gameId) external nonReentrant {
         Game storage game = games[gameId];
-        
+
         if (!game.isFinalized) revert GameNotActive();
         if (game.hasClaimed[msg.sender]) revert AlreadyClaimed();
-        
+
         uint256 ranking = game.playerRanking[msg.sender];
         if (ranking == 0) revert NotRanked();
-        
+
         uint256 prize = calculatePrize(gameId, ranking);
         if (prize == 0) return;
-        
+
         game.hasClaimed[msg.sender] = true;
         USDC.safeTransfer(msg.sender, prize);
-        
+
         emit PrizeClaimed(gameId, msg.sender, prize, ranking);
     }
-    
+
     /**
      * @notice Update the game oracle address
      * @param newOracle New oracle address
@@ -354,7 +352,7 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         gameOracle = newOracle;
         emit OracleUpdated(oldOracle, newOracle);
     }
-    
+
     /**
      * @notice Update prize distribution percentages for top 3
      */
@@ -364,78 +362,79 @@ contract TriviaGame is Ownable, ReentrancyGuard, AutomationCompatibleInterface {
         secondPlacePct = _second;
         thirdPlacePct = _third;
     }
-    
+
     // View functions
     function hasPlayerEntered(uint256 gameId, address player) external view returns (bool) {
         return games[gameId].hasEntered[player];
     }
-    
+
     function getPlayerRanking(uint256 gameId, address player) external view returns (uint256) {
         return games[gameId].playerRanking[player];
     }
-    
+
     function hasPlayerClaimed(uint256 gameId, address player) external view returns (bool) {
         return games[gameId].hasClaimed[player];
     }
-    
-    function getGameInfo(uint256 gameId) external view returns (
-        uint256 prizePool,
-        uint256 platformFee,
-        uint256 playerCount,
-        uint256 startTime,
-        uint256 endTime,
-        bool isActive,
-        bool isFinalized,
-        bool rankingsSubmitted
-    ) {
+
+    function getGameInfo(uint256 gameId)
+        external
+        view
+        returns (
+            uint256 prizePool,
+            uint256 platformFee,
+            uint256 playerCount,
+            uint256 startTime,
+            uint256 endTime,
+            bool isActive,
+            bool isFinalized,
+            bool rankingsSubmitted
+        )
+    {
         Game storage game = games[gameId];
         return (
             game.prizePool,
             game.platformFee,
-            game.playerCount, 
+            game.playerCount,
             game.startTime,
             game.endTime,
-            game.isActive, 
+            game.isActive,
             game.isFinalized,
             game.rankingsSubmitted
         );
     }
-    
+
     /**
      * @notice Get time remaining in current game
      * @return secondsRemaining Time left in seconds (0 if game ended)
      */
     function getTimeRemaining() external view returns (uint256 secondsRemaining) {
         if (currentGameId == 0) return 0;
-        
+
         Game storage game = games[currentGameId];
         if (!game.isActive || block.timestamp >= game.endTime) {
             return 0;
         }
         return game.endTime - block.timestamp;
     }
-    
+
     /**
      * @notice Check if a game is ready to be finalized
      * @dev Useful for monitoring/debugging
      */
     function isGameReadyToFinalize(uint256 gameId) external view returns (bool) {
         if (gameId == 0 || gameId > currentGameId) return false;
-        
+
         Game storage game = games[gameId];
-        return game.isActive && 
-               block.timestamp >= game.endTime && 
-               game.rankingsSubmitted && 
-               !game.isFinalized;
+        return game.isActive && block.timestamp >= game.endTime && game.rankingsSubmitted && !game.isFinalized;
     }
-    
+
     /**
      * @notice Check if a new game can be created
      * @dev Returns true if no game is active or current game has ended
      */
     function canCreateNewGame() external view returns (bool) {
         if (currentGameId == 0) return true;
-        
+
         Game storage game = games[currentGameId];
         return !game.isActive || block.timestamp >= game.endTime;
     }

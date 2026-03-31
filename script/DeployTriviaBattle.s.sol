@@ -7,7 +7,7 @@ import {TriviaBattle} from "../contracts/TriviaBattle.sol";
 /**
  * @title DeployTriviaBattle
  * @notice Deployment script for TriviaBattle contract on Base networks
- * 
+ *
  * Usage:
  *   forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle --rpc-url base_sepolia --broadcast --verify
  *   forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle --rpc-url base_mainnet --broadcast --verify
@@ -19,22 +19,22 @@ contract DeployTriviaBattle is Script {
     // Chainlink Functions addresses - set to zero address if not using Chainlink Functions yet
     address constant BASE_SEPOLIA_CHAINLINK_FUNCTIONS = address(0);
     address constant BASE_SEPOLIA_CHAINLINK_ORACLE = address(0);
-    
+
     // Base Mainnet addresses
     address constant BASE_MAINNET_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant BASE_MAINNET_LINK = 0x88DFAAABAf06f3A41d260Bea10568C1B4794334C;
     // Chainlink Functions addresses - set to zero address if not using Chainlink Functions yet
     address constant BASE_MAINNET_CHAINLINK_FUNCTIONS = address(0);
     address constant BASE_MAINNET_CHAINLINK_ORACLE = address(0);
-    
+
     // Configuration constants
     uint256 constant SESSION_INTERVAL = 1 weeks; // 1 week between sessions
     uint256 constant ENTRY_FEE = 1e6; // 1 USDC (6 decimals)
-    
+
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("PRIVATE_KEY");
         vm.startBroadcast(deployerPrivateKey);
-        
+
         // Detect network from chain ID
         uint256 chainId = block.chainid;
         address usdcAddress;
@@ -42,7 +42,7 @@ contract DeployTriviaBattle is Script {
         address chainlinkFunctionsAddress;
         address chainlinkOracleAddress;
         string memory networkName;
-        
+
         if (chainId == 84532) {
             // Base Sepolia
             networkName = "Base Sepolia";
@@ -50,7 +50,7 @@ contract DeployTriviaBattle is Script {
             linkAddress = BASE_SEPOLIA_LINK;
             chainlinkFunctionsAddress = BASE_SEPOLIA_CHAINLINK_FUNCTIONS;
             chainlinkOracleAddress = BASE_SEPOLIA_CHAINLINK_ORACLE;
-            
+
             // Warn if Chainlink addresses are zero (they can be set later)
             if (BASE_SEPOLIA_CHAINLINK_FUNCTIONS == address(0) || BASE_SEPOLIA_CHAINLINK_ORACLE == address(0)) {
                 console.log("NOTE: Chainlink addresses are zero. This is allowed.");
@@ -65,7 +65,7 @@ contract DeployTriviaBattle is Script {
             linkAddress = BASE_MAINNET_LINK;
             chainlinkFunctionsAddress = BASE_MAINNET_CHAINLINK_FUNCTIONS;
             chainlinkOracleAddress = BASE_MAINNET_CHAINLINK_ORACLE;
-            
+
             // Warn if Chainlink addresses are zero (they can be set later)
             if (BASE_MAINNET_CHAINLINK_FUNCTIONS == address(0) || BASE_MAINNET_CHAINLINK_ORACLE == address(0)) {
                 console.log("NOTE: Chainlink addresses are zero. This is allowed.");
@@ -76,7 +76,7 @@ contract DeployTriviaBattle is Script {
         } else {
             revert("Unsupported network. Use Base Sepolia (84532) or Base Mainnet (8453)");
         }
-        
+
         console.log("Deploying TriviaBattle to:", networkName);
         console.log("Chain ID:", chainId);
         console.log("USDC Address:", usdcAddress);
@@ -85,20 +85,15 @@ contract DeployTriviaBattle is Script {
         console.log("Chainlink Oracle:", chainlinkOracleAddress);
         console.log("Session Interval:", SESSION_INTERVAL);
         console.log("Entry Fee:", ENTRY_FEE);
-        
+
         // Deploy contract
         TriviaBattle triviaBattle = new TriviaBattle(
-            usdcAddress,
-            linkAddress,
-            chainlinkFunctionsAddress,
-            chainlinkOracleAddress,
-            SESSION_INTERVAL,
-            ENTRY_FEE
+            usdcAddress, linkAddress, chainlinkFunctionsAddress, chainlinkOracleAddress, SESSION_INTERVAL, ENTRY_FEE
         );
-        
+
         console.log("TriviaBattle deployed at:", address(triviaBattle));
         console.log("Owner:", triviaBattle.owner());
-        
+
         vm.stopBroadcast();
     }
 }

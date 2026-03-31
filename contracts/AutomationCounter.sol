@@ -7,7 +7,7 @@ import {AutomationCompatibleInterface} from "@chainlink/contracts/src/v0.8/autom
  * @title AutomationCounter
  * @notice Example contract demonstrating Chainlink Automation with custom logic trigger
  * @dev This contract automatically increments a counter based on a time interval
- * 
+ *
  * THIS IS AN EXAMPLE CONTRACT THAT USES UN-AUDITED CODE.
  * DO NOT USE THIS CODE IN PRODUCTION WITHOUT PROPER AUDITING.
  */
@@ -55,7 +55,10 @@ contract AutomationCounter is AutomationCompatibleInterface {
         external
         view
         override
-        returns (bool upkeepNeeded, bytes memory /* performData */)
+        returns (
+            bool upkeepNeeded,
+            bytes memory /* performData */
+        )
     {
         upkeepNeeded = (block.timestamp - lastTimeStamp) > INTERVAL;
     }
@@ -64,7 +67,12 @@ contract AutomationCounter is AutomationCompatibleInterface {
      * @notice Performs the upkeep
      * @dev This function is called onchain by Chainlink Automation when checkUpkeep returns true
      */
-    function performUpkeep(bytes calldata /* performData */) external override {
+    function performUpkeep(
+        bytes calldata /* performData */
+    )
+        external
+        override
+    {
         // Revalidate the condition to prevent front-running
         if ((block.timestamp - lastTimeStamp) > INTERVAL) {
             lastTimeStamp = block.timestamp;
