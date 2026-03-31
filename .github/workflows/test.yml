@@ -19,7 +19,9 @@ jobs:
       - uses: actions/checkout@v5
         with:
           persist-credentials: false
-          submodules: recursive
+          # Only project-level dependencies are needed for this repo's build.
+          # Recursive fetch pulls nested submodules from vendored libraries and can fail in CI.
+          submodules: true
 
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
