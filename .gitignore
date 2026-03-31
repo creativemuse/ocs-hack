@@ -15,8 +15,9 @@ build
 .cache
 coverage
 .swc
-broadcast/
-cache/
+broadcast/*
+cache/*
+artifacts/*
 
 ############################################
 # Logs
