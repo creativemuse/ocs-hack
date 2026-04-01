@@ -7,6 +7,8 @@
  * and full receipts. We intentionally do **not** use `BASE_RPC_URL` / `NEXT_PUBLIC_BASE_RPC_URL`
  * here: those often point at Alchemy and can return non-JSON errors or stub receipts.
  * Set `PAID_VERIFY_RPC_URL` only if you want a different primary (we still fall back to Base public).
+ * Stub receipts (zero blockHash but valid blockNumber) and truncated receipt.logs are handled via
+ * block-scoped `eth_getLogs` for `PlayerJoined` when needed.
  */
 
 import { createPublicClient, http, decodeEventLog, encodeFunctionData, type Hash } from 'viem';
@@ -46,34 +48,41 @@ function getPaidVerificationRpcUrls(): string[] {
 const ZERO_BLOCK_HASH =
   '0x0000000000000000000000000000000000000000000000000000000000000000' as const;
 
-/** Some providers (e.g. Alchemy) occasionally return a stub receipt: status success but blockHash zeros and only EntryPoint logs — not enough to verify joinBattle. */
-function receiptMissingTriviaLogs(
-  receipt: { logs: ReadonlyArray<{ address: string }> },
-  triviaNorm: string
-): boolean {
-  return !receipt.logs.some((l) => normalizeAddress(l.address) === triviaNorm);
-}
-
-function receiptBlockRefLooksInvalid(receipt: { blockHash?: string | null }): boolean {
+/**
+ * Receipt is anchored enough for verification (receipt.logs and/or eth_getLogs at a block).
+ * Zero blockHash with a real blockNumber still works for block-scoped getLogs (CDP / indexer stubs).
+ */
+function receiptHasUsableBlockAnchor(receipt: {
+  blockHash?: string | null;
+  blockNumber?: bigint;
+}): boolean {
+  if (receipt.blockNumber != null && receipt.blockNumber > BigInt(0)) return true;
   const bh = receipt.blockHash;
-  return !bh || bh === ZERO_BLOCK_HASH;
+  return !!bh && bh !== ZERO_BLOCK_HASH;
 }
 
-function isDirectTriviaJoinCall(
-  transaction: { to?: string | null; input?: string },
-  triviaNorm: string
-): boolean {
-  return !!(
-    transaction.to &&
-    normalizeAddress(transaction.to) === triviaNorm &&
-    transaction.input &&
-    transaction.input.toLowerCase().startsWith(JOIN_BATTLE_SELECTOR)
-  );
+function decodePlayerJoinedPlayerFromLog(log: {
+  address: string;
+  data: `0x${string}`;
+  topics: readonly `0x${string}`[];
+}): string | null {
+  try {
+    const decoded = decodeEventLog({
+      abi: TRIVIA_ABI,
+      data: log.data,
+      topics: [...log.topics] as [signature: `0x${string}`, ...args: `0x${string}`[]],
+    });
+    if (decoded.eventName === 'PlayerJoined' && decoded.args?.player) {
+      return normalizeAddress(decoded.args.player as string);
+    }
+  } catch {
+    /* not our event */
+  }
+  return null;
 }
 
 async function getReceiptAndTransaction(hash: Hash) {
   const urls = getPaidVerificationRpcUrls();
-  const triviaNorm = normalizeAddress(TRIVIA_CONTRACT_ADDRESS);
   let lastMessage = 'All RPC endpoints failed';
 
   for (const url of urls) {
@@ -92,14 +101,9 @@ async function getReceiptAndTransaction(hash: Hash) {
         continue;
       }
 
-      const badBlock = receiptBlockRefLooksInvalid(receipt);
-      const noTriviaLogs = receiptMissingTriviaLogs(receipt, triviaNorm);
-      const directJoin = isDirectTriviaJoinCall(transaction, triviaNorm);
-
-      // Stub AA receipts: success + zero block hash and/or no Trivia logs when tx is bundled via EntryPoint.
-      if (badBlock || (noTriviaLogs && !directJoin)) {
+      if (!receiptHasUsableBlockAnchor(receipt)) {
         lastMessage =
-          'RPC returned an incomplete receipt (missing block hash or Trivia logs for a bundled tx); trying another endpoint';
+          'RPC returned a receipt without a block anchor (cannot verify bundled tx); trying another endpoint';
         continue;
       }
 
@@ -111,6 +115,39 @@ async function getReceiptAndTransaction(hash: Hash) {
   }
 
   throw new Error(lastMessage);
+}
+
+/** When receipt.logs omits Trivia events (common for AA bundles), find PlayerJoined via eth_getLogs in that block. */
+async function findPlayerJoinedPlayerViaGetLogs(
+  hash: Hash,
+  blockNumber: bigint,
+  candidateSet: Set<string>
+): Promise<boolean> {
+  const urls = getPaidVerificationRpcUrls();
+  const trivia = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
+  const hashLower = hash.toLowerCase();
+
+  for (const url of urls) {
+    try {
+      const client = createPublicClient({
+        chain: base,
+        transport: http(url, { timeout: 25_000 }),
+      });
+      const logs = await client.getLogs({
+        address: trivia,
+        fromBlock: blockNumber,
+        toBlock: blockNumber,
+      });
+      for (const log of logs) {
+        if (log.transactionHash?.toLowerCase() !== hashLower) continue;
+        const player = decodePlayerJoinedPlayerFromLog(log);
+        if (player && candidateSetHas(candidateSet, player)) return true;
+      }
+    } catch {
+      // try next URL
+    }
+  }
+  return false;
 }
 
 function uniqueCandidates(primary: string, alternate?: string): string[] {
@@ -166,7 +203,7 @@ export async function verifyPaidTxHash(
       const message = err instanceof Error ? err.message : 'Unknown error';
       return {
         ok: false as const,
-        error: `Could not load transaction from RPC (${message}). If you already paid, try again in a moment — verification will retry other RPCs. You can set PAID_VERIFY_RPC_URL or use a working BASE_RPC_URL.`,
+        error: `Could not load transaction from RPC (${message}). If you already paid, try again in a moment — verification will retry other RPCs. You can set PAID_VERIFY_RPC_URL (optional primary; always falls back to Base public RPC).`,
       };
     }
   })();
@@ -194,20 +231,9 @@ export async function verifyPaidTxHash(
     // Case 1: PlayerJoined from Trivia — strongest signal for AA / batched flows
     for (const log of receipt.logs) {
       if (normalizeAddress(log.address) !== triviaAddress) continue;
-      try {
-        const decoded = decodeEventLog({
-          abi: TRIVIA_ABI,
-          data: log.data,
-          topics: log.topics,
-        });
-        if (decoded.eventName === 'PlayerJoined' && decoded.args?.player) {
-          const eventPlayer = normalizeAddress(decoded.args.player as string);
-          if (candidateSetHas(candidateSet, eventPlayer)) {
-            return { ok: true };
-          }
-        }
-      } catch {
-        // Not our event, skip
+      const eventPlayer = decodePlayerJoinedPlayerFromLog(log);
+      if (eventPlayer && candidateSetHas(candidateSet, eventPlayer)) {
+        return { ok: true };
       }
     }
 
@@ -226,6 +252,16 @@ export async function verifyPaidTxHash(
         error:
           'Transaction called joinBattle but sender does not match your connected wallet (try reconnecting)',
       };
+    }
+
+    // Case 3: Receipt.logs truncated for bundled txs — same block + tx hash via eth_getLogs
+    if (receipt.blockNumber != null && receipt.blockNumber > BigInt(0)) {
+      const okViaLogs = await findPlayerJoinedPlayerViaGetLogs(
+        hash,
+        receipt.blockNumber,
+        candidateSet
+      );
+      if (okViaLogs) return { ok: true };
     }
 
     return { ok: false, error: 'Transaction did not call joinBattle or emit PlayerJoined for this wallet' };

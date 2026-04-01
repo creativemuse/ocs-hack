@@ -14,6 +14,7 @@ export const USDC_CONTRACT_ADDRESS =
 // Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
 // Base Mainnet: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (deployed 2026-04-01)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
+// Paid entry verification filters logs by this address — it must match the deployment that emits PlayerJoined.
 export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
   '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6'; // Base Mainnet default
