@@ -4,10 +4,12 @@ import crypto from 'crypto';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
-const normalizeAddr = (a: string | undefined): string =>
-  (a ?? '').toLowerCase().replace(/^0x/, '') === ''
+const normalizeAddr = (a: string | undefined): string => {
+  const s = a ?? '';
+  return s.toLowerCase().replace(/^0x/, '') === ''
     ? ''
-    : `0x${(a.startsWith('0x') ? a.slice(2) : a).toLowerCase()}`;
+    : `0x${(s.startsWith('0x') ? s.slice(2) : s).toLowerCase()}`;
+};
 
 /**
  * Webhook endpoint for external service integrations
