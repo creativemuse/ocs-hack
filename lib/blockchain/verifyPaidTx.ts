@@ -3,8 +3,10 @@
  * Confirms the tx succeeded, was sent by the given wallet (or alternate Base universal
  * account), and involved the Trivia contract (direct joinBattle call or PlayerJoined event).
  *
- * Uses multiple RPC URLs in order: Alchemy/custom endpoints sometimes return plain-text
- * errors (invalid key, quota) that break JSON-RPC parsing — we fall back to Base public RPC.
+ * Uses Base public RPC (`https://mainnet.base.org`) by default for reads — reliable JSON-RPC
+ * and full receipts. We intentionally do **not** use `BASE_RPC_URL` / `NEXT_PUBLIC_BASE_RPC_URL`
+ * here: those often point at Alchemy and can return non-JSON errors or stub receipts.
+ * Set `PAID_VERIFY_RPC_URL` only if you want a different primary (we still fall back to Base public).
  */
 
 import { createPublicClient, http, decodeEventLog, encodeFunctionData, type Hash } from 'viem';
@@ -30,17 +32,15 @@ function normalizeAddress(addr: string): string {
 }
 
 /**
- * RPCs for paid-tx verification (deduped).
- * Base public RPC is tried early — some Alchemy responses are incomplete (zero blockHash, EntryPoint-only logs).
+ * RPCs for paid-tx verification (deduped, ordered).
+ * Default is Base public only — avoids Alchemy on `BASE_RPC_URL` breaking verification (invalid JSON, stubs).
  */
 function getPaidVerificationRpcUrls(): string[] {
-  const raw = [
-    process.env.PAID_VERIFY_RPC_URL,
-    DEFAULT_BASE_PUBLIC_RPC,
-    process.env.BASE_RPC_URL,
-    process.env.NEXT_PUBLIC_BASE_RPC_URL,
-  ].filter((u): u is string => typeof u === 'string' && u.trim().length > 0);
-  return [...new Set(raw.map((u) => u.trim()))];
+  const explicit = process.env.PAID_VERIFY_RPC_URL?.trim();
+  const urls = explicit
+    ? [explicit, DEFAULT_BASE_PUBLIC_RPC]
+    : [DEFAULT_BASE_PUBLIC_RPC];
+  return [...new Set(urls)];
 }
 
 const ZERO_BLOCK_HASH =
