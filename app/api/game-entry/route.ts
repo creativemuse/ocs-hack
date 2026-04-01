@@ -20,11 +20,13 @@ function getOrSetAnonId(req: NextRequest): { anonId: string; resHeaders: Headers
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { sessionId, isTrial, walletAddress, paidTxHash } = body as {
+    const { sessionId, isTrial, walletAddress, paidTxHash, walletUniversalAddress } = body as {
       sessionId: string;
       isTrial: boolean;
       walletAddress?: string;
       paidTxHash?: string;
+      /** Optional Base universal account (EOA) when `walletAddress` is the sub-account. */
+      walletUniversalAddress?: string;
     };
 
     if (!sessionId) {
@@ -69,7 +71,12 @@ export async function POST(req: NextRequest) {
       if (!paidTxHash || typeof paidTxHash !== 'string' || !paidTxHash.trim()) {
         return NextResponse.json({ error: 'paidTxHash required for paid entry' }, { status: 400, headers: resHeaders });
       }
-      const verification = await verifyPaidTxHash(paidTxHash.trim(), walletAddress);
+      const verification = await verifyPaidTxHash(paidTxHash.trim(), walletAddress, {
+        alternateWalletAddress:
+          typeof walletUniversalAddress === 'string' && walletUniversalAddress.trim()
+            ? walletUniversalAddress.trim()
+            : undefined,
+      });
       if (!verification.ok) {
         return NextResponse.json(
           { error: verification.error ?? 'Paid transaction could not be verified' },

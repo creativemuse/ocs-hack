@@ -27,6 +27,8 @@ export interface GameSession {
 export interface JoinGameOptions {
   playerMode?: PlayerModeChoice;
   lobbyDurationSec?: number;
+  /** Passed to paid entry verification alongside sub-account `address`. */
+  walletUniversalAddress?: string | null;
 }
 
 interface UseGameSessionReturn {
@@ -153,6 +155,10 @@ export const useGameSession = (): UseGameSessionReturn => {
           isTrial: !isPaidPlayer,
           walletAddress: isPaidPlayer ? address : undefined,
           paidTxHash: isPaidPlayer ? transactionHash : undefined,
+          walletUniversalAddress:
+            isPaidPlayer && options?.walletUniversalAddress
+              ? options.walletUniversalAddress
+              : undefined,
         }),
       });
 

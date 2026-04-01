@@ -89,52 +89,59 @@ export async function POST(req: NextRequest) {
     const { action, playerId, entryId, token, playerMode, lobbyDurationSec, durationSec } = body;
 
     if (action === 'join') {
-      try {
-        await spacetimeClient.initialize();
+      const useMemoryLobbyForPaidMultiplayer =
+        Boolean(body.isPaidPlayer) && playerMode === 'paid_multiplayer';
 
-        if (spacetimeClient.isConfigured()) {
-          try {
-            await spacetimeClient.joinActiveGameSession();
-            const updatedSession = await spacetimeClient.getActiveGameSession();
-            if (updatedSession) {
-              const now = Date.now();
-              const sessionStatus = updatedSession.status?.tag || updatedSession.status || 'waiting';
+      if (!useMemoryLobbyForPaidMultiplayer) {
+        try {
+          await spacetimeClient.initialize();
 
-              let timeRemaining = 0;
-              if (sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0) {
-                const elapsed = Math.floor((now - Number(updatedSession.startTime)) / 1000);
-                timeRemaining = Math.max(0, 300 - elapsed);
+          if (spacetimeClient.isConfigured()) {
+            try {
+              await spacetimeClient.joinActiveGameSession();
+              const updatedSession = await spacetimeClient.getActiveGameSession();
+              if (updatedSession) {
+                const now = Date.now();
+                const sessionStatus = updatedSession.status?.tag || updatedSession.status || 'waiting';
+
+                let timeRemaining = 0;
+                if (sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0) {
+                  const elapsed = Math.floor((now - Number(updatedSession.startTime)) / 1000);
+                  timeRemaining = Math.max(0, 300 - elapsed);
+                }
+
+                const isFirstPaidPlayer =
+                  body.isPaidPlayer && updatedSession.paidPlayerCount === 1 && sessionStatus === 'Active';
+                const waitingForPaidPlayer = updatedSession.paidPlayerCount === 0;
+
+                const isWaiting = sessionStatus === 'Waiting';
+                const isActiveWithTime =
+                  sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0 && timeRemaining > 0;
+                const hasNoPaidPlayers = updatedSession.paidPlayerCount === 0;
+                const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
+
+                return NextResponse.json({
+                  session: updatedSession,
+                  timeRemaining,
+                  lobbyTimeRemaining: 0,
+                  inLobby: false,
+                  isFirstPaidPlayer,
+                  waitingForPaidPlayer,
+                  canJoin,
+                  source: 'spacetime',
+                });
               }
-
-              const isFirstPaidPlayer =
-                body.isPaidPlayer && updatedSession.paidPlayerCount === 1 && sessionStatus === 'Active';
-              const waitingForPaidPlayer = updatedSession.paidPlayerCount === 0;
-
-              const isWaiting = sessionStatus === 'Waiting';
-              const isActiveWithTime =
-                sessionStatus === 'Active' && updatedSession.paidPlayerCount > 0 && timeRemaining > 0;
-              const hasNoPaidPlayers = updatedSession.paidPlayerCount === 0;
-              const canJoin = isWaiting || isActiveWithTime || hasNoPaidPlayers;
-
-              return NextResponse.json({
-                session: updatedSession,
-                timeRemaining,
-                lobbyTimeRemaining: 0,
-                inLobby: false,
-                isFirstPaidPlayer,
-                waitingForPaidPlayer,
-                canJoin,
-                source: 'spacetime',
-              });
+            } catch (spacetimeError) {
+              console.warn('⚠️ SpacetimeDB join failed, using memory fallback:', spacetimeError);
             }
-          } catch (spacetimeError) {
-            console.warn('⚠️ SpacetimeDB join failed, using memory fallback:', spacetimeError);
+          } else {
+            console.log('ℹ️ SpacetimeDB not configured - using memory session for join');
           }
-        } else {
-          console.log('ℹ️ SpacetimeDB not configured - using memory session for join');
+        } catch {
+          console.warn('⚠️ SpacetimeDB initialization failed, using memory fallback');
         }
-      } catch {
-        console.warn('⚠️ SpacetimeDB initialization failed, using memory fallback');
+      } else {
+        console.log('ℹ️ Paid multiplayer join uses in-memory lobby path (skip Spacetime join short-circuit)');
       }
 
       if (!token) {

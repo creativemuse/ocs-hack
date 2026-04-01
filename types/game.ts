@@ -6,6 +6,8 @@ export type GameStartOptions = {
   /** Required for paid entry verification when using approve + joinBattle. */
   paidTxHash?: string;
   playerMode?: PlayerModeChoice;
+  /** Base universal (EOA) address when the signing address is a sub-account smart wallet. */
+  walletUniversalAddress?: string | null;
 };
 
 export type QuestionType = 'name-that-tune' | 'artist-match' | 'release-year' | 'chart-position' | 'genre-classification';

@@ -1,7 +1,7 @@
 /**
  * Server-side verification that a paid game entry transaction is valid on-chain.
- * Confirms the tx succeeded, was sent by the given wallet, and involved the Trivia
- * contract (direct joinBattle call or PlayerJoined event from batch).
+ * Confirms the tx succeeded, was sent by the given wallet (or alternate Base universal
+ * account), and involved the Trivia contract (direct joinBattle call or PlayerJoined event).
  */
 
 import { createPublicClient, http, decodeEventLog, encodeFunctionData } from 'viem';
@@ -31,19 +31,43 @@ function normalizeAddress(addr: string): string {
   return a.startsWith('0x') ? a.toLowerCase() : `0x${a}`.toLowerCase();
 }
 
+function uniqueCandidates(primary: string, alternate?: string): string[] {
+  const out: string[] = [];
+  const p = normalizeAddress(primary);
+  if (p) out.push(p);
+  if (alternate) {
+    const a = normalizeAddress(alternate);
+    if (a && a !== p) out.push(a);
+  }
+  return out;
+}
+
+function candidateSetHas(candidates: Set<string>, addr: string): boolean {
+  const n = normalizeAddress(addr);
+  return n.length > 0 && candidates.has(n);
+}
+
+export type VerifyPaidTxOptions = {
+  /** Base Account universal address when `walletAddress` is the sub-account smart wallet. */
+  alternateWalletAddress?: string;
+};
+
 /**
- * Verify that paidTxHash is a successful on-chain transaction from walletAddress
- * that involved the Trivia contract (joinBattle or PlayerJoined event).
- * Returns { ok: true } or { ok: false, error: string }.
+ * Verify that paidTxHash is a successful on-chain transaction that registered the player
+ * on the Trivia contract (joinBattle or PlayerJoined). Supports smart wallets where
+ * `transaction.from` may be the sub-account, universal account, or a bundler/entry point:
+ * PlayerJoined(player) matching either supplied address is accepted.
  */
 export async function verifyPaidTxHash(
   paidTxHash: string,
-  walletAddress: string
+  walletAddress: string,
+  options?: VerifyPaidTxOptions
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const txHash = paidTxHash?.trim();
-  const wallet = normalizeAddress(walletAddress);
+  const candidates = uniqueCandidates(walletAddress, options?.alternateWalletAddress);
+  const candidateSet = new Set(candidates);
 
-  if (!txHash || !wallet) {
+  if (!txHash || candidates.length === 0) {
     return { ok: false, error: 'Missing paidTxHash or walletAddress' };
   }
   if (!txHash.startsWith('0x') || txHash.length !== 66) {
@@ -66,21 +90,10 @@ export async function verifyPaidTxHash(
       return { ok: false, error: 'Transaction did not succeed on-chain' };
     }
 
-    const txFrom = normalizeAddress(transaction.from);
-    if (txFrom !== wallet) {
-      return { ok: false, error: 'Transaction was not sent by the given wallet' };
-    }
-
     const triviaAddress = normalizeAddress(TRIVIA_CONTRACT_ADDRESS);
+    const txFrom = normalizeAddress(transaction.from);
 
-    // Case 1: Direct call to Trivia joinBattle
-    if (transaction.to && normalizeAddress(transaction.to) === triviaAddress && transaction.input) {
-      if (transaction.input.toLowerCase().startsWith(JOIN_BATTLE_SELECTOR)) {
-        return { ok: true };
-      }
-    }
-
-    // Case 2: Batch or indirect call – look for PlayerJoined(player) from Trivia
+    // Case 1: PlayerJoined from Trivia — strongest signal for AA / batched flows
     for (const log of receipt.logs) {
       if (normalizeAddress(log.address) !== triviaAddress) continue;
       try {
@@ -91,13 +104,30 @@ export async function verifyPaidTxHash(
         });
         if (decoded.eventName === 'PlayerJoined' && decoded.args?.player) {
           const eventPlayer = normalizeAddress(decoded.args.player as string);
-          if (eventPlayer === wallet) {
+          if (candidateSetHas(candidateSet, eventPlayer)) {
             return { ok: true };
           }
         }
       } catch {
         // Not our event, skip
       }
+    }
+
+    // Case 2: Direct call to Trivia joinBattle from a known player address
+    if (
+      transaction.to &&
+      normalizeAddress(transaction.to) === triviaAddress &&
+      transaction.input &&
+      transaction.input.toLowerCase().startsWith(JOIN_BATTLE_SELECTOR)
+    ) {
+      if (candidateSetHas(candidateSet, txFrom)) {
+        return { ok: true };
+      }
+      return {
+        ok: false,
+        error:
+          'Transaction called joinBattle but sender does not match your connected wallet (try reconnecting)',
+      };
     }
 
     return { ok: false, error: 'Transaction did not call joinBattle or emit PlayerJoined for this wallet' };

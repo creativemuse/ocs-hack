@@ -29,16 +29,25 @@ import type { GameStartOptions, PlayerModeChoice } from '@/types/game';
 import type { BaseAccountTxStatusExtras } from '@/components/base-account/BaseAccountTransaction';
 
 interface GameEntryProps {
-  onGameStart: (options: GameStartOptions) => void;
+  onGameStart: (options: GameStartOptions) => void | Promise<void>;
   entryToken?: string | null;
   className?: string;
   playerModeChoice?: PlayerModeChoice;
+  joinStartError?: string | null;
+  onDismissJoinStartError?: () => void;
 }
 
-export default function GameEntry({ onGameStart, entryToken, className = '', playerModeChoice = 'trial' }: GameEntryProps) {
+export default function GameEntry({
+  onGameStart,
+  entryToken,
+  className = '',
+  playerModeChoice = 'trial',
+  joinStartError,
+  onDismissJoinStartError,
+}: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
-  const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
+  const { address, universalAddress, isConnected } = useBaseAccount();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -101,10 +110,11 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
-      onGameStart({
+      void onGameStart({
         isTrial: false,
         paidTxHash: extras?.lastTxHash,
         playerMode: playerModeChoice,
+        walletUniversalAddress: universalAddress ?? undefined,
       });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
@@ -192,7 +202,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       setTransactionError(parsedError);
       setError(parsedError.userMessage);
     }
-  }, [onGameStart, address, playerModeChoice]);
+  }, [onGameStart, address, playerModeChoice, universalAddress]);
 
   const handleStartGame = async () => {
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
@@ -203,7 +213,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       // Trial player - start game immediately
       console.log('Starting trial game');
       await incrementTrialGame();
-      onGameStart({ isTrial: true, playerMode: playerModeChoice });
+      void onGameStart({ isTrial: true, playerMode: playerModeChoice });
     } else if (isPaidMode) {
       // Paid player - check if wallet is connected
       if (!address || !isConnected) {
@@ -263,7 +273,11 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     setError(null);
     setShowPayment(false);
     // USDC onramp only — no joinBattle hash; server may reject paid verification until user completes on-chain join.
-    onGameStart({ isTrial: false, playerMode: playerModeChoice });
+    void onGameStart({
+      isTrial: false,
+      playerMode: playerModeChoice,
+      walletUniversalAddress: universalAddress ?? undefined,
+    });
   };
 
   const handlePaymentError = (errorMessage: string) => {
@@ -374,7 +388,27 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
         <TrialStatusDisplay walletAddress={address || undefined} entryToken={entryToken || undefined} />
       )}
 
-      
+      {joinStartError ? (
+        <div
+          className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-3 text-sm text-red-200"
+          role="alert"
+        >
+          <div className="flex items-start justify-between gap-2">
+            <span>{joinStartError}</span>
+            {onDismissJoinStartError ? (
+              <button
+                type="button"
+                onClick={onDismissJoinStartError}
+                className="shrink-0 text-red-300 underline text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"
+                aria-label="Dismiss error"
+              >
+                Dismiss
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg text-white">

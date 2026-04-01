@@ -24,6 +24,7 @@ import { Trophy } from 'lucide-react';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { isLobbySessionStatus } from '@/lib/utils/gameSessionStatus';
 import BaseAccountButton from '@/components/base-account/BaseAccountButton';
 
 function HomePage() {
@@ -59,6 +60,7 @@ function HomePage() {
   const timerTriggeredRef = useRef(false);
   // Add trial status hook
   const { address } = useBaseAccount();
+  const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
@@ -150,7 +152,7 @@ function HomePage() {
   }, []);
 
   const handleJoinGame = async () => {
-    // Show the game entry options instead of navigating
+    setJoinGameStartError(null);
     setShowGameEntry(true);
   };
 
@@ -188,16 +190,23 @@ function HomePage() {
     setShowGameEntry(true);
   };
 
-  const handleGameStart = async ({ isTrial, paidTxHash, playerMode }: GameStartOptions) => {
+  const handleGameStart = async ({
+    isTrial,
+    paidTxHash,
+    playerMode,
+    walletUniversalAddress,
+  }: GameStartOptions) => {
+    setJoinGameStartError(null);
     try {
       const data = await joinGame(!isTrial, paidTxHash, {
         playerMode,
         lobbyDurationSec: 180,
+        walletUniversalAddress: walletUniversalAddress ?? undefined,
       });
       setIsTrialGame(isTrial);
       setShowGameEntry(false);
-      const sess = data?.session as { status?: string } | undefined;
-      if (playerMode === 'paid_multiplayer' && sess?.status === 'lobby') {
+      const sess = data?.session;
+      if (playerMode === 'paid_multiplayer' && isLobbySessionStatus(sess)) {
         setInMultiplayerLobby(true);
         return;
       }
@@ -206,6 +215,10 @@ function HomePage() {
       loadRandomQuestion();
     } catch (error) {
       console.error('Error joining game:', error);
+      const message =
+        error instanceof Error ? error.message : 'Could not join the game. Please try again.';
+      setJoinGameStartError(message);
+      setShowGameEntry(true);
     }
   };
 
@@ -218,6 +231,7 @@ function HomePage() {
     } catch (error) {
       console.error('Error leaving game session:', error);
     } finally {
+      setJoinGameStartError(null);
       setShowGameEntry(false);
       setShowGuestMode(false);
       setShowPayment(false);
@@ -570,10 +584,12 @@ function HomePage() {
           </Card>
 
           {/* Game Entry Component */}
-          <GameEntry 
-            onGameStart={handleGameStart} 
+          <GameEntry
+            onGameStart={handleGameStart}
             entryToken={entryToken}
             playerModeChoice={playerModeChoice}
+            joinStartError={joinGameStartError}
+            onDismissJoinStartError={() => setJoinGameStartError(null)}
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">
