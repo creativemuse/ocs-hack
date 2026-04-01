@@ -4,100 +4,23 @@
 /* eslint-disable */
 /* tslint:disable */
 import {
-  AlgebraicType as __AlgebraicTypeValue,
-  BinaryReader as __BinaryReader,
-  BinaryWriter as __BinaryWriter,
-  ClientCache as __ClientCache,
-  ConnectionId as __ConnectionId,
-  DbConnectionBuilder as __DbConnectionBuilder,
-  DbConnectionImpl as __DbConnectionImpl,
-  Identity as __Identity,
-  SubscriptionBuilderImpl as __SubscriptionBuilderImpl,
-  TableCache as __TableCache,
-  TimeDuration as __TimeDuration,
-  Timestamp as __Timestamp,
-  deepEqual as __deepEqual,
-  type AlgebraicType as __AlgebraicTypeType,
-  type AlgebraicTypeVariants as __AlgebraicTypeVariants,
-  type CallReducerFlags as __CallReducerFlags,
-  type ErrorContextInterface as __ErrorContextInterface,
-  type Event as __Event,
-  type EventContextInterface as __EventContextInterface,
-  type ReducerEventContextInterface as __ReducerEventContextInterface,
-  type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
+  TypeBuilder as __TypeBuilder,
+  t as __t,
+  type AlgebraicTypeType as __AlgebraicTypeType,
+  type Infer as __Infer,
 } from "spacetimedb";
-import { Player } from "./player_type";
-import { type EventContext, type Reducer, RemoteReducers, RemoteTables } from ".";
-declare type __keep = [EventContext, Reducer, RemoteReducers, RemoteTables];
 
-/**
- * Table handle for the table `players`.
- *
- * Obtain a handle from the [`players`] property on [`RemoteTables`],
- * like `ctx.db.players`.
- *
- * Users are encouraged not to explicitly reference this type,
- * but to directly chain method calls,
- * like `ctx.db.players.on_insert(...)`.
- */
-export class PlayersTableHandle {
-  tableCache: __TableCache<Player>;
-
-  constructor(tableCache: __TableCache<Player>) {
-    this.tableCache = tableCache;
-  }
-
-  count(): number {
-    return this.tableCache.count();
-  }
-
-  iter(): Iterable<Player> {
-    return this.tableCache.iter();
-  }
-  /**
-   * Access to the `walletAddress` unique index on the table `players`,
-   * which allows point queries on the field of the same name
-   * via the [`PlayersWalletAddressUnique.find`] method.
-   *
-   * Users are encouraged not to explicitly reference this type,
-   * but to directly chain method calls,
-   * like `ctx.db.players.walletAddress().find(...)`.
-   *
-   * Get a handle on the `walletAddress` unique index on the table `players`.
-   */
-  walletAddress = {
-    // Find the subscribed row whose `walletAddress` column value is equal to `col_val`,
-    // if such a row is present in the client cache.
-    find: (col_val: string): Player | undefined => {
-      for (let row of this.tableCache.iter()) {
-        if (__deepEqual(row.walletAddress, col_val)) {
-          return row;
-        }
-      }
-    },
-  };
-
-  onInsert = (cb: (ctx: EventContext, row: Player) => void) => {
-    return this.tableCache.onInsert(cb);
-  }
-
-  removeOnInsert = (cb: (ctx: EventContext, row: Player) => void) => {
-    return this.tableCache.removeOnInsert(cb);
-  }
-
-  onDelete = (cb: (ctx: EventContext, row: Player) => void) => {
-    return this.tableCache.onDelete(cb);
-  }
-
-  removeOnDelete = (cb: (ctx: EventContext, row: Player) => void) => {
-    return this.tableCache.removeOnDelete(cb);
-  }
-
-  // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: Player, newRow: Player) => void) => {
-    return this.tableCache.onUpdate(cb);
-  }
-
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: Player, newRow: Player) => void) => {
-    return this.tableCache.removeOnUpdate(cb);
-  }}
+export default __t.row({
+  walletAddress: __t.string().primaryKey().name("wallet_address"),
+  username: __t.option(__t.string()),
+  avatarUrl: __t.option(__t.string()).name("avatar_url"),
+  totalScore: __t.u32().name("total_score"),
+  gamesPlayed: __t.u32().name("games_played"),
+  bestScore: __t.u32().name("best_score"),
+  totalEarnings: __t.f64().name("total_earnings"),
+  trialGamesRemaining: __t.u32().name("trial_games_remaining"),
+  trialCompleted: __t.bool().name("trial_completed"),
+  walletConnected: __t.bool().name("wallet_connected"),
+  createdAt: __t.timestamp().name("created_at"),
+  updatedAt: __t.timestamp().name("updated_at"),
+});

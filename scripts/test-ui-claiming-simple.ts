@@ -32,7 +32,7 @@ async function testUIClaiming() {
     console.log('📡 Connecting to SpacetimeDB...');
     const connection = DbConnection.builder()
       .withUri(SPACETIME_URI)
-      .withModuleName(MODULE_NAME)
+      .withDatabaseName(MODULE_NAME)
       .onConnect(() => {
         console.log('✅ Connected to SpacetimeDB');
       })
@@ -47,29 +47,33 @@ async function testUIClaiming() {
 
     // 2. Create test player with high score
     console.log('👤 Creating test player with high score...');
-    connection.reducers.createPlayer(TEST_CONFIG.testWallet, 'TestWinner');
+    connection.reducers.createPlayer({
+      walletAddress: TEST_CONFIG.testWallet,
+      username: 'TestWinner',
+    });
     
     // Simulate game completion
     const sessionId = `test-session-${Date.now()}`;
-    connection.reducers.startGameSession(
+    connection.reducers.startGameSession({
       sessionId,
-      'hard',
-      'competitive',
-      'Paid',
-      TEST_CONFIG.testWallet,
-      undefined
-    );
+      gameId: 'test-game',
+      difficulty: 'hard',
+      gameMode: 'competitive',
+      playerType: 'paid',
+      walletAddress: TEST_CONFIG.testWallet,
+      guestId: undefined,
+    });
 
-    connection.reducers.recordGuestGame(
+    connection.reducers.recordGuestGame({
       sessionId,
-      TEST_CONFIG.testWallet,
-      TEST_CONFIG.testScore,
-      10,
-      8,
-      JSON.stringify({ test: true })
-    );
+      guestId: TEST_CONFIG.testWallet,
+      score: TEST_CONFIG.testScore,
+      questionsAnswered: 10,
+      correctAnswers: 8,
+      gameData: JSON.stringify({ test: true }),
+    });
 
-    connection.reducers.endGameSession(sessionId);
+    connection.reducers.endGameSession({ sessionId });
     console.log('✅ Test player with high score created');
 
     // 3. Test HighScoreDisplay component data
@@ -104,7 +108,7 @@ async function testUIClaiming() {
     console.log('🔘 Testing claiming button states...');
     
     // Check if player has pending claims
-    const pendingClaims = Array.from(connection.db.pendingClaims.iter());
+    const pendingClaims = Array.from(connection.db.pending_claims.iter());
     const playerPendingClaims = pendingClaims.filter(p => p.walletAddress === TEST_CONFIG.testWallet);
     
     if (playerPendingClaims.length > 0) {

@@ -20,7 +20,7 @@ export interface ContractState {
   sessionActive: boolean;
 }
 
-export function useTriviaContract(useGasless: boolean = true, requireSession: boolean = false) {
+export function useTriviaContract(useGasless: boolean = true) {
   const { address, isConnected } = useBaseAccount();
   const [state, setState] = useState<ContractState>({
     isApproving: false,
@@ -119,14 +119,6 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     }
   }, [provider]);
 
-  // Fetch data on mount
-  useEffect(() => {
-    if (provider) {
-      fetchSessionInfo();
-      fetchContractOwner();
-    }
-  }, [fetchSessionInfo, fetchContractOwner, provider]);
-
   // Note: OnchainKit gasless transactions require Transaction component wrapper
   // For now, we'll use regular wagmi transactions
 
@@ -224,14 +216,17 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     }
   }, [provider]);
 
+  // Fetch session flag on mount / when provider is ready (joinBattle requires isSessionActive)
+  useEffect(() => {
+    if (provider) {
+      fetchSessionInfo();
+      fetchContractOwner();
+      void checkSessionStatus();
+    }
+  }, [fetchSessionInfo, fetchContractOwner, provider, checkSessionStatus]);
+
   // Ensure session is active before joining
   const ensureActiveSession = useCallback(async () => {
-    // If session management is not required, just return true
-    if (!requireSession) {
-      console.log('Session management not required, proceeding...');
-      return true;
-    }
-    
     try {
       console.log('Ensuring active session...');
       
@@ -248,21 +243,26 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.log('Current user:', address);
       console.log('Is current user the owner?', contractOwner === address);
       
-      if (contractOwner && contractOwner !== address) {
+      const ownerLower = contractOwner?.toLowerCase();
+      const addrLower = address?.toLowerCase();
+      if (ownerLower && addrLower && ownerLower !== addrLower) {
         console.error('🚨 CRITICAL: You are not the contract owner!');
         console.error('Only the contract owner can start sessions.');
-        console.error('Contract owner:', contractOwner);
-        console.error('Your address:', address);
-        console.error('Please contact the contract owner to start a session.');
-        
         setState(prev => ({
           ...prev,
-          error: `Only contract owner can start sessions. Owner: ${contractOwner}`,
+          error: `No active session. Ask the operator to call startNewSession() on the contract. (Owner: ${contractOwner})`,
         }));
-        
-        return false; // Don't allow transaction if user is not owner
+        return false;
       }
-      
+
+      if (!contractOwner || !address) {
+        setState(prev => ({
+          ...prev,
+          error: 'Could not verify contract owner. Refresh the page and try again.',
+        }));
+        return false;
+      }
+
       console.log('✅ You are the contract owner, attempting to start session...');
       
       try {
@@ -292,7 +292,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       console.error('Error in ensureActiveSession:', error);
       return false;
     }
-  }, [checkSessionStatus, startSession, requireSession, contractOwner, address]);
+  }, [checkSessionStatus, startSession, contractOwner, address]);
 
   // Approve USDC spending for the trivia contract
   const approveUSDC = useCallback(async () => {
@@ -348,16 +348,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
     setIsPending(true);
 
     try {
-      // First ensure there's an active session
-      console.log('Ensuring active session before joining battle...');
-      const sessionActive = await ensureActiveSession();
-      
-      if (!sessionActive) {
-        throw new Error('Failed to start or find active session');
-      }
-      
-      console.log('Session is active, proceeding with join battle...');
-      
+      // joinBattle() opens a session on-chain when none is active (see contracts/TriviaBattle.sol)
       const data = encodeFunctionData({
         abi: TRIVIA_ABI,
         functionName: 'joinBattle',
@@ -386,7 +377,7 @@ export function useTriviaContract(useGasless: boolean = true, requireSession: bo
       setIsPending(false);
       setWriteError(error as Error);
     }
-    }, [address, isConnected, provider, ensureActiveSession]);
+    }, [address, isConnected, provider]);
 
   const joinTrialBattle = useCallback(async (_sessionId: string) => {
     setState(prev => ({

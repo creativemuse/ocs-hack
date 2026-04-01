@@ -107,16 +107,18 @@ export const useTopEarners = (
       // Initial update
       updateTopEarners();
 
-      // Set up reactive listeners
-      connection.db.players.onInsert(updateTopEarners);
-      connection.db.players.onUpdate(updateTopEarners);
-      connection.db.players.onDelete(updateTopEarners);
+      const onTableChange = () => {
+        updateTopEarners();
+      };
+
+      connection.db.players.onInsert(onTableChange);
+      connection.db.players.onUpdate(onTableChange);
+      connection.db.players.onDelete(onTableChange);
 
       return () => {
-        // Clean up listeners using the remove methods
-        connection.db.players.removeOnInsert(updateTopEarners);
-        connection.db.players.removeOnUpdate(updateTopEarners);
-        connection.db.players.removeOnDelete(updateTopEarners);
+        connection.db.players.removeOnInsert(onTableChange);
+        connection.db.players.removeOnUpdate(onTableChange);
+        connection.db.players.removeOnDelete(onTableChange);
       };
     } catch (err) {
       console.error('Error setting up leaderboard subscription:', err);

@@ -36,7 +36,7 @@ export default function BlockchainGameEntry({
     submitScore,
     submitTrialScore,
     approveUSDC,
-  } = useTriviaContract(true, false);
+  } = useTriviaContract(true);
 
   // Note: USDC balance checking removed as functions not available in current hook
 

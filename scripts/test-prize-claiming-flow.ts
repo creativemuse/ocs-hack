@@ -38,7 +38,7 @@ async function testPrizeClaimingFlow() {
     console.log('📡 Connecting to SpacetimeDB...');
     const connection = DbConnection.builder()
       .withUri(SPACETIME_URI)
-      .withModuleName(MODULE_NAME)
+      .withDatabaseName(MODULE_NAME)
       .onConnect(() => {
         console.log('✅ Connected to SpacetimeDB');
       })
@@ -63,7 +63,10 @@ async function testPrizeClaimingFlow() {
     };
 
     // Insert player into database
-    connection.reducers.createPlayer(TEST_CONFIG.playerWallet, 'TestWinner');
+    connection.reducers.createPlayer({
+      walletAddress: TEST_CONFIG.playerWallet,
+      username: 'TestWinner',
+    });
     console.log('✅ Test player created\n');
 
     // 3. Simulate game completion with high score
@@ -77,25 +80,26 @@ async function testPrizeClaimingFlow() {
     };
 
     // Start game session and record completion
-    connection.reducers.startGameSession(
-      TEST_CONFIG.gameSessionId,
-      'hard',
-      'competitive',
-      'Paid',
-      TEST_CONFIG.playerWallet,
-      undefined
-    );
-    
-    connection.reducers.recordGuestGame(
-      TEST_CONFIG.gameSessionId,
-      TEST_CONFIG.playerWallet,
-      TEST_CONFIG.testScore,
-      10,
-      8,
-      JSON.stringify({ test: true })
-    );
-    
-    connection.reducers.endGameSession(TEST_CONFIG.gameSessionId);
+    connection.reducers.startGameSession({
+      sessionId: TEST_CONFIG.gameSessionId,
+      gameId: 'test-game',
+      difficulty: 'hard',
+      gameMode: 'competitive',
+      playerType: 'paid',
+      walletAddress: TEST_CONFIG.playerWallet,
+      guestId: undefined,
+    });
+
+    connection.reducers.recordGuestGame({
+      sessionId: TEST_CONFIG.gameSessionId,
+      guestId: TEST_CONFIG.playerWallet,
+      score: TEST_CONFIG.testScore,
+      questionsAnswered: 10,
+      correctAnswers: 8,
+      gameData: JSON.stringify({ test: true }),
+    });
+
+    connection.reducers.endGameSession({ sessionId: TEST_CONFIG.gameSessionId });
     console.log(`✅ Game completed with score: ${TEST_CONFIG.testScore}\n`);
 
     // 4. Calculate and distribute prize
@@ -133,7 +137,7 @@ async function testPrizeClaimingFlow() {
     const players = Array.from(connection.db.players.iter());
     const finalPlayer = players.find(p => p.walletAddress === TEST_CONFIG.playerWallet);
     
-    const prizeHistory = Array.from(connection.db.prizeHistory.iter());
+    const prizeHistory = Array.from(connection.db.prize_history.iter());
     const playerPrizeHistory = prizeHistory.filter(p => p.walletAddress === TEST_CONFIG.playerWallet);
 
     console.log('Final Player State:', {

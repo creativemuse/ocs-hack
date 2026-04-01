@@ -27,7 +27,7 @@ export default function ContractBalanceDebug() {
         NEXT_PUBLIC_NETWORK: process.env.NEXT_PUBLIC_NETWORK,
       },
       contract: {
-        address: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xd8F082fa4EF6a4C59F8366c19a196d488485682b',
+        address: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f',
         usdcAddress: '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913',
       },
       balance: {
@@ -76,7 +76,7 @@ export default function ContractBalanceDebug() {
         <div className="p-4 bg-blue-50 rounded-lg">
           <h3 className="font-semibold mb-2">Contract Information</h3>
           <div className="space-y-1 text-sm">
-            <div><strong>Contract Address:</strong> {process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xd8F082fa4EF6a4C59F8366c19a196d488485682b'}</div>
+            <div><strong>Contract Address:</strong> {process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f'}</div>
             <div><strong>USDC Address:</strong> 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913</div>
             <div><strong>Network:</strong> Base Mainnet (Chain ID: 8453)</div>
             <div><strong>RPC URL:</strong> {process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org'}</div>

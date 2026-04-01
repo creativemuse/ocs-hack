@@ -8,13 +8,22 @@ import { base } from 'viem/chains';
 import { numberToHex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
+export type BaseAccountTxStatusExtras = {
+  /** Last `eth_sendTransaction` hash (e.g. `joinBattle` after approve in a batch). */
+  lastTxHash?: string;
+};
+
 interface BaseAccountTransactionProps {
   calls: Array<{
     to: `0x${string}`;
     value: `0x${string}`;
     data: `0x${string}`;
   }>;
-  onStatus?: (status: 'pending' | 'success' | 'error', message?: string) => void;
+  onStatus?: (
+    status: 'pending' | 'success' | 'error',
+    message?: string,
+    extras?: BaseAccountTxStatusExtras
+  ) => void;
   children: React.ReactNode;
   className?: string;
 }
@@ -56,9 +65,9 @@ export default function BaseAccountTransaction({
       const provider = sdk.getProvider();
 
       // Send transactions sequentially using Base Account
-      const results = [];
+      const results: string[] = [];
       for (const call of calls) {
-        const result = await provider.request({
+        const result = (await provider.request({
           method: 'eth_sendTransaction',
           params: [{
             from: address,
@@ -67,14 +76,15 @@ export default function BaseAccountTransaction({
             data: call.data,
             chainId: numberToHex(base.id),
           }]
-        });
+        })) as string;
         results.push(result);
       }
 
+      const lastTxHash = results.length > 0 ? results[results.length - 1] : undefined;
       console.log('Transactions sent:', results);
       setStatus('success');
       setMessage('Transaction successful!');
-      onStatus?.('success', 'Transaction successful!');
+      onStatus?.('success', 'Transaction successful!', { lastTxHash });
     } catch (error: any) {
       // Safely serialize error to avoid BigInt serialization issues
       const safeError = {

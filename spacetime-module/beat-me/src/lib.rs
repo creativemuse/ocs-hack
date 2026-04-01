@@ -1,5 +1,8 @@
-use spacetimedb::{ReducerContext, Table, Identity, Timestamp, TimeDuration, SpacetimeType};
+use spacetimedb::{CaseConversionPolicy, ReducerContext, Table, Identity, Timestamp, TimeDuration, SpacetimeType};
 use std::time::Duration;
+
+#[spacetimedb::settings]
+pub const CASE_CONVERSION_POLICY: CaseConversionPolicy = CaseConversionPolicy::None;
 
 // ============================================================================
 // TYPE-SAFE ENUMS
@@ -41,7 +44,7 @@ pub enum AdminLevel {
 // ============================================================================
 
 // Audio file metadata stored in SpacetimeDB
-#[spacetimedb::table(name = audio_files, public)]
+#[spacetimedb::table(accessor = audio_files, public)]
 #[derive(Clone)]
 pub struct AudioFile {
     #[primary_key]
@@ -62,7 +65,7 @@ pub struct AudioFile {
 }
 
 // Game sessions stored in SpacetimeDB
-#[spacetimedb::table(name = game_sessions, public)]
+#[spacetimedb::table(accessor = game_sessions, public)]
 #[derive(Clone)]
 pub struct GameSession {
     #[primary_key]
@@ -91,7 +94,7 @@ pub struct GameSession {
 }
 
 // Active game sessions for countdown management
-#[spacetimedb::table(name = active_game_sessions, public)]
+#[spacetimedb::table(accessor = active_game_sessions, public)]
 #[derive(Clone)]
 pub struct ActiveGameSession {
     #[primary_key]
@@ -113,7 +116,7 @@ pub struct ActiveGameSession {
 
 // Player statistics stored in SpacetimeDB
 // PRIMARY KEY CHANGED: wallet_address instead of Identity
-#[spacetimedb::table(name = player_stats, public)]
+#[spacetimedb::table(accessor = player_stats, public)]
 #[derive(Clone)]
 pub struct PlayerStats {
     #[primary_key]
@@ -134,7 +137,7 @@ pub struct PlayerStats {
 }
 
 // Guest player data stored in SpacetimeDB
-#[spacetimedb::table(name = guest_players, public)]
+#[spacetimedb::table(accessor = guest_players, public)]
 #[derive(Clone)]
 pub struct GuestPlayer {
     #[primary_key]
@@ -151,7 +154,7 @@ pub struct GuestPlayer {
 }
 
 // Guest game sessions stored in SpacetimeDB
-#[spacetimedb::table(name = guest_game_sessions)]
+#[spacetimedb::table(accessor = guest_game_sessions)]
 #[derive(Clone)]
 pub struct GuestGameSession {
     #[primary_key]
@@ -172,7 +175,16 @@ pub struct GuestGameSession {
 }
 
 // Players table for wallet-connected users
-#[spacetimedb::table(name = players, public)]
+#[spacetimedb::table(
+    accessor = players,
+    public,
+    index(accessor = idx_players_total_earnings, btree(columns = [total_earnings])),
+    index(accessor = idx_players_games_played, btree(columns = [games_played])),
+    index(
+        accessor = idx_players_earnings_games,
+        btree(columns = [total_earnings, games_played])
+    ),
+)]
 #[derive(Clone)]
 pub struct Player {
     #[primary_key]
@@ -194,7 +206,7 @@ pub struct Player {
 }
 
 // Identity to wallet mapping for paid players
-#[spacetimedb::table(name = identity_wallet_mapping, public)]
+#[spacetimedb::table(accessor = identity_wallet_mapping, public)]
 #[derive(Clone)]
 pub struct IdentityWalletMapping {
     #[primary_key]
@@ -208,7 +220,7 @@ pub struct IdentityWalletMapping {
 }
 
 // Game entries for tracking paid/trial status
-#[spacetimedb::table(name = game_entries)]
+#[spacetimedb::table(accessor = game_entries)]
 #[derive(Clone)]
 pub struct GameEntry {
     #[primary_key]
@@ -228,7 +240,7 @@ pub struct GameEntry {
 }
 
 // Anonymous sessions
-#[spacetimedb::table(name = anonymous_sessions)]
+#[spacetimedb::table(accessor = anonymous_sessions)]
 #[derive(Clone)]
 pub struct AnonymousSession {
     #[primary_key]
@@ -242,7 +254,7 @@ pub struct AnonymousSession {
 }
 
 // Prize pools
-#[spacetimedb::table(name = prize_pools)]
+#[spacetimedb::table(accessor = prize_pools)]
 #[derive(Clone)]
 pub struct PrizePool {
     #[primary_key]
@@ -260,7 +272,7 @@ pub struct PrizePool {
 }
 
 // Pending claims
-#[spacetimedb::table(name = pending_claims, public)]
+#[spacetimedb::table(accessor = pending_claims, public)]
 #[derive(Clone)]
 pub struct PendingClaim {
     #[primary_key]
@@ -281,7 +293,7 @@ pub struct PendingClaim {
 }
 
 // Prize history for tracking all prize distributions
-#[spacetimedb::table(name = prize_history)]
+#[spacetimedb::table(accessor = prize_history)]
 #[derive(Clone)]
 pub struct PrizeHistory {
     #[primary_key]
@@ -297,7 +309,7 @@ pub struct PrizeHistory {
 }
 
 // Question attempts stored in SpacetimeDB
-#[spacetimedb::table(name = question_attempts)]
+#[spacetimedb::table(accessor = question_attempts)]
 #[derive(Clone)]
 pub struct QuestionAttempt {
     #[primary_key]
@@ -321,7 +333,7 @@ pub struct QuestionAttempt {
 }
 
 // Admin table for authorized administrators
-#[spacetimedb::table(name = admins)]
+#[spacetimedb::table(accessor = admins)]
 #[derive(Clone)]
 pub struct Admin {
     #[primary_key]
@@ -333,7 +345,14 @@ pub struct Admin {
 }
 
 // Active connections for real-time presence tracking
-#[spacetimedb::table(name = active_connections, public)]
+#[spacetimedb::table(
+    accessor = active_connections,
+    public,
+    index(
+        accessor = idx_active_connections_last_activity,
+        btree(columns = [last_activity])
+    ),
+)]
 #[derive(Clone)]
 pub struct ActiveConnection {
     #[primary_key]
@@ -357,7 +376,7 @@ pub fn init(_ctx: &ReducerContext) {
 
 #[spacetimedb::reducer(client_connected)]
 pub fn identity_connected(ctx: &ReducerContext) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     log::info!("👤 Identity connected: {:?}", identity);
     
     // Track active connection
@@ -387,7 +406,7 @@ pub fn identity_connected(ctx: &ReducerContext) {
 
 #[spacetimedb::reducer(client_disconnected)]
 pub fn identity_disconnected(ctx: &ReducerContext) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     log::info!("👤 Identity disconnected: {:?}", identity);
     
     // Remove from active connections
@@ -474,7 +493,7 @@ pub fn add_audio_file(
     file_size: u64,
     duration: Option<f64>,
 ) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     
     // Check if file already exists using unique name constraint
     if ctx.db.audio_files().name().find(&name).is_some() {
@@ -515,7 +534,7 @@ pub fn start_game_session(
     wallet_address: Option<String>,  // NEW: Required for paid players
     guest_id: Option<String>,        // NEW: Required for trial/guest
 ) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
     ctx.db.game_sessions().insert(GameSession {
@@ -551,7 +570,7 @@ pub fn record_question_attempt(
     time_taken: f64,
     player_type: String,
 ) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     let is_correct = selected_answer == correct_answer;
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
@@ -583,7 +602,7 @@ pub fn record_question_attempt(
         session.questions_answered += 1;
         session.correct_answers += if is_correct { 1 } else { 0 };
         
-        ctx.db.game_sessions().session_id().update(session);
+        ctx.db.game_sessions().id().update(session);
     }
     
     log::info!("📝 Recorded question attempt: {} (correct: {}, type: {:?})", audio_file_name, is_correct, ptype);
@@ -591,7 +610,7 @@ pub fn record_question_attempt(
 
 #[spacetimedb::reducer]
 pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     
     // Find session
     if let Some(mut session) = ctx.db.game_sessions().session_id().find(&session_id) {
@@ -602,7 +621,7 @@ pub fn end_game_session(ctx: &ReducerContext, session_id: String) {
         let wallet_address = session.wallet_address.clone();
         
         session.ended_at = Some(ctx.timestamp);
-        ctx.db.game_sessions().session_id().update(session);
+        ctx.db.game_sessions().id().update(session);
         
         // Update stats based on player type
         match player_type {
@@ -686,15 +705,18 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
             match s.status {
                 SessionStatus::Active => {
                     // Active sessions expire after 5 minutes
-                    let elapsed = now - s.start_time;
-                    elapsed >= game_duration
+                    now.time_duration_since(s.start_time)
+                        .map(|elapsed| elapsed >= game_duration)
+                        .unwrap_or(false)
                 }
                 SessionStatus::Waiting => {
                     // Waiting sessions with only trial players that are old (more than 10 minutes) should be cleaned up
                     // This prevents trial-only sessions from blocking new players indefinitely
                     if s.paid_player_count == 0 && s.trial_player_count > 0 {
-                        let elapsed = now - s.created_at;
-                        elapsed >= TimeDuration::from_duration(Duration::from_secs(600)) // 10 minutes
+                        let ten_min = TimeDuration::from_duration(Duration::from_secs(600));
+                        now.time_duration_since(s.created_at)
+                            .map(|elapsed| elapsed >= ten_min)
+                            .unwrap_or(false)
                     } else {
                         false
                     }
@@ -781,6 +803,7 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
         let player_count = session.player_count;
         let paid_count = session.paid_player_count;
         let trial_count = session.trial_player_count;
+        let session_status = session.status;
         
         // Use efficient primary key update
         ctx.db.active_game_sessions().id().update(session);
@@ -791,7 +814,7 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
             log::info!("🎮 First TRIAL player joined session: {} (status: Waiting, trial: {})", session_id, trial_count);
         } else {
             log::info!("🎮 Player joined session: {} (total: {}, paid: {}, trial: {}, status: {:?})", 
-                      session_id, player_count, paid_count, trial_count, session.status);
+                      session_id, player_count, paid_count, trial_count, session_status);
         }
     } else {
         log::warn!("⚠️ No active session found to join");
@@ -800,7 +823,7 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
 
 #[spacetimedb::reducer]
 pub fn update_player_type(ctx: &ReducerContext, wallet_address: String, new_type: String) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     let ptype = if new_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
     // Update player stats using wallet address
@@ -866,7 +889,7 @@ pub fn link_wallet_to_identity(
     ctx: &ReducerContext,
     wallet_address: String,
 ) {
-    let identity = ctx.sender;
+    let identity = ctx.sender();
     log::info!("🔗 Linking wallet {} to identity {:?}", wallet_address, identity);
     
     // Check if this identity is already linked
@@ -1001,7 +1024,7 @@ pub fn mark_entry_consumed(ctx: &ReducerContext, session_id: String) {
     // Use efficient unique index lookup and update
     if let Some(mut entry) = ctx.db.game_entries().session_id().find(&session_id) {
         entry.status = EntryStatus::Consumed;
-        ctx.db.game_entries().session_id().update(entry);
+        ctx.db.game_entries().id().update(entry);
         log::info!("✅ Game entry marked as consumed: {}", session_id);
     } else {
         log::warn!("❌ Game entry not found: {}", session_id);
@@ -1133,7 +1156,7 @@ pub fn get_top_earners(ctx: &ReducerContext, limit: u32) {
 // ============================================================================
 
 fn is_admin(ctx: &ReducerContext, required_level: &AdminLevel) -> bool {
-    let requester_identity = ctx.sender;
+    let requester_identity = ctx.sender();
     
     ctx.db.admins().admin_identity()
         .find(&requester_identity)
@@ -1148,7 +1171,7 @@ fn is_admin(ctx: &ReducerContext, required_level: &AdminLevel) -> bool {
 
 #[spacetimedb::reducer]
 pub fn grant_admin_privileges(ctx: &ReducerContext, target_identity: Identity, admin_level: String) {
-    let grantor_identity = ctx.sender;
+    let grantor_identity = ctx.sender();
     let level = match admin_level.as_str() {
         "super_admin" => AdminLevel::SuperAdmin,
         "admin" => AdminLevel::Admin,
@@ -1181,7 +1204,7 @@ pub fn grant_admin_privileges(ctx: &ReducerContext, target_identity: Identity, a
 
 #[spacetimedb::reducer]
 pub fn revoke_admin_privileges(ctx: &ReducerContext, target_identity: Identity) {
-    let revoker_identity = ctx.sender;
+    let revoker_identity = ctx.sender();
     
     if !is_admin(ctx, &AdminLevel::SuperAdmin) {
         log::warn!("❌ Unauthorized attempt to revoke admin privileges by {:?}", revoker_identity);

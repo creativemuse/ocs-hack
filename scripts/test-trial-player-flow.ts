@@ -40,7 +40,10 @@ async function testTrialPlayerFlow() {
       process.exit(1);
     }
     
-    conn.reducers.createGuestPlayer(TEST_GUEST_ID, 'Test Guest Player');
+    conn.reducers.createGuestPlayer({
+      guestId: TEST_GUEST_ID,
+      name: 'Test Guest Player',
+    });
     console.log('✅ Guest player created\n');
 
     // Wait for creation
@@ -99,14 +102,14 @@ async function testTrialPlayerFlow() {
 
     // Step 6: Record guest game completion
     console.log('6️⃣ Recording guest game...');
-    conn.reducers.recordGuestGame(
-      TEST_SESSION_ID,
-      TEST_GUEST_ID,
-      150,  // score
-      10,   // questions answered
-      7,    // correct answers
-      JSON.stringify({ completed: true })
-    );
+    conn.reducers.recordGuestGame({
+      sessionId: TEST_SESSION_ID,
+      guestId: TEST_GUEST_ID,
+      score: 150,
+      questionsAnswered: 10,
+      correctAnswers: 7,
+      gameData: JSON.stringify({ completed: true }),
+    });
     console.log('✅ Guest game recorded\n');
 
     // Wait for record
@@ -114,13 +117,13 @@ async function testTrialPlayerFlow() {
 
     // Step 7: Update guest player stats
     console.log('7️⃣ Updating guest player stats...');
-    conn.reducers.updateGuestPlayer(
-      TEST_GUEST_ID,
-      1,    // games played
-      150,  // total score
-      150,  // best score
-      JSON.stringify([])
-    );
+    conn.reducers.updateGuestPlayer({
+      guestId: TEST_GUEST_ID,
+      gamesPlayed: 1,
+      totalScore: 150,
+      bestScore: 150,
+      achievements: JSON.stringify([]),
+    });
     console.log('✅ Guest stats updated\n');
 
     // Step 8: Verify updated guest player

@@ -4,9 +4,15 @@
  * Unified API for interacting with SpacetimeDB using the new SDK
  */
 
-import { 
-  DbConnection, 
-  type DbConnectionImpl,
+import { Identity } from 'spacetimedb';
+
+import {
+  buildAppSubscriptionQueries,
+  type AppSubscriptionTables,
+} from '../spacetime/appSubscriptionQueries';
+
+import {
+  DbConnection,
   type Player,
   type GameSession,
   type ActiveGameSession,
@@ -18,7 +24,6 @@ import {
   type AnonymousSession,
   type PrizePool,
   type Admin,
-  PlayerType,
 } from '../spacetime/database';
 
 // Re-export types for convenience
@@ -55,7 +60,7 @@ const SPACETIME_CONFIG = {
  * SpacetimeDB Client - Singleton wrapper around DbConnection
  */
 class SpacetimeDBClient {
-  private connection: DbConnectionImpl | null = null;
+  private connection: DbConnection | null = null;
   private isConnected = false;
   private connectionPromise: Promise<void> | null = null;
 
@@ -99,7 +104,7 @@ class SpacetimeDBClient {
         // Create connection builder with event handlers
         const builder = DbConnection.builder()
           .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-          .withModuleName(SPACETIME_CONFIG.module)
+          .withDatabaseName(SPACETIME_CONFIG.module)
           .onConnect((conn, identity, token) => {
             if (connectionResolved) return;
             connectionResolved = true;
@@ -111,12 +116,13 @@ class SpacetimeDBClient {
             this.connection = conn;
             this.isConnected = true;
             
-            // Subscribe to all tables for live updates
             conn.subscriptionBuilder()
               .onApplied(() => {
                 console.log('✅ SpacetimeDB subscription applied');
               })
-              .subscribeToAllTables();
+              .subscribe((t) =>
+                buildAppSubscriptionQueries(t as unknown as AppSubscriptionTables)
+              );
             
             resolve();
           })
@@ -160,7 +166,7 @@ class SpacetimeDBClient {
   /**
    * Get the active connection
    */
-  getConnection(): DbConnectionImpl | null {
+  getConnection(): DbConnection | null {
     return this.connection;
   }
 
@@ -184,10 +190,10 @@ class SpacetimeDBClient {
       throw new Error('Not connected to SpacetimeDB');
     }
 
-    // @ts-ignore - Dynamic reducer call
+    // @ts-expect-error Dynamic reducer call (2.x: single arg object)
     if (typeof this.connection.reducers[reducerName] === 'function') {
-      // @ts-ignore
-      await this.connection.reducers[reducerName](...args);
+      // @ts-expect-error
+      await this.connection.reducers[reducerName](args[0]);
     } else {
       throw new Error(`Reducer ${reducerName} not found`);
     }
@@ -221,7 +227,7 @@ class SpacetimeDBClient {
   getAnonymousSession(sessionId: string): AnonymousSession | null {
     if (!this.connection) return null;
 
-    const sessions = Array.from(this.connection.db.anonymousSessions.iter()) as AnonymousSession[];
+    const sessions = Array.from(this.connection.db.anonymous_sessions.iter()) as AnonymousSession[];
     const filtered = sessions.filter((s: AnonymousSession) => s.sessionId === sessionId);
 
     return filtered.length > 0 ? filtered[0] : null;
@@ -233,7 +239,7 @@ class SpacetimeDBClient {
   getGuestPlayer(guestId: string): any | null {
     if (!this.connection) return null;
 
-    const guests = Array.from(this.connection.db.guestPlayers.iter())
+    const guests = Array.from(this.connection.db.guest_players.iter())
       .filter((g: any) => g.guestId === guestId);
 
     return guests.length > 0 ? guests[0] : null;
@@ -245,7 +251,7 @@ class SpacetimeDBClient {
   getGuestGameSessions(guestId: string, limit: number = 10): any[] {
     if (!this.connection) return [];
 
-    return Array.from(this.connection.db.guestGameSessions.iter())
+    return Array.from(this.connection.db.guest_game_sessions.iter())
       .filter((g: any) => g.guestId === guestId)
       .sort((a: any, b: any) => Number(b.startedAt) - Number(a.startedAt))
       .slice(0, limit);
@@ -261,7 +267,7 @@ class SpacetimeDBClient {
     }
 
     try {
-      this.connection.reducers.linkWalletToIdentity(walletAddress);
+      this.connection.reducers.linkWalletToIdentity({ walletAddress });
       console.log(`✅ Linked wallet ${walletAddress} to SpacetimeDB identity`);
     } catch (error) {
       console.error('❌ Failed to link wallet:', error);
@@ -280,7 +286,7 @@ class SpacetimeDBClient {
 
     try {
       // Link the Sub Account address (primary) to SpacetimeDB identity
-      this.connection.reducers.linkWalletToIdentity(subAccountAddress);
+      this.connection.reducers.linkWalletToIdentity({ walletAddress: subAccountAddress });
       
       // Store both addresses in localStorage for reference
       localStorage.setItem('base_account_addresses', JSON.stringify({
@@ -310,7 +316,10 @@ class SpacetimeDBClient {
     }
 
     try {
-      await this.connection.reducers.createPlayer(walletAddress, username);
+      await this.connection.reducers.createPlayer({
+        walletAddress,
+        username,
+      });
       console.log(`✅ Created player: ${walletAddress}`);
     } catch (error) {
       console.error('❌ Failed to create player:', error);
@@ -328,13 +337,13 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.updatePlayerStats(
+      await this.connection.reducers.updatePlayerStats({
         walletAddress,
         totalScore,
         gamesPlayed,
         bestScore,
-        totalEarnings
-      );
+        totalEarnings,
+      });
       console.log(`✅ Updated player stats: ${walletAddress}`);
     } catch (error) {
       console.error('❌ Failed to update player stats:', error);
@@ -350,11 +359,11 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.updateTrialStatus(
+      await this.connection.reducers.updateTrialStatus({
         walletAddress,
         trialGamesRemaining,
-        trialCompleted
-      );
+        trialCompleted,
+      });
       console.log(`✅ Updated trial status: ${walletAddress}`);
     } catch (error) {
       console.error('❌ Failed to update trial status:', error);
@@ -397,15 +406,15 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      this.connection.reducers.startGameSession(
+      await this.connection.reducers.startGameSession({
         sessionId,
-        gameId,                 // NEW: Pass the gameId
+        gameId,
         difficulty,
         gameMode,
         playerType,
-        walletAddress || undefined,
-        guestId || undefined
-      );
+        walletAddress: walletAddress || undefined,
+        guestId: guestId || undefined,
+      });
       const playerId = walletAddress || guestId || 'unknown';
       console.log(`🎮 Started game session: ${sessionId} for game ${gameId} and player ${playerId} (${playerType})`);
     } catch (error) {
@@ -418,7 +427,7 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.endGameSession(sessionId);
+      await this.connection.reducers.endGameSession({ sessionId });
       console.log(`🏁 Ended game session: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to end game session:', error);
@@ -429,16 +438,15 @@ class SpacetimeDBClient {
   async getActiveGameSession(): Promise<ActiveGameSession | null> {
     if (!this.connection) return null;
 
-    const activeSessions = Array.from(this.connection.db.activeGameSessions.iter()) as ActiveGameSession[];
+    const activeSessions = Array.from(this.connection.db.active_game_sessions.iter()) as ActiveGameSession[];
     return activeSessions.length > 0 ? activeSessions[0] : null;
   }
 
-  async joinActiveGameSession(): Promise<void> {
+  async joinActiveGameSession(playerType: 'paid' | 'trial' = 'paid'): Promise<void> {
     if (!this.connection) return;
 
     try {
-      // This would typically call a reducer to join the active session
-      // For now, this is a placeholder - implement according to your SpacetimeDB schema
+      await this.connection.reducers.joinActiveGameSession({ playerType });
       console.log('🎮 Joined active game session');
     } catch (error) {
       console.error('❌ Failed to join active game session:', error);
@@ -457,14 +465,14 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.recordQuestionAttempt(
+      await this.connection.reducers.recordQuestionAttempt({
         sessionId,
         audioFileName,
         selectedAnswer,
         correctAnswer,
         timeTaken,
-        playerType
-      );
+        playerType,
+      });
       console.log(`📝 Recorded question attempt: ${audioFileName}`);
     } catch (error) {
       console.error('❌ Failed to record question attempt:', error);
@@ -491,7 +499,7 @@ class SpacetimeDBClient {
     if (!this.connection) return [];
 
     // Trial players tracked in guest_players table, sorted by best score
-    return Array.from(this.connection.db.guestPlayers.iter())
+    return Array.from(this.connection.db.guest_players.iter())
       .sort((a: any, b: any) => b.bestScore - a.bestScore)
       .slice(0, limit);
   }
@@ -528,14 +536,14 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.addAudioFile(
+      await this.connection.reducers.addAudioFile({
         name,
         artistName,
         songTitle,
         ipfsCid,
-        fileSize,
-        duration || 0
-      );
+        fileSize: BigInt(fileSize),
+        duration: duration !== undefined && duration !== null ? duration : undefined,
+      });
       console.log(`✅ Added audio file: ${artistName} - ${songTitle}`);
     } catch (error) {
       console.error('❌ Failed to add audio file:', error);
@@ -545,7 +553,7 @@ class SpacetimeDBClient {
 
   getAllAudioFiles(): AudioFile[] {
     if (!this.connection) return [];
-    return Array.from(this.connection.db.audioFiles.iter());
+    return Array.from(this.connection.db.audio_files.iter());
   }
 
   // ============================================================================
@@ -556,7 +564,7 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.createPrizePool(gameId, entryFee);
+      await this.connection.reducers.createPrizePool({ gameId, entryFee });
       console.log(`✅ Created prize pool: ${gameId}`);
     } catch (error) {
       console.error('❌ Failed to create prize pool:', error);
@@ -573,12 +581,12 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.recordPrizeDistribution(
+      await this.connection.reducers.recordPrizeDistribution({
         walletAddress,
         sessionId,
         prizeAmount,
-        rank
-      );
+        rank,
+      });
       console.log(`💰 Recorded prize: ${prizeAmount} USDC for ${walletAddress}`);
     } catch (error) {
       console.error('❌ Failed to record prize distribution:', error);
@@ -589,7 +597,7 @@ class SpacetimeDBClient {
   getPendingClaims(walletAddress?: string): PendingClaim[] {
     if (!this.connection) return [];
 
-    const claims = (Array.from(this.connection.db.pendingClaims.iter()) as PendingClaim[])
+    const claims = (Array.from(this.connection.db.pending_claims.iter()) as PendingClaim[])
       .filter((claim: PendingClaim) => !claim.claimed);
 
     if (walletAddress) {
@@ -602,7 +610,7 @@ class SpacetimeDBClient {
   getPrizeHistory(walletAddress: string, limit: number = 20): PrizeHistory[] {
     if (!this.connection) return [];
 
-    return (Array.from(this.connection.db.prizeHistory.iter()) as PrizeHistory[])
+    return (Array.from(this.connection.db.prize_history.iter()) as PrizeHistory[])
       .filter((prize: PrizeHistory) => prize.walletAddress === walletAddress)
       .sort((a: PrizeHistory, b: PrizeHistory) => Number(b.gameTimestamp) - Number(a.gameTimestamp))
       .slice(0, limit);
@@ -622,13 +630,13 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.createGameEntry(
+      await this.connection.reducers.createGameEntry({
         sessionId,
-        walletAddress || '',
-        anonId || '',
+        walletAddress: walletAddress || undefined,
+        anonId: anonId || undefined,
         isTrial,
-        paidTxHash || ''
-      );
+        paidTxHash: paidTxHash || undefined,
+      });
       console.log(`✅ Created game entry: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to create game entry:', error);
@@ -640,7 +648,7 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.markEntryConsumed(sessionId);
+      await this.connection.reducers.markEntryConsumed({ sessionId });
       console.log(`✅ Marked entry as consumed: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to mark entry as consumed:', error);
@@ -656,7 +664,7 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.createAnonymousSession(sessionId);
+      await this.connection.reducers.createAnonymousSession({ sessionId });
       console.log(`✅ Created anonymous session: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to create anonymous session:', error);
@@ -673,12 +681,12 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.updateAnonymousSession(
+      await this.connection.reducers.updateAnonymousSession({
         sessionId,
         gamesPlayed,
         totalScore,
-        bestScore
-      );
+        bestScore,
+      });
       console.log(`✅ Updated anonymous session: ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to update anonymous session:', error);
@@ -694,7 +702,10 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.grantAdminPrivileges(targetIdentity, adminLevel);
+      await this.connection.reducers.grantAdminPrivileges({
+        targetIdentity: Identity.fromString(targetIdentity),
+        adminLevel,
+      });
       console.log(`✅ Granted ${adminLevel} privileges to ${targetIdentity}`);
     } catch (error) {
       console.error('❌ Failed to grant admin privileges:', error);
@@ -706,7 +717,9 @@ class SpacetimeDBClient {
     if (!this.connection) return;
 
     try {
-      await this.connection.reducers.revokeAdminPrivileges(targetIdentity);
+      await this.connection.reducers.revokeAdminPrivileges({
+        targetIdentity: Identity.fromString(targetIdentity),
+      });
       console.log(`✅ Revoked admin privileges from ${targetIdentity}`);
     } catch (error) {
       console.error('❌ Failed to revoke admin privileges:', error);
@@ -721,12 +734,12 @@ class SpacetimeDBClient {
 
   getAllGameSessions(): GameSession[] {
     if (!this.connection) return [];
-    return Array.from(this.connection.db.gameSessions.iter());
+    return Array.from(this.connection.db.game_sessions.iter());
   }
 
   getAllPlayerStats(): PlayerStats[] {
     if (!this.connection) return [];
-    return Array.from(this.connection.db.playerStats.iter());
+    return Array.from(this.connection.db.player_stats.iter());
   }
 
   getAllAdmins(): Admin[] {

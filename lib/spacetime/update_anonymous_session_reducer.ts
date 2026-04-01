@@ -4,63 +4,15 @@
 /* eslint-disable */
 /* tslint:disable */
 import {
-  AlgebraicType as __AlgebraicTypeValue,
-  BinaryReader as __BinaryReader,
-  BinaryWriter as __BinaryWriter,
-  ClientCache as __ClientCache,
-  ConnectionId as __ConnectionId,
-  DbConnectionBuilder as __DbConnectionBuilder,
-  DbConnectionImpl as __DbConnectionImpl,
-  Identity as __Identity,
-  SubscriptionBuilderImpl as __SubscriptionBuilderImpl,
-  TableCache as __TableCache,
-  TimeDuration as __TimeDuration,
-  Timestamp as __Timestamp,
-  deepEqual as __deepEqual,
-  type AlgebraicType as __AlgebraicTypeType,
-  type AlgebraicTypeVariants as __AlgebraicTypeVariants,
-  type CallReducerFlags as __CallReducerFlags,
-  type ErrorContextInterface as __ErrorContextInterface,
-  type Event as __Event,
-  type EventContextInterface as __EventContextInterface,
-  type ReducerEventContextInterface as __ReducerEventContextInterface,
-  type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
+  TypeBuilder as __TypeBuilder,
+  t as __t,
+  type AlgebraicTypeType as __AlgebraicTypeType,
+  type Infer as __Infer,
 } from "spacetimedb";
 
-export type UpdateAnonymousSession = {
-  sessionId: string,
-  gamesPlayed: number,
-  totalScore: number,
-  bestScore: number,
+export default {
+  sessionId: __t.string(),
+  gamesPlayed: __t.u32(),
+  totalScore: __t.u32(),
+  bestScore: __t.u32(),
 };
-/**
- * An object for generated helper functions.
- */
-export const UpdateAnonymousSession = {
-  /**
-  * A function which returns this type represented as an AlgebraicType.
-  * This function is derived from the AlgebraicType used to generate this type.
-  */
-  getTypeScriptAlgebraicType(): __AlgebraicTypeType {
-    return __AlgebraicTypeValue.Product({
-      elements: [
-        { name: "sessionId", algebraicType: __AlgebraicTypeValue.String},
-        { name: "gamesPlayed", algebraicType: __AlgebraicTypeValue.U32},
-        { name: "totalScore", algebraicType: __AlgebraicTypeValue.U32},
-        { name: "bestScore", algebraicType: __AlgebraicTypeValue.U32},
-      ]
-    });
-  },
-
-  serialize(writer: __BinaryWriter, value: UpdateAnonymousSession): void {
-    __AlgebraicTypeValue.serializeValue(writer, UpdateAnonymousSession.getTypeScriptAlgebraicType(), value);
-  },
-
-  deserialize(reader: __BinaryReader): UpdateAnonymousSession {
-    return __AlgebraicTypeValue.deserializeValue(reader, UpdateAnonymousSession.getTypeScriptAlgebraicType());
-  },
-
-}
-
-export default UpdateAnonymousSession;
-

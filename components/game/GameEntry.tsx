@@ -17,7 +17,7 @@ import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import SpendPermissionBadge from '@/components/base-account/SpendPermissionBadge';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Shield } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
 import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
@@ -25,30 +25,24 @@ import { parseTransactionError, logTransactionError, type TransactionError, type
 import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 import { base } from 'viem/chains';
+import type { GameStartOptions, PlayerModeChoice } from '@/types/game';
+import type { BaseAccountTxStatusExtras } from '@/components/base-account/BaseAccountTransaction';
 
 interface GameEntryProps {
-  onGameStart: (options: { isTrial: boolean }) => void;
+  onGameStart: (options: GameStartOptions) => void;
   entryToken?: string | null;
   className?: string;
-  playerModeChoice?: 'trial' | 'paid';
+  playerModeChoice?: PlayerModeChoice;
 }
 
 export default function GameEntry({ onGameStart, entryToken, className = '', playerModeChoice = 'trial' }: GameEntryProps) {
+  const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
   const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
-  const { 
-    sessionActive, 
-    sessionInfo, 
-    contractOwner,
-    startSession, 
-    checkSessionStatus, 
-    ensureActiveSession,
-    isStartingSession,
-    error: contractError 
-  } = useTriviaContract(true, false); // Sessions now start automatically
+  useTriviaContract(true);
   const [showPayment, setShowPayment] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
@@ -95,15 +89,23 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
 
   // Handle transaction status updates
-  const handleTransactionStatus = useCallback((status: 'pending' | 'success' | 'error', message?: string) => {
-    console.log('Transaction status:', status, message);
+  const handleTransactionStatus = useCallback((
+    status: 'pending' | 'success' | 'error',
+    message?: string,
+    extras?: BaseAccountTxStatusExtras
+  ) => {
+    console.log('Transaction status:', status, message, extras);
     
     if (status === 'success') {
       console.log('Paid game transaction successful!');
       setIsProcessingPayment(false);
       setTransactionError(null);
       setError(null);
-      onGameStart({ isTrial: false });
+      onGameStart({
+        isTrial: false,
+        paidTxHash: extras?.lastTxHash,
+        playerMode: playerModeChoice,
+      });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
       
@@ -190,7 +192,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       setTransactionError(parsedError);
       setError(parsedError.userMessage);
     }
-  }, [onGameStart, address]);
+  }, [onGameStart, address, playerModeChoice]);
 
   const handleStartGame = async () => {
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
@@ -201,8 +203,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
       // Trial player - start game immediately
       console.log('Starting trial game');
       await incrementTrialGame();
-      onGameStart({ isTrial: true });
-    } else if (playerModeChoice === 'paid') {
+      onGameStart({ isTrial: true, playerMode: playerModeChoice });
+    } else if (isPaidMode) {
       // Paid player - check if wallet is connected
       if (!address || !isConnected) {
         setError('Please connect your wallet to play in Paid Mode');
@@ -245,9 +247,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
     setError(null);
 
     try {
-      console.log('Starting paid game entry - session will be created automatically by the contract...');
-      // The contract now automatically starts sessions when players join
-      // No need for manual session management
+      console.log('Paid entry: approve USDC then joinBattle (opens session on-chain if needed).');
       
       // The actual game start will be handled by the transaction success callback
       console.log('Proceeding with paid game entry...');
@@ -262,7 +262,8 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
   const handlePaymentSuccess = () => {
     setError(null);
     setShowPayment(false);
-    onGameStart({ isTrial: false });
+    // USDC onramp only — no joinBattle hash; server may reject paid verification until user completes on-chain join.
+    onGameStart({ isTrial: false, playerMode: playerModeChoice });
   };
 
   const handlePaymentError = (errorMessage: string) => {
@@ -382,15 +383,15 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                 <Gamepad2 className="h-5 w-5 text-green-400" />
                 Trial Mode
               </>
-            ) : playerModeChoice === 'paid' ? (
+            ) : playerModeChoice === 'paid_solo' ? (
               <>
                 <Crown className="h-5 w-5 text-yellow-400" />
-                Paid Mode
+                Solo (paid)
               </>
             ) : (
               <>
                 <Crown className="h-5 w-5 text-yellow-400" />
-                Normal Mode
+                Multiplayer (paid)
               </>
             )}
           </CardTitle>
@@ -411,7 +412,7 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                 Start Free Game
               </Button>
             </>
-          ) : playerModeChoice === 'paid' ? (
+          ) : isPaidMode ? (
             <>
               {/* Base Account Display */}
               <div className="mb-4">
@@ -501,7 +502,16 @@ export default function GameEntry({ onGameStart, entryToken, className = '', pla
                   </div>
 
                   <div className="text-sm text-gray-300 text-center mb-4">
-                    Ready to compete for rewards?
+                    {playerModeChoice === 'paid_multiplayer'
+                      ? 'Compete with others — the prize pool grows when more players join.'
+                      : 'Play anytime — each entry adds to the prize pool.'}
+                  </div>
+
+                  <div
+                    className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-gray-300"
+                    role="status"
+                  >
+                    Entry is <span className="text-white font-medium">1 USDC</span> per session. Gas is often sponsored by the paymaster; you still sign the USDC approval and the join call.
                   </div>
                   
                   {isProcessingPayment ? (

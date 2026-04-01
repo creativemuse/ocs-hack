@@ -122,35 +122,52 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     }
 
     // --- Core Functions ---
-    function startNewSession() external onlyOwner {
-        if (isSessionActive) {
-            revert TriviaBattle__SessionAlreadyActive();
-        }
-        if (block.timestamp < lastSessionTime + sessionInterval) {
-            revert TriviaBattle__SessionIntervalNotElapsed();
-        }
 
-        // Increment session counter BEFORE activating session to ensure correct session ID
+    /// @notice Opens a new session: clears prior session player state and increments sessionCounter.
+    /// @dev Enforces sessionInterval only after at least one session has completed (sessionCounter > 0 before open).
+    function _openNewSession() private {
         sessionCounter++;
         isSessionActive = true;
         lastSessionTime = block.timestamp;
-        currentSessionPrizePool = 0; // Reset prize pool for new session
+        currentSessionPrizePool = 0;
 
-        // Reset player tracking
-        // Note: Cannot delete mappings, so we reset by clearing the players array
-        // and individual entries will be overwritten when new players join
         for (uint256 i = 0; i < players.length; i++) {
             delete hasParticipated[players[i]];
             delete playerScores[players[i]];
         }
         players = new address[](0);
 
-        emit SessionStarted(sessionCounter, block.timestamp); // Bug 2 Fix: Use sessionCounter for sessionId
+        emit SessionStarted(sessionCounter, block.timestamp);
     }
 
+    /// @dev First session ever (sessionCounter == 0) may open immediately. Later sessions wait sessionInterval.
+    function _requireSessionIntervalElapsedForRestart() private view {
+        if (sessionCounter == 0) return;
+        if (block.timestamp < lastSessionTime + sessionInterval) {
+            revert TriviaBattle__SessionIntervalNotElapsed();
+        }
+    }
+
+    function startNewSession() external onlyOwner {
+        if (isSessionActive) {
+            revert TriviaBattle__SessionAlreadyActive();
+        }
+        _requireSessionIntervalElapsedForRestart();
+        _openNewSession();
+    }
+
+    /// @notice Paid entry: if no session is active, opens one when allowed (same rules as startNewSession), then takes USDC and registers the player.
+    /// @dev Lets players start without an owner tx. Solo players can pay again: this closes their session, distributes prizes, opens a new session, then takes the new entry fee (arcade-style replay).
     function joinBattle() external nonReentrant {
-        if (!isSessionActive) {
-            revert TriviaBattle__SessionNotActive();
+        if (
+            isSessionActive && hasParticipated[msg.sender] && players.length == 1 && players[0] == msg.sender
+        ) {
+            isSessionActive = false;
+            _distributePrizes();
+            _openNewSession();
+        } else if (!isSessionActive) {
+            _requireSessionIntervalElapsedForRestart();
+            _openNewSession();
         }
 
         // Check if player participated in current session

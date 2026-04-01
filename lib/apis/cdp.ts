@@ -3,7 +3,7 @@ import { createCDPJWTGenerator } from '../cdp/jwt-generator';
 // Contract configuration
 export const CONTRACT_CONFIG = {
   networkId: "base-mainnet",
-  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0xd8F082fa4EF6a4C59F8366c19a196d488485682b",
+  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f",
   contractName: "TriviaBattle",
   protocolName: "public"
 } as const;

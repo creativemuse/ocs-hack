@@ -4,104 +4,29 @@
 /* eslint-disable */
 /* tslint:disable */
 import {
-  AlgebraicType as __AlgebraicTypeValue,
-  BinaryReader as __BinaryReader,
-  BinaryWriter as __BinaryWriter,
-  ClientCache as __ClientCache,
-  ConnectionId as __ConnectionId,
-  DbConnectionBuilder as __DbConnectionBuilder,
-  DbConnectionImpl as __DbConnectionImpl,
-  Identity as __Identity,
-  SubscriptionBuilderImpl as __SubscriptionBuilderImpl,
-  TableCache as __TableCache,
-  TimeDuration as __TimeDuration,
-  Timestamp as __Timestamp,
-  deepEqual as __deepEqual,
-  type AlgebraicType as __AlgebraicTypeType,
-  type AlgebraicTypeVariants as __AlgebraicTypeVariants,
-  type CallReducerFlags as __CallReducerFlags,
-  type ErrorContextInterface as __ErrorContextInterface,
-  type Event as __Event,
-  type EventContextInterface as __EventContextInterface,
-  type ReducerEventContextInterface as __ReducerEventContextInterface,
-  type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
+  TypeBuilder as __TypeBuilder,
+  t as __t,
+  type AlgebraicTypeType as __AlgebraicTypeType,
+  type Infer as __Infer,
 } from "spacetimedb";
-import { QuestionAttempt } from "./question_attempt_type";
-import { PlayerType } from "./player_type_type";
-// Mark import as potentially unused
-declare type __keep_PlayerType = PlayerType;
+import {
+  PlayerType,
+} from "./types";
 
-import { type EventContext, type Reducer, RemoteReducers, RemoteTables } from ".";
-declare type __keep = [EventContext, Reducer, RemoteReducers, RemoteTables];
 
-/**
- * Table handle for the table `question_attempts`.
- *
- * Obtain a handle from the [`questionAttempts`] property on [`RemoteTables`],
- * like `ctx.db.questionAttempts`.
- *
- * Users are encouraged not to explicitly reference this type,
- * but to directly chain method calls,
- * like `ctx.db.questionAttempts.on_insert(...)`.
- */
-export class QuestionAttemptsTableHandle {
-  tableCache: __TableCache<QuestionAttempt>;
-
-  constructor(tableCache: __TableCache<QuestionAttempt>) {
-    this.tableCache = tableCache;
-  }
-
-  count(): number {
-    return this.tableCache.count();
-  }
-
-  iter(): Iterable<QuestionAttempt> {
-    return this.tableCache.iter();
-  }
-  /**
-   * Access to the `id` unique index on the table `question_attempts`,
-   * which allows point queries on the field of the same name
-   * via the [`QuestionAttemptsIdUnique.find`] method.
-   *
-   * Users are encouraged not to explicitly reference this type,
-   * but to directly chain method calls,
-   * like `ctx.db.questionAttempts.id().find(...)`.
-   *
-   * Get a handle on the `id` unique index on the table `question_attempts`.
-   */
-  id = {
-    // Find the subscribed row whose `id` column value is equal to `col_val`,
-    // if such a row is present in the client cache.
-    find: (col_val: bigint): QuestionAttempt | undefined => {
-      for (let row of this.tableCache.iter()) {
-        if (__deepEqual(row.id, col_val)) {
-          return row;
-        }
-      }
-    },
-  };
-
-  onInsert = (cb: (ctx: EventContext, row: QuestionAttempt) => void) => {
-    return this.tableCache.onInsert(cb);
-  }
-
-  removeOnInsert = (cb: (ctx: EventContext, row: QuestionAttempt) => void) => {
-    return this.tableCache.removeOnInsert(cb);
-  }
-
-  onDelete = (cb: (ctx: EventContext, row: QuestionAttempt) => void) => {
-    return this.tableCache.onDelete(cb);
-  }
-
-  removeOnDelete = (cb: (ctx: EventContext, row: QuestionAttempt) => void) => {
-    return this.tableCache.removeOnDelete(cb);
-  }
-
-  // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: QuestionAttempt, newRow: QuestionAttempt) => void) => {
-    return this.tableCache.onUpdate(cb);
-  }
-
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: QuestionAttempt, newRow: QuestionAttempt) => void) => {
-    return this.tableCache.removeOnUpdate(cb);
-  }}
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  sessionId: __t.string().name("session_id"),
+  walletAddress: __t.option(__t.string()).name("wallet_address"),
+  guestId: __t.option(__t.string()).name("guest_id"),
+  spacetimeIdentity: __t.identity().name("spacetime_identity"),
+  get playerType() {
+    return PlayerType.name("player_type");
+  },
+  audioFileId: __t.string().name("audio_file_id"),
+  selectedAnswer: __t.u32().name("selected_answer"),
+  correctAnswer: __t.u32().name("correct_answer"),
+  isCorrect: __t.bool().name("is_correct"),
+  timeTaken: __t.f64().name("time_taken"),
+  answeredAt: __t.timestamp().name("answered_at"),
+});

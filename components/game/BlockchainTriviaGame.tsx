@@ -50,7 +50,7 @@ export default function BlockchainTriviaGame({
     error: contractError,
     submitScore,
     submitTrialScore,
-  } = useTriviaContract(true, false);
+  } = useTriviaContract(true);
 
   const DEFAULT_TOTAL_ROUNDS = 3;
   const DEFAULT_QUESTIONS_PER_ROUND = 10;

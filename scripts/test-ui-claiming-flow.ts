@@ -37,7 +37,7 @@ async function testUIClaimingFlow() {
     console.log('📡 Connecting to SpacetimeDB...');
     const connection = DbConnection.builder()
       .withUri(SPACETIME_URI)
-      .withModuleName(MODULE_NAME)
+      .withDatabaseName(MODULE_NAME)
       .onConnect(() => {
         console.log('✅ Connected to SpacetimeDB');
       })
@@ -96,7 +96,10 @@ async function testHighScoreDisplay(connection: any) {
     };
 
     // Create player using reducer
-    connection.reducers.createPlayer(TEST_CONFIG.testWallet, 'TestWinner');
+    connection.reducers.createPlayer({
+      walletAddress: TEST_CONFIG.testWallet,
+      username: 'TestWinner',
+    });
 
     // Test HighScoreDisplay component data
     const players = Array.from(connection.db.players.iter());

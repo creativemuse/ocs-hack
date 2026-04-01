@@ -1,9 +1,18 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBaseAccount } from './useBaseAccount';
+import type { PlayerModeChoice } from '@/types/game';
 
-interface GameSession {
+export interface GameSessionPlayer {
+  id: string;
+  isPaidPlayer: boolean;
+  joinedAt: number;
+  playerType: 'trial' | 'paid';
+  walletAddress?: string;
+}
+
+export interface GameSession {
   session_id: string;
-  status: 'waiting' | 'active' | 'completed';
+  status: 'waiting' | 'lobby' | 'active' | 'completed';
   player_count: number;
   paid_player_count: number;
   trial_player_count: number;
@@ -11,25 +20,42 @@ interface GameSession {
   entry_fee: number;
   start_time: number;
   created_at: number;
+  players?: GameSessionPlayer[];
+  lobby_until_ms?: number | null;
+}
+
+export interface JoinGameOptions {
+  playerMode?: PlayerModeChoice;
+  lobbyDurationSec?: number;
 }
 
 interface UseGameSessionReturn {
   session: GameSession | null;
   timeRemaining: number;
+  lobbyTimeRemaining: number;
+  inLobby: boolean;
   canJoin: boolean;
   isLoading: boolean;
   error: string | null;
   waitingForPaidPlayer: boolean;
   playerId: string | null;
   entryToken: string | null;
-  joinGame: (isPaidPlayer?: boolean, transactionHash?: string) => Promise<void>;
+  joinGame: (
+    isPaidPlayer?: boolean,
+    transactionHash?: string,
+    options?: JoinGameOptions
+  ) => Promise<Record<string, unknown>>;
   leaveGame: () => Promise<void>;
+  endLobby: () => Promise<void>;
+  syncLobbyDuration: (durationSec: number) => Promise<void>;
   refetch: () => Promise<void>;
 }
 
 export const useGameSession = (): UseGameSessionReturn => {
   const [session, setSession] = useState<GameSession | null>(null);
-  const [timeRemaining, setTimeRemaining] = useState(300); // 5 minutes default
+  const [timeRemaining, setTimeRemaining] = useState(300);
+  const [lobbyTimeRemaining, setLobbyTimeRemaining] = useState(0);
+  const [inLobby, setInLobby] = useState(false);
   const [canJoin, setCanJoin] = useState(true);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -38,30 +64,25 @@ export const useGameSession = (): UseGameSessionReturn => {
   const [entryToken, setEntryToken] = useState<string | null>(null);
   const { address } = useBaseAccount();
 
-  // Load entryToken from localStorage on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    
+
     const savedToken = localStorage.getItem('beatme_entry_token');
     if (savedToken) {
-      // Verify token is not expired before using it
       try {
         const payload = JSON.parse(atob(savedToken.split('.')[1]));
         const now = Math.floor(Date.now() / 1000);
         if (payload.exp && payload.exp > now) {
           setEntryToken(savedToken);
         } else {
-          // Token expired, remove it
           localStorage.removeItem('beatme_entry_token');
         }
-      } catch (e) {
-        // Invalid token format, remove it
+      } catch {
         localStorage.removeItem('beatme_entry_token');
       }
     }
   }, []);
 
-  // Helper function to save token to localStorage
   const saveEntryToken = useCallback((token: string) => {
     if (typeof window !== 'undefined') {
       localStorage.setItem('beatme_entry_token', token);
@@ -69,7 +90,6 @@ export const useGameSession = (): UseGameSessionReturn => {
     setEntryToken(token);
   }, []);
 
-  // Helper function to clear token from localStorage
   const clearEntryToken = useCallback(() => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('beatme_entry_token');
@@ -77,112 +97,106 @@ export const useGameSession = (): UseGameSessionReturn => {
     setEntryToken(null);
   }, []);
 
+  const applySessionPayload = useCallback((data: Record<string, unknown>) => {
+    setSession(data.session as GameSession);
+    setTimeRemaining((data.timeRemaining as number) ?? 0);
+    setLobbyTimeRemaining((data.lobbyTimeRemaining as number) ?? 0);
+    setInLobby(Boolean(data.inLobby));
+    setCanJoin(data.canJoin !== false);
+    setWaitingForPaidPlayer(Boolean(data.waitingForPaidPlayer));
+  }, []);
+
   const fetchSession = useCallback(async () => {
     try {
       setIsLoading(true);
       setError(null);
-      
+
       const response = await fetch('/api/game-session');
       if (!response.ok) {
         throw new Error('Failed to fetch game session');
       }
-      
+
       const data = await response.json();
-      setSession(data.session);
-      setTimeRemaining(data.timeRemaining);
-      // Use the canJoin value from the API response (which handles Waiting sessions properly)
-      setCanJoin(data.canJoin !== false); // Default to true if not specified
-      setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
+      applySessionPayload(data);
     } catch (err) {
       console.error('Error fetching game session:', err);
       setError(err instanceof Error ? err.message : 'Failed to load game session');
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [applySessionPayload]);
 
-  const joinGame = useCallback(async (isPaidPlayer: boolean = false, transactionHash?: string) => {
-    try {
+  const joinGame = useCallback(
+    async (isPaidPlayer: boolean = false, transactionHash?: string, options?: JoinGameOptions) => {
       setError(null);
-      
+
       if (isPaidPlayer && !address) {
         throw new Error('Connect wallet to start a paid game');
       }
 
-      // For paid games, transaction hash is required
       if (isPaidPlayer && !transactionHash) {
         console.warn('⚠️ Paid game started without transaction hash - this may cause issues');
       }
 
-      // Generate a unique player ID if not already set
       const currentPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
       if (!playerId) {
         setPlayerId(currentPlayerId);
       }
-      
-      // Request a server-verified entry token before joining
-      console.log('🔄 Joining game:', { isPaidPlayer, transactionHash, address });
+
       const sessionId = (await (await fetch('/api/game-session')).json()).session.session_id as string;
-      console.log('📋 Session ID:', sessionId);
-      
+
       const entryResp = await fetch('/api/game-entry', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          sessionId, 
-          isTrial: !isPaidPlayer, 
+        body: JSON.stringify({
+          sessionId,
+          isTrial: !isPaidPlayer,
           walletAddress: isPaidPlayer ? address : undefined,
-          paidTxHash: isPaidPlayer ? transactionHash : undefined
+          paidTxHash: isPaidPlayer ? transactionHash : undefined,
         }),
       });
-      
+
       if (!entryResp.ok) {
         let msg = 'Entry not allowed';
         try {
           const err = await entryResp.json();
-          msg = err?.error || msg;
-          console.error('❌ Game entry failed:', err);
+          msg = (err as { error?: string }).error || msg;
         } catch {}
         throw new Error(msg);
       }
-      
+
       const { entryId, token } = await entryResp.json();
-      console.log('✅ Game entry created:', { entryId, hasToken: !!token });
 
       const response = await fetch('/api/game-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'join',
-          playerAddress: null, // For now, we'll handle wallet connection later
           isPaidPlayer,
           playerId: currentPlayerId,
           entryId,
           token,
+          playerMode: options?.playerMode,
+          lobbyDurationSec: options?.lobbyDurationSec,
         }),
       });
 
       if (!response.ok) {
-        throw new Error('Failed to join game');
+        let msg = 'Failed to join game';
+        try {
+          const err = await response.json();
+          msg = (err as { error?: string }).error || msg;
+        } catch {}
+        throw new Error(msg);
       }
 
-      const data = await response.json();
-      console.log('✅ Successfully joined game session:', data);
-      setSession(data.session);
-      setTimeRemaining(data.timeRemaining);
-      saveEntryToken(token); // Use helper function to persist token
-      // Use the canJoin value from the API response
-      setCanJoin(data.canJoin !== false); // Default to true if not specified
-      setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
-    } catch (err) {
-      console.error('❌ Error joining game:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to join game';
-      setError(errorMessage);
-      throw err; // Re-throw to allow caller to handle
-    }
-  }, [playerId, address]);
+      const data = (await response.json()) as Record<string, unknown>;
+      applySessionPayload(data);
+      saveEntryToken(token as string);
+      return data;
+    },
+    [playerId, address, applySessionPayload, saveEntryToken]
+  );
 
   const leaveGame = useCallback(async () => {
     if (!playerId) {
@@ -192,16 +206,11 @@ export const useGameSession = (): UseGameSessionReturn => {
 
     try {
       setError(null);
-      
+
       const response = await fetch('/api/game-session', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          action: 'leave',
-          playerId,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'leave', playerId }),
       });
 
       if (!response.ok) {
@@ -209,25 +218,50 @@ export const useGameSession = (): UseGameSessionReturn => {
       }
 
       const data = await response.json();
-      setSession(data.session);
-      setTimeRemaining(data.timeRemaining);
-      // Use the canJoin value from the API response
-      setCanJoin(data.canJoin !== false); // Default to true if not specified
-      setWaitingForPaidPlayer(data.waitingForPaidPlayer || false);
-      
-      // Clear player ID when leaving
+      applySessionPayload(data);
+
       setPlayerId(null);
-      
-      // Only clear entry token after successful leave
       clearEntryToken();
     } catch (err) {
       console.error('Error leaving game:', err);
       setError(err instanceof Error ? err.message : 'Failed to leave game');
-      // Don't clear token if leave failed - user is still in the game on server
     }
-  }, [playerId, clearEntryToken]);
+  }, [playerId, clearEntryToken, applySessionPayload]);
 
-  // Countdown timer effect - only run if there's at least 1 paid player
+  const endLobby = useCallback(async () => {
+    try {
+      const response = await fetch('/api/game-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'end_lobby' }),
+      });
+      if (!response.ok) return;
+      const data = await response.json();
+      applySessionPayload(data);
+    } catch (e) {
+      console.error('endLobby failed', e);
+    }
+  }, [applySessionPayload]);
+
+  const syncLobbyDuration = useCallback(
+    async (durationSec: number) => {
+      try {
+        const response = await fetch('/api/game-session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'sync_lobby_duration', durationSec }),
+        });
+        if (!response.ok) return;
+        const data = await response.json();
+        applySessionPayload(data);
+      } catch (e) {
+        console.error('syncLobbyDuration failed', e);
+      }
+    },
+    [applySessionPayload]
+  );
+
+  // Intentionally omit timeRemaining from deps: adding it would reset the interval every tick.
   useEffect(() => {
     if (!session || session.status !== 'active' || timeRemaining <= 0 || session.paid_player_count === 0) {
       return;
@@ -237,7 +271,6 @@ export const useGameSession = (): UseGameSessionReturn => {
       setTimeRemaining((prev) => {
         const newTime = prev - 1;
         if (newTime <= 0) {
-          // Only set canJoin to false if there are paid players
           if (session.paid_player_count > 0) {
             setCanJoin(false);
           }
@@ -248,29 +281,23 @@ export const useGameSession = (): UseGameSessionReturn => {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [session]); // Removed timeRemaining from dependencies to prevent infinite loop
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- interval should not reset when timeRemaining ticks
+  }, [session]);
 
-  // Effect to update canJoin whenever session or timeRemaining changes
   useEffect(() => {
-    if (session) {
-      // CRITICAL FIX: Allow joining if:
-      // 1. Session is Waiting (trial players can join, waiting for paid player)
-      // 2. Session is Active with paid players AND time hasn't expired
-      // 3. Session has no paid players (shouldn't block joining)
-      const isWaiting = session.status === 'waiting';
-      const isActiveWithTime = session.status === 'active' && session.paid_player_count > 0 && timeRemaining > 0;
-      const hasNoPaidPlayers = session.paid_player_count === 0;
-      
-      setCanJoin(isWaiting || isActiveWithTime || hasNoPaidPlayers);
-    }
-  }, [session, timeRemaining]);
+    if (!session) return;
+    const isWaiting = session.status === 'waiting';
+    const isLobbyOpen = session.status === 'lobby' && lobbyTimeRemaining > 0;
+    const isActiveWithTime =
+      session.status === 'active' && session.paid_player_count > 0 && timeRemaining > 0;
+    const hasNoPaidPlayers = session.paid_player_count === 0;
+    setCanJoin(isWaiting || isLobbyOpen || isActiveWithTime || hasNoPaidPlayers);
+  }, [session, timeRemaining, lobbyTimeRemaining]);
 
-  // Initial fetch
   useEffect(() => {
     fetchSession();
   }, [fetchSession]);
 
-  // Auto-refresh every 30 seconds
   useEffect(() => {
     const interval = setInterval(fetchSession, 30000);
     return () => clearInterval(interval);
@@ -279,6 +306,8 @@ export const useGameSession = (): UseGameSessionReturn => {
   return {
     session,
     timeRemaining,
+    lobbyTimeRemaining,
+    inLobby,
     canJoin,
     isLoading,
     error,
@@ -287,6 +316,8 @@ export const useGameSession = (): UseGameSessionReturn => {
     entryToken,
     joinGame,
     leaveGame,
+    endLobby,
+    syncLobbyDuration,
     refetch: fetchSession,
   };
 };

@@ -12,7 +12,7 @@ import GameEntry from '@/components/game/GameEntry';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import { PlayerActivityMonitor } from '@/components/game/CDPEventMonitor';
-import type { TriviaQuestion } from '@/types/game';
+import type { TriviaQuestion, GameStartOptions } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
@@ -25,7 +25,7 @@ import SocialProfileViewer from '@/components/social/SocialProfileViewer';
 
 export default function Game() {
   const router = useRouter();
-  const { leaveGame } = useGameSession();
+  const { leaveGame, joinGame } = useGameSession();
   const { shareGameAchievement } = useSocialShare();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -291,10 +291,15 @@ export default function Game() {
 
   // Remove conflicting timer - let audio timer handle countdown
 
-  const handleGameStart = () => {
-    setGameStarted(true);
-    fetchHighScores(); // Fetch high scores when game starts
-    loadRandomQuestion();
+  const handleGameStart = async ({ isTrial, paidTxHash, playerMode }: GameStartOptions) => {
+    try {
+      await joinGame(!isTrial, paidTxHash, { playerMode: playerMode ?? 'paid_solo' });
+      setGameStarted(true);
+      fetchHighScores();
+      loadRandomQuestion();
+    } catch (err) {
+      console.error('Error joining game:', err);
+    }
   };
 
   const fetchHighScores = useCallback(async () => {
@@ -365,7 +370,7 @@ export default function Game() {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <GameEntry onGameStart={handleGameStart} playerModeChoice="paid" />
+          <GameEntry onGameStart={handleGameStart} playerModeChoice="paid_solo" />
         </div>
       </div>
     );

@@ -53,14 +53,18 @@ export function usePlayerProfileLive(
       updateProfile();
 
       // Set up reactive listeners
-      const unsubscribe = connection.db.players.onInsert(() => updateProfile());
-      const unsubscribe2 = connection.db.players.onUpdate(() => updateProfile());
-      const unsubscribe3 = connection.db.players.onDelete(() => updateProfile());
+      const onTableChange = () => {
+        updateProfile();
+      };
+
+      connection.db.players.onInsert(onTableChange);
+      connection.db.players.onUpdate(onTableChange);
+      connection.db.players.onDelete(onTableChange);
 
       return () => {
-        unsubscribe();
-        unsubscribe2();
-        unsubscribe3();
+        connection.db.players.removeOnInsert(onTableChange);
+        connection.db.players.removeOnUpdate(onTableChange);
+        connection.db.players.removeOnDelete(onTableChange);
       };
     } catch (err) {
       console.error('Error setting up player profile subscription:', err);

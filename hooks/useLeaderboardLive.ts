@@ -52,14 +52,13 @@ export function useLeaderboardLive(
     try {
       // Subscribe to player_stats table changes
       const updateLeaderboard = () => {
-        // PlayerType.tag is capitalized ("Paid" or "Trial")
         const playerTypeTag = type === 'paid' ? 'Paid' : 'Trial';
-        const leaderboard = connection.db.playerStats
+        const leaderboard = Array.from(connection.db.player_stats.iter())
           .filter((s: PlayerStats) => s.playerType.tag === playerTypeTag)
           .sort((a: PlayerStats, b: PlayerStats) => b.bestScore - a.bestScore)
           .slice(0, limit);
 
-        setStats(Array.from(leaderboard));
+        setStats(leaderboard);
         setLastUpdated(Date.now());
         setIsLoading(false);
       };
@@ -67,15 +66,18 @@ export function useLeaderboardLive(
       // Initial update
       updateLeaderboard();
 
-      // Set up reactive listeners
-      const unsubscribe = connection.db.playerStats.onInsert(() => updateLeaderboard());
-      const unsubscribe2 = connection.db.playerStats.onUpdate(() => updateLeaderboard());
-      const unsubscribe3 = connection.db.playerStats.onDelete(() => updateLeaderboard());
+      const onTableChange = () => {
+        updateLeaderboard();
+      };
+
+      connection.db.player_stats.onInsert(onTableChange);
+      connection.db.player_stats.onUpdate(onTableChange);
+      connection.db.player_stats.onDelete(onTableChange);
 
       return () => {
-        unsubscribe();
-        unsubscribe2();
-        unsubscribe3();
+        connection.db.player_stats.removeOnInsert(onTableChange);
+        connection.db.player_stats.removeOnUpdate(onTableChange);
+        connection.db.player_stats.removeOnDelete(onTableChange);
       };
     } catch (err) {
       console.error('Error setting up leaderboard subscription:', err);

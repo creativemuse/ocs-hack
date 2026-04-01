@@ -8,7 +8,11 @@
  */
 
 import React, { useEffect, useState } from 'react';
-import { DbConnection, type DbConnectionImpl } from '@/lib/spacetime/database';
+import { DbConnection } from '@/lib/spacetime/database';
+import {
+  buildAppSubscriptionQueries,
+  type AppSubscriptionTables,
+} from '@/lib/spacetime/appSubscriptionQueries';
 import { useWalletLinking } from '@/hooks/useWalletLinking';
 
 // Configuration
@@ -18,7 +22,7 @@ const SPACETIME_CONFIG = {
 };
 
 interface SpacetimeContextValue {
-  connection: DbConnectionImpl | null;
+  connection: DbConnection | null;
   isConnected: boolean;
   error: Error | null;
 }
@@ -42,7 +46,7 @@ interface SpacetimeProviderProps {
 }
 
 export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }) => {
-  const [connection, setConnection] = useState<DbConnectionImpl | null>(null);
+  const [connection, setConnection] = useState<DbConnection | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<Error | null>(null);
 
@@ -62,7 +66,7 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
     }
 
     let mounted = true;
-    let conn: DbConnectionImpl | null = null;
+    let conn: DbConnection | null = null;
 
     const initializeConnection = async () => {
       try {
@@ -74,7 +78,7 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
         // Create connection builder
         const builder = DbConnection.builder()
           .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-          .withModuleName(SPACETIME_CONFIG.module)
+          .withDatabaseName(SPACETIME_CONFIG.module)
           .onConnect((connection, identity, token) => {
             if (!mounted) return;
             
@@ -104,16 +108,9 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
                   : 'Subscription failed';
                 setError(new Error(`SpacetimeDB subscription error: ${errorMessage}`));
               })
-              .subscribe([
-                'SELECT * FROM players',
-                'SELECT * FROM game_sessions',
-                'SELECT * FROM player_stats',
-                'SELECT * FROM active_game_sessions',
-                'SELECT * FROM pending_claims',
-                'SELECT * FROM audio_files',
-                'SELECT * FROM active_connections',
-                'SELECT * FROM identity_wallet_mapping',
-              ]);
+              .subscribe((t) =>
+                buildAppSubscriptionQueries(t as unknown as AppSubscriptionTables)
+              );
           })
           .onDisconnect(() => {
             if (!mounted) return;

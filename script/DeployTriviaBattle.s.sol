@@ -25,10 +25,13 @@ contract DeployTriviaBattle is Script {
     address constant BASE_MAINNET_LINK = 0x88DFAAABAf06f3A41d260Bea10568C1B4794334C;
     // Chainlink Functions addresses - set to zero address if not using Chainlink Functions yet
     address constant BASE_MAINNET_CHAINLINK_FUNCTIONS = address(0);
-    address constant BASE_MAINNET_CHAINLINK_ORACLE = address(0);
+    /// @dev Base Keystone forwarder — CRE `writeReport` calls `onReport` from this address.
+    address constant BASE_MAINNET_KEYSTONE_FORWARDER = 0xF8344CFd5c43616a4366C34E3EEE75af79a74482;
+    address constant BASE_MAINNET_CHAINLINK_ORACLE = BASE_MAINNET_KEYSTONE_FORWARDER;
 
     // Configuration constants
-    uint256 constant SESSION_INTERVAL = 1 weeks; // 1 week between sessions
+    /// @dev Minimum is 10 minutes (contract MIN_SESSION_INTERVAL). Use a short interval so players can start new rounds after a session ends.
+    uint256 constant SESSION_INTERVAL = 10 minutes;
     uint256 constant ENTRY_FEE = 1e6; // 1 USDC (6 decimals)
 
     function run() external {
@@ -67,12 +70,10 @@ contract DeployTriviaBattle is Script {
             chainlinkOracleAddress = BASE_MAINNET_CHAINLINK_ORACLE;
 
             // Warn if Chainlink addresses are zero (they can be set later)
-            if (BASE_MAINNET_CHAINLINK_FUNCTIONS == address(0) || BASE_MAINNET_CHAINLINK_ORACLE == address(0)) {
-                console.log("NOTE: Chainlink addresses are zero. This is allowed.");
-                console.log("Update them after deployment using:");
-                console.log("  - setChainlinkFunctions(address)");
-                console.log("  - setChainlinkOracle(address)");
+            if (BASE_MAINNET_CHAINLINK_FUNCTIONS == address(0)) {
+                console.log("NOTE: Chainlink Functions address is zero. Set via setChainlinkFunctions when ready.");
             }
+            console.log("Keystone forwarder (chainlinkOracle):", chainlinkOracleAddress);
         } else {
             revert("Unsupported network. Use Base Sepolia (84532) or Base Mainnet (8453)");
         }

@@ -1,19 +1,18 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useCallback, useRef, Suspense } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
-import Link from 'next/link';
-
 import { ASSETS } from '@/lib/config/assets';
 import { useGameSession } from '@/hooks/useGameSession';
 import { formatTimeRemainingText } from '@/lib/utils/timeUtils';
 import GameEntry from '@/components/game/GameEntry';
+import MultiplayerLobby from '@/components/game/MultiplayerLobby';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
 import GamePayment from '@/components/game/GamePayment';
 import AudioPlayer from '@/components/game/AudioPlayer';
 import ActivePlayers from '@/components/game/ActivePlayers';
-import type { TriviaQuestion } from '@/types/game';
+import type { TriviaQuestion, PlayerModeChoice, GameStartOptions } from '@/types/game';
 import { ScoringSystem } from '@/lib/game/scoring';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
@@ -23,22 +22,23 @@ import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
 import { Trophy } from 'lucide-react';
 // OnchainKit imports removed - using Base Account instead
-import { Switch } from '@/components/ui/switch';
-import { Label } from '@/components/ui/label';
 import { Card, CardContent } from '@/components/ui/card';
+import { cn } from '@/lib/utils';
 import BaseAccountButton from '@/components/base-account/BaseAccountButton';
 
-export default function Home() {
-  const router = useRouter();
-  const { session, timeRemaining, canJoin, isLoading, waitingForPaidPlayer, playerId, entryToken, joinGame, leaveGame } = useGameSession();
+function HomePage() {
+  const { session, timeRemaining, lobbyTimeRemaining, canJoin, isLoading, waitingForPaidPlayer, playerId, entryToken, joinGame, leaveGame, endLobby, syncLobbyDuration, refetch } = useGameSession();
   const [showGameEntry, setShowGameEntry] = useState(false);
   const [showGuestMode, setShowGuestMode] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
-  const [playerModeChoice, setPlayerModeChoice] = useState<'trial' | 'paid'>('trial');
+  const [playerModeChoice, setPlayerModeChoice] = useState<PlayerModeChoice>('trial');
   const [gameStarted, setGameStarted] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false);
   const [isTrialGame, setIsTrialGame] = useState(false);
   const [guestName, setGuestName] = useState('');
+  const [inMultiplayerLobby, setInMultiplayerLobby] = useState(false);
+  const [inviteUrl, setInviteUrl] = useState('');
+  const searchParams = useSearchParams();
 
   // Game state
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
@@ -50,7 +50,6 @@ export default function Home() {
   const [totalScore, setTotalScore] = useState(0);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [gameTimeRemaining, setGameTimeRemaining] = useState(10);
-  const [audioCurrentTime, setAudioCurrentTime] = useState(0);
   const [currentRound, setCurrentRound] = useState(1);
   const totalRounds = 3;
   const questionsPerRound = 10;
@@ -63,15 +62,26 @@ export default function Home() {
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
-  const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError, refreshBalance } = useContractUSDCBalance();
+  const { balance: contractUSDCBalance, isLoading: contractBalanceLoading, error: contractBalanceError } = useContractUSDCBalance();
 
-  // Automatically switch to paid mode if trial is exhausted
+  // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
     if (trialStatus.gamesRemaining === 0 && !trialStatus.isTrialActive && playerModeChoice === 'trial') {
-      console.log('Trial exhausted - automatically switching to paid mode');
-      setPlayerModeChoice('paid');
+      console.log('Trial exhausted - automatically switching to paid solo');
+      setPlayerModeChoice('paid_solo');
     }
   }, [trialStatus.gamesRemaining, trialStatus.isTrialActive, playerModeChoice]);
+
+  useEffect(() => {
+    setInviteUrl(`${window.location.origin}/?mode=multiplayer`);
+  }, []);
+
+  useEffect(() => {
+    const m = searchParams.get('mode');
+    if (m === 'multiplayer') {
+      setPlayerModeChoice('paid_multiplayer');
+    }
+  }, [searchParams]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -80,7 +90,6 @@ export default function Home() {
     setIsAnswered(false);
     setStartTime(Date.now());
     setGameTimeRemaining(10);
-    setAudioCurrentTime(0);
     setAudioError(false);
     timerTriggeredRef.current = false;
 
@@ -179,17 +188,24 @@ export default function Home() {
     setShowGameEntry(true);
   };
 
-  const handleGameStart = async ({ isTrial }: { isTrial: boolean }) => {
+  const handleGameStart = async ({ isTrial, paidTxHash, playerMode }: GameStartOptions) => {
     try {
-      // Join the game session accordingly
-      await joinGame(!isTrial);
+      const data = await joinGame(!isTrial, paidTxHash, {
+        playerMode,
+        lobbyDurationSec: 180,
+      });
       setIsTrialGame(isTrial);
-      setGameStarted(true);
       setShowGameEntry(false);
+      const sess = data?.session as { status?: string } | undefined;
+      if (playerMode === 'paid_multiplayer' && sess?.status === 'lobby') {
+        setInMultiplayerLobby(true);
+        return;
+      }
+      setInMultiplayerLobby(false);
+      setGameStarted(true);
       loadRandomQuestion();
     } catch (error) {
       console.error('Error joining game:', error);
-      // Handle error - could show a message to user
     }
   };
 
@@ -270,7 +286,6 @@ export default function Home() {
   };
 
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
-    setAudioCurrentTime(currentTime);
     // Calculate remaining time based on audio progress, but cap at 10 seconds
     const audioRemaining = Math.max(0, duration - currentTime);
     const maxTime = 10; // 10 second limit
@@ -420,7 +435,7 @@ export default function Home() {
               Trial Games Complete!
             </h1>
             <p className="text-gray-600 text-lg mb-4">
-              You've played {trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!
+              {`You've played ${trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!`}
             </p>
             {/* Base Account Wallet Component */}
             <div className="flex justify-center">
@@ -438,90 +453,116 @@ export default function Home() {
     );
   }
 
+  // Paid multiplayer lobby (memory session)
+  if (inMultiplayerLobby) {
+    return (
+      <MultiplayerLobby
+        session={session}
+        lobbyTimeRemaining={lobbyTimeRemaining}
+        inviteUrl={inviteUrl}
+        onRoundStart={() => {
+          setInMultiplayerLobby(false);
+          setGameStarted(true);
+          loadRandomQuestion();
+        }}
+        onEndLobbyEarly={endLobby}
+        onSyncDuration={syncLobbyDuration}
+        refetch={refetch}
+        onLeaveLobby={async () => {
+          await leaveGame();
+          setInMultiplayerLobby(false);
+          setShowGameEntry(true);
+        }}
+      />
+    );
+  }
+
   // Show game entry screen with player mode choice
   if (showGameEntry) {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
-          {/* Player Mode Choice Toggle */}
+          {/* Player mode: Trial | Solo (paid) | Multiplayer (paid) */}
           <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
             <CardContent className="p-6">
               <div className="text-center mb-4">
                 <h2 className="text-xl font-bold text-white mb-2">Choose Your Play Mode</h2>
-                <p className="text-gray-300 text-sm">Select how you'd like to play</p>
-              </div>
-              
-              <div className="flex items-center justify-between p-4 bg-gray-800/30 rounded-lg border border-gray-700/50 mb-6">
-                <div className="flex items-center space-x-3">
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'trial' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
-                    <span className={`text-sm font-medium ${trialStatus.gamesRemaining === 0 ? 'text-gray-500 line-through' : 'text-gray-300'}`}>
-                      Trial Mode
-                      {trialStatus.gamesRemaining === 0 && (
-                        <span className="ml-2 text-xs text-red-400">(Used)</span>
-                      )}
-                    </span>
-                  </div>
-                  {/* <span className="text-gray-500">•</span> */}
-                  <div className="flex items-center space-x-3">
-                  {/* <span className="text-sm text-gray-400">
-                    {playerModeChoice === 'trial' ? 'Trial Mode' : 'Paid Mode'}
-                  </span> */}
-                  <button
-                    onClick={() => {
-                      // Prevent toggling to trial if trial is exhausted
-                      if (trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid') {
-                        console.log('Trial mode unavailable - trial already used');
-                        return;
-                      }
-                      const newChoice = playerModeChoice === 'trial' ? 'paid' : 'trial';
-                      console.log('Toggle clicked - changing from', playerModeChoice, 'to', newChoice);
-                      setPlayerModeChoice(newChoice);
-                    }}
-                    disabled={trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid'}
-                    className={`relative inline-flex h-6 w-12 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 ${
-                      trialStatus.gamesRemaining === 0 && playerModeChoice === 'paid' 
-                        ? 'bg-green-500 opacity-50 cursor-not-allowed' 
-                        : playerModeChoice === 'paid' 
-                        ? 'bg-green-500 cursor-pointer hover:opacity-80' 
-                        : 'bg-gray-600 cursor-pointer hover:opacity-80'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        playerModeChoice === 'paid' ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-2 h-2 rounded-full ${playerModeChoice === 'paid' ? 'bg-green-400' : 'bg-gray-400'}`}></div>
-                    <span className="text-sm font-medium text-gray-300">Paid Mode</span>
-                  </div>
-                </div>
+                <p className="text-gray-300 text-sm">Trial is free; paid modes use one USDC entry per session</p>
               </div>
 
-              {/* Trial exhausted message */}
+              <div
+                className="grid grid-cols-1 gap-2 sm:grid-cols-3 mb-6"
+                role="group"
+                aria-label="Play mode"
+              >
+                <button
+                  type="button"
+                  disabled={trialStatus.gamesRemaining === 0}
+                  onClick={() => setPlayerModeChoice('trial')}
+                  className={cn(
+                    'rounded-lg border px-3 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500',
+                    playerModeChoice === 'trial'
+                      ? 'border-green-500/60 bg-green-500/10 text-white'
+                      : 'border-gray-700/50 bg-gray-800/30 text-gray-400 hover:border-gray-600',
+                    trialStatus.gamesRemaining === 0 && 'opacity-50 cursor-not-allowed'
+                  )}
+                >
+                  <span className="font-medium text-white">Trial</span>
+                  <span className="mt-1 block text-xs text-gray-400">
+                    {trialStatus.gamesRemaining === 0 ? 'Used' : '1 free play'}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlayerModeChoice('paid_solo')}
+                  className={cn(
+                    'rounded-lg border px-3 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500',
+                    playerModeChoice === 'paid_solo'
+                      ? 'border-amber-500/60 bg-amber-500/10 text-white'
+                      : 'border-gray-700/50 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                  )}
+                >
+                  <span className="font-medium text-white">Solo</span>
+                  <span className="mt-1 block text-xs text-gray-400">Paid — prize pool</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPlayerModeChoice('paid_multiplayer')}
+                  className={cn(
+                    'rounded-lg border px-3 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500',
+                    playerModeChoice === 'paid_multiplayer'
+                      ? 'border-amber-500/60 bg-amber-500/10 text-white'
+                      : 'border-gray-700/50 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                  )}
+                >
+                  <span className="font-medium text-white">Multiplayer</span>
+                  <span className="mt-1 block text-xs text-gray-400">Paid — shared pool</span>
+                </button>
+              </div>
+
               {trialStatus.gamesRemaining === 0 && (
                 <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
                   <p className="text-sm text-blue-300">
-                    ℹ️ Your free trial has been used. You can only play in Paid Mode now.
+                    Your free trial is used. Choose Solo or Multiplayer to play with USDC.
                   </p>
                 </div>
               )}
 
-              {/* Mode Description */}
               <div className="text-center">
                 {playerModeChoice === 'trial' ? (
                   <div className="text-green-400 text-sm">
-                    <p className="font-medium">🎮 Free Trial Available</p>
-                    <p className="text-xs text-gray-300 mt-1">Play 1 free game, then connect wallet to continue</p>
+                    <p className="font-medium">Free trial</p>
+                    <p className="text-xs text-gray-300 mt-1">One free game, then use a paid mode</p>
+                  </div>
+                ) : playerModeChoice === 'paid_solo' ? (
+                  <div className="text-amber-200/90 text-sm">
+                    <p className="font-medium">Solo (paid)</p>
+                    <p className="text-xs text-gray-300 mt-1">Connect wallet, approve USDC, and join the battle</p>
                   </div>
                 ) : (
-                  <div className="text-blue-400 text-sm">
-                    <p className="font-medium">💰 Paid Player Mode</p>
-                    <p className="text-xs text-gray-300 mt-1">Connect wallet and pay to play (no free trial)</p>
+                  <div className="text-amber-200/90 text-sm">
+                    <p className="font-medium">Multiplayer (paid)</p>
+                    <p className="text-xs text-gray-300 mt-1">Same entry; pool grows with more players</p>
                   </div>
                 )}
               </div>
@@ -587,8 +628,7 @@ export default function Home() {
                   <div className="text-amber-300 text-sm">
                     <p className="font-medium mb-2">🎮 Trial Game Results</p>
                     <p className="text-amber-200/80">
-                      This was a practice game. Your score won't qualify for prizes from the prize pool.
-                      Connect your wallet to play for real money and compete for prizes!
+                      {`This was a practice game. Your score won't qualify for prizes from the prize pool. Connect your wallet to play for real money and compete for prizes!`}
                     </p>
                   </div>
                 </div>
@@ -600,7 +640,7 @@ export default function Home() {
                   <div className="text-purple-300 text-sm">
                     <p className="font-medium mb-2">🎯 Trial Games Complete!</p>
                     <p className="text-purple-200/80 mb-3">
-                      You've used all your free games. Connect your wallet to continue playing and earn rewards!
+                      {`You've used all your free games. Connect your wallet to continue playing and earn rewards!`}
                     </p>
                     <div className="flex justify-center">
                       <div className="flex flex-col items-center gap-2">
@@ -637,7 +677,7 @@ export default function Home() {
                   <div className="text-green-300 text-sm">
                     <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
                     <p className="text-green-200/80">
-                      Your score qualifies for prizes! You'll be entered into the prize pool distribution.
+                      {`Your score qualifies for prizes! You'll be entered into the prize pool distribution.`}
                     </p>
                   </div>
                 </div>
@@ -720,7 +760,7 @@ export default function Home() {
             <div className="flex justify-center mb-6">
               {gameTimeRemaining <= 0 ? (
                 <div className="text-4xl sm:text-5xl md:text-6xl font-bold font-mono text-red-500 animate-pulse bg-black/20 rounded-full px-6 sm:px-8 py-4 sm:py-6">
-                  TIME'S UP
+                  {`TIME'S UP`}
                 </div>
               ) : (
                 <div 
@@ -809,6 +849,7 @@ export default function Home() {
           <div className="text-center">
             
             {/* Current Paid Players Avatars */}
+            {!isTrialGame && gameStarted && (
             <div className="mb-4 flex justify-center">
               <ActivePlayers 
                 className="justify-center" 
@@ -816,6 +857,7 @@ export default function Home() {
                 showTooltips={true}
               />
             </div>
+            )}
             
             <div className="text-white text-sm">YOUR POINTS THIS ROUND: {score}</div>
           </div>
@@ -1019,3 +1061,18 @@ export default function Home() {
     </div>
   );
 }
+
+export default function Home() {
+  return (
+    <Suspense
+      fallback={
+        <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center">
+          <div className="text-white text-xl">Loading...</div>
+        </div>
+      }
+    >
+      <HomePage />
+    </Suspense>
+  );
+}
+

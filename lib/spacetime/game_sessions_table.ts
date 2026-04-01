@@ -4,126 +4,31 @@
 /* eslint-disable */
 /* tslint:disable */
 import {
-  AlgebraicType as __AlgebraicTypeValue,
-  BinaryReader as __BinaryReader,
-  BinaryWriter as __BinaryWriter,
-  ClientCache as __ClientCache,
-  ConnectionId as __ConnectionId,
-  DbConnectionBuilder as __DbConnectionBuilder,
-  DbConnectionImpl as __DbConnectionImpl,
-  Identity as __Identity,
-  SubscriptionBuilderImpl as __SubscriptionBuilderImpl,
-  TableCache as __TableCache,
-  TimeDuration as __TimeDuration,
-  Timestamp as __Timestamp,
-  deepEqual as __deepEqual,
-  type AlgebraicType as __AlgebraicTypeType,
-  type AlgebraicTypeVariants as __AlgebraicTypeVariants,
-  type CallReducerFlags as __CallReducerFlags,
-  type ErrorContextInterface as __ErrorContextInterface,
-  type Event as __Event,
-  type EventContextInterface as __EventContextInterface,
-  type ReducerEventContextInterface as __ReducerEventContextInterface,
-  type SubscriptionEventContextInterface as __SubscriptionEventContextInterface,
+  TypeBuilder as __TypeBuilder,
+  t as __t,
+  type AlgebraicTypeType as __AlgebraicTypeType,
+  type Infer as __Infer,
 } from "spacetimedb";
-import { GameSession } from "./game_session_type";
-import { PlayerType } from "./player_type_type";
-// Mark import as potentially unused
-declare type __keep_PlayerType = PlayerType;
+import {
+  PlayerType,
+} from "./types";
 
-import { type EventContext, type Reducer, RemoteReducers, RemoteTables } from ".";
-declare type __keep = [EventContext, Reducer, RemoteReducers, RemoteTables];
 
-/**
- * Table handle for the table `game_sessions`.
- *
- * Obtain a handle from the [`gameSessions`] property on [`RemoteTables`],
- * like `ctx.db.gameSessions`.
- *
- * Users are encouraged not to explicitly reference this type,
- * but to directly chain method calls,
- * like `ctx.db.gameSessions.on_insert(...)`.
- */
-export class GameSessionsTableHandle {
-  tableCache: __TableCache<GameSession>;
-
-  constructor(tableCache: __TableCache<GameSession>) {
-    this.tableCache = tableCache;
-  }
-
-  count(): number {
-    return this.tableCache.count();
-  }
-
-  iter(): Iterable<GameSession> {
-    return this.tableCache.iter();
-  }
-  /**
-   * Access to the `id` unique index on the table `game_sessions`,
-   * which allows point queries on the field of the same name
-   * via the [`GameSessionsIdUnique.find`] method.
-   *
-   * Users are encouraged not to explicitly reference this type,
-   * but to directly chain method calls,
-   * like `ctx.db.gameSessions.id().find(...)`.
-   *
-   * Get a handle on the `id` unique index on the table `game_sessions`.
-   */
-  id = {
-    // Find the subscribed row whose `id` column value is equal to `col_val`,
-    // if such a row is present in the client cache.
-    find: (col_val: bigint): GameSession | undefined => {
-      for (let row of this.tableCache.iter()) {
-        if (__deepEqual(row.id, col_val)) {
-          return row;
-        }
-      }
-    },
-  };
-  /**
-   * Access to the `sessionId` unique index on the table `game_sessions`,
-   * which allows point queries on the field of the same name
-   * via the [`GameSessionsSessionIdUnique.find`] method.
-   *
-   * Users are encouraged not to explicitly reference this type,
-   * but to directly chain method calls,
-   * like `ctx.db.gameSessions.sessionId().find(...)`.
-   *
-   * Get a handle on the `sessionId` unique index on the table `game_sessions`.
-   */
-  sessionId = {
-    // Find the subscribed row whose `sessionId` column value is equal to `col_val`,
-    // if such a row is present in the client cache.
-    find: (col_val: string): GameSession | undefined => {
-      for (let row of this.tableCache.iter()) {
-        if (__deepEqual(row.sessionId, col_val)) {
-          return row;
-        }
-      }
-    },
-  };
-
-  onInsert = (cb: (ctx: EventContext, row: GameSession) => void) => {
-    return this.tableCache.onInsert(cb);
-  }
-
-  removeOnInsert = (cb: (ctx: EventContext, row: GameSession) => void) => {
-    return this.tableCache.removeOnInsert(cb);
-  }
-
-  onDelete = (cb: (ctx: EventContext, row: GameSession) => void) => {
-    return this.tableCache.onDelete(cb);
-  }
-
-  removeOnDelete = (cb: (ctx: EventContext, row: GameSession) => void) => {
-    return this.tableCache.removeOnDelete(cb);
-  }
-
-  // Updates are only defined for tables with primary keys.
-  onUpdate = (cb: (ctx: EventContext, oldRow: GameSession, newRow: GameSession) => void) => {
-    return this.tableCache.onUpdate(cb);
-  }
-
-  removeOnUpdate = (cb: (ctx: EventContext, onRow: GameSession, newRow: GameSession) => void) => {
-    return this.tableCache.removeOnUpdate(cb);
-  }}
+export default __t.row({
+  id: __t.u64().primaryKey(),
+  sessionId: __t.string().name("session_id"),
+  gameId: __t.string().name("game_id"),
+  walletAddress: __t.option(__t.string()).name("wallet_address"),
+  guestId: __t.option(__t.string()).name("guest_id"),
+  spacetimeIdentity: __t.identity().name("spacetime_identity"),
+  get playerType() {
+    return PlayerType.name("player_type");
+  },
+  score: __t.u32(),
+  questionsAnswered: __t.u32().name("questions_answered"),
+  correctAnswers: __t.u32().name("correct_answers"),
+  startedAt: __t.timestamp().name("started_at"),
+  endedAt: __t.option(__t.timestamp()).name("ended_at"),
+  difficulty: __t.string(),
+  gameMode: __t.string().name("game_mode"),
+});

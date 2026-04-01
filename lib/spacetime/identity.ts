@@ -6,7 +6,7 @@
  */
 
 import { Identity } from 'spacetimedb';
-import { createConnection, type DbConnectionImpl } from './database';
+import { createConnection, type DbConnection } from './database';
 
 // Configuration
 const SPACETIME_HOST = process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com';
@@ -81,23 +81,23 @@ export async function verifyIdentity(identity: string, token: string): Promise<b
  * Store player identity using the connection's reducer
  */
 export async function storePlayerIdentity(params: {
-  connection: DbConnectionImpl;
+  connection: DbConnection;
   playerType: 'trial' | 'paid';
   walletAddress?: string;
   sessionId?: string;
 }): Promise<void> {
   // Use the CreatePlayer reducer from the generated bindings
-  await params.connection.reducers.createPlayer(
-    params.walletAddress || '',
-    undefined, // username
-  );
+  await params.connection.reducers.createPlayer({
+    walletAddress: params.walletAddress || '',
+    username: undefined,
+  });
 }
 
 /**
  * Get player profile from connection
  */
 export async function getPlayerProfile(
-  connection: DbConnectionImpl,
+  connection: DbConnection,
   walletAddress: string
 ): Promise<PlayerIdentity | null> {
   // Query the players table using the connection
@@ -125,28 +125,28 @@ export async function getPlayerProfile(
  * Mark a trial as completed for a player
  */
 export async function markTrialCompleted(
-  connection: DbConnectionImpl,
+  connection: DbConnection,
   walletAddress: string
 ): Promise<void> {
-  await connection.reducers.updateTrialStatus(
+  await connection.reducers.updateTrialStatus({
     walletAddress,
-    0, // trial_games_remaining
-    true // trial_completed
-  );
+    trialGamesRemaining: 0,
+    trialCompleted: true,
+  });
 }
 
 /**
  * Update player to paid status
  */
 export async function linkWalletToIdentity(
-  connection: DbConnectionImpl,
+  connection: DbConnection,
   walletAddress: string
 ): Promise<void> {
-  await connection.reducers.updateTrialStatus(
+  await connection.reducers.updateTrialStatus({
     walletAddress,
-    0,
-    true
-  );
+    trialGamesRemaining: 0,
+    trialCompleted: true,
+  });
 }
 
 /**
@@ -189,7 +189,7 @@ export async function ensurePlayerIdentity(params: {
  * Check if an identity can play trial games
  */
 export async function canPlayTrial(
-  connection: DbConnectionImpl,
+  connection: DbConnection,
   walletAddress: string
 ): Promise<boolean> {
   const playerInfo = await getPlayerProfile(connection, walletAddress);
@@ -204,7 +204,7 @@ export async function canPlayTrial(
  * Get player by wallet address
  */
 export async function getPlayerByWallet(
-  connection: DbConnectionImpl,
+  connection: DbConnection,
   walletAddress: string
 ): Promise<PlayerIdentity | null> {
   return getPlayerProfile(connection, walletAddress);

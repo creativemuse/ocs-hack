@@ -4,3 +4,6 @@ node_modules/
 .DS_Store
 dist/
 build/
+# CRE CLI compile output
+binary.wasm.br.b64
+binary.wasm

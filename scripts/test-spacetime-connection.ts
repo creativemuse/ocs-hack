@@ -31,7 +31,7 @@ console.log('🔌 Attempting to connect...');
 
 const builder = DbConnection.builder()
   .withUri(wsUri)
-  .withModuleName(config.module)
+  .withDatabaseName(config.module)
   .onConnect((conn, identity, token) => {
     console.log('✅ Connection successful!');
     console.log(`   Identity: ${identity.toHexString()}`);

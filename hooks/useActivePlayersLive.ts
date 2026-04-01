@@ -36,12 +36,12 @@ export function useActivePlayersLive(
     try {
       // Subscribe to players table changes
       const updateActivePlayers = () => {
-        const activePlayers = connection.db.players
+        const activePlayers = Array.from(connection.db.players.iter())
           .filter((p: Player) => p.gamesPlayed > 0)
           .sort((a: Player, b: Player) => Number(b.updatedAt) - Number(a.updatedAt))
           .slice(0, limit);
 
-        setPlayers(Array.from(activePlayers));
+        setPlayers(activePlayers);
         setLastUpdated(Date.now());
         setIsLoading(false);
       };
@@ -49,15 +49,18 @@ export function useActivePlayersLive(
       // Initial update
       updateActivePlayers();
 
-      // Set up reactive listeners
-      const unsubscribe = connection.db.players.onInsert(() => updateActivePlayers());
-      const unsubscribe2 = connection.db.players.onUpdate(() => updateActivePlayers());
-      const unsubscribe3 = connection.db.players.onDelete(() => updateActivePlayers());
+      const onTableChange = () => {
+        updateActivePlayers();
+      };
+
+      connection.db.players.onInsert(onTableChange);
+      connection.db.players.onUpdate(onTableChange);
+      connection.db.players.onDelete(onTableChange);
 
       return () => {
-        unsubscribe();
-        unsubscribe2();
-        unsubscribe3();
+        connection.db.players.removeOnInsert(onTableChange);
+        connection.db.players.removeOnUpdate(onTableChange);
+        connection.db.players.removeOnDelete(onTableChange);
       };
     } catch (err) {
       console.error('Error setting up active players subscription:', err);

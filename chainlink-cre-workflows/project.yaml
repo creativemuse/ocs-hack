@@ -1,9 +1,10 @@
+# Public RPCs: Alchemy URLs often 403 from CLI (origin not on allowlist). Override in .env if needed.
 staging-settings:
   rpcs:
     - chain-name: ethereum-mainnet
-      url: "https://eth-mainnet.g.alchemy.com/v2/5Uele1-f9VradlbXgrDgqCeAO5_AefTd"
+      url: "https://ethereum.publicnode.com"
 
 production-settings:
   rpcs:
     - chain-name: ethereum-mainnet
-      url: "https://eth-mainnet.g.alchemy.com/v2/5Uele1-f9VradlbXgrDgqCeAO5_AefTd"
+      url: "https://ethereum.publicnode.com"

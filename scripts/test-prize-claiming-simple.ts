@@ -32,7 +32,7 @@ async function testPrizeClaiming() {
     console.log('📡 Connecting to SpacetimeDB...');
     const connection = DbConnection.builder()
       .withUri(SPACETIME_URI)
-      .withModuleName(MODULE_NAME)
+      .withDatabaseName(MODULE_NAME)
       .onConnect(() => {
         console.log('✅ Connected to SpacetimeDB');
       })
@@ -47,7 +47,10 @@ async function testPrizeClaiming() {
 
     // 2. Create test player
     console.log('👤 Creating test player...');
-    connection.reducers.createPlayer(TEST_CONFIG.testWallet, 'TestWinner');
+    connection.reducers.createPlayer({
+      walletAddress: TEST_CONFIG.testWallet,
+      username: 'TestWinner',
+    });
     console.log('✅ Test player created');
 
     // 3. Simulate game completion
@@ -55,27 +58,26 @@ async function testPrizeClaiming() {
     const sessionId = `test-session-${Date.now()}`;
     
     // Start game session
-    connection.reducers.startGameSession(
+    connection.reducers.startGameSession({
       sessionId,
-      'hard',
-      'competitive',
-      'Paid',
-      TEST_CONFIG.testWallet,
-      undefined
-    );
+      gameId: 'test-game',
+      difficulty: 'hard',
+      gameMode: 'competitive',
+      playerType: 'paid',
+      walletAddress: TEST_CONFIG.testWallet,
+      guestId: undefined,
+    });
 
-    // Record game completion with high score
-    connection.reducers.recordGuestGame(
+    connection.reducers.recordGuestGame({
       sessionId,
-      TEST_CONFIG.testWallet,
-      TEST_CONFIG.testScore,
-      10,
-      8,
-      JSON.stringify({ test: true })
-    );
+      guestId: TEST_CONFIG.testWallet,
+      score: TEST_CONFIG.testScore,
+      questionsAnswered: 10,
+      correctAnswers: 8,
+      gameData: JSON.stringify({ test: true }),
+    });
 
-    // End game session
-    connection.reducers.endGameSession(sessionId);
+    connection.reducers.endGameSession({ sessionId });
     console.log('✅ Game completion simulated');
 
     // 4. Check prize calculation
@@ -98,7 +100,7 @@ async function testPrizeClaiming() {
     }
 
     // Check if prize distribution was recorded
-    const prizeHistory = Array.from(connection.db.prizeHistory.iter());
+    const prizeHistory = Array.from(connection.db.prize_history.iter());
     const playerPrizeHistory = prizeHistory.filter(p => p.walletAddress === TEST_CONFIG.testWallet);
     if (playerPrizeHistory.length > 0) {
       console.log(`Prize history entries: ${playerPrizeHistory.length}`);
@@ -110,7 +112,7 @@ async function testPrizeClaiming() {
     console.log('🎯 Testing prize claiming preparation...');
     
     // Check if pending claim was created
-    const pendingClaims = Array.from(connection.db.pendingClaims.iter());
+    const pendingClaims = Array.from(connection.db.pending_claims.iter());
     const playerPendingClaims = pendingClaims.filter(p => p.walletAddress === TEST_CONFIG.testWallet);
     if (playerPendingClaims.length > 0) {
       console.log(`Pending claims found: ${playerPendingClaims.length}`);

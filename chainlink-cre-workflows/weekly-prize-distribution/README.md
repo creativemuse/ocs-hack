@@ -24,21 +24,28 @@ This Chainlink CRE workflow automatically distributes prizes from the TriviaBatt
    - Update `config.production.json` with your mainnet contract address
 
 3. **Set up environment variables**:
-   - Create a `.env` file in the project root with:
+   - Create a `.env` file under `chainlink-cre-workflows/weekly-prize-distribution/` (or pass `-e`) with:
      ```
      CRE_ETH_PRIVATE_KEY=your_private_key_here
      ```
 
-4. **Test locally**:
+4. **Run CRE commands from the monorepo workflow root** (`chainlink-cre-workflows/`), not from this subfolder:
    ```bash
-   cre workflow simulate weekly-prize-distribution --target staging-settings
+   cd ../   # chainlink-cre-workflows
    ```
 
-5. **Deploy to CRE** (requires Early Access):
+5. **Test locally** (optional):
    ```bash
-   cre workflow deploy weekly-prize-distribution --target staging-settings
-   cre workflow activate weekly-prize-distribution --target staging-settings
+   cre workflow simulate weekly-prize-distribution --target staging-settings --non-interactive --trigger-index 0
    ```
+
+6. **Deploy & activate** (production example):
+   ```bash
+   cre workflow deploy weekly-prize-distribution --target production-settings --yes
+   cre workflow activate weekly-prize-distribution --target production-settings --yes
+   ```
+
+7. **On-chain**: call `setChainlinkOracle(forwarder)` on `TriviaBattle` so `onReport` accepts CRE. See [CRE_DEPLOYMENT_STEPS.md](./CRE_DEPLOYMENT_STEPS.md) and `scripts/set-chainlink-oracle.sh` in the repo root.
 
 ## Configuration
 
@@ -58,9 +65,9 @@ Adjust the `gasLimit` in your config file based on your contract's gas requireme
 ## Contract Requirements
 
 The TriviaBattle contract must:
-1. Have `chainlinkForwarder` address set (via `setChainlinkForwarder()`)
-2. Implement `getSessionInfo()` view function
-3. Allow `distributePrizes()` to be called by the Chainlink forwarder
+1. Have the Keystone forwarder address set as `chainlinkOracle` (via `setChainlinkOracle(address)`)
+2. Expose the view helpers the workflow reads (`isSessionActive`, `lastSessionTime`, `sessionInterval`, `getContractUsdcBalance`, `getCurrentPlayers`, `sessionCounter`, etc.); see `main.ts`
+3. Allow `distributePrizes()` to be triggered via CRE `writeReport` / `onReport` (forwarder must match `chainlinkOracle`)
 
 ## Monitoring
 

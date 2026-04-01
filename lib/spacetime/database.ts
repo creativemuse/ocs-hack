@@ -5,7 +5,6 @@
  */
 
 import { DbConnection } from './index';
-import type { DbConnectionImpl } from 'spacetimedb';
 
 // Configuration
 const SPACETIME_CONFIG = {
@@ -29,7 +28,7 @@ export function createConnectionBuilder() {
   
   const builder = DbConnection.builder()
     .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-    .withModuleName(SPACETIME_CONFIG.module)
+    .withDatabaseName(SPACETIME_CONFIG.module)
     .onConnect((conn, identity, token) => {
       console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
       // Save token for future connections to maintain persistent identity
@@ -56,7 +55,7 @@ export function createConnectionBuilder() {
  * Create and return a database connection
  * This is the main connection factory for the application
  */
-export async function createConnection(): Promise<DbConnectionImpl> {
+export async function createConnection(): Promise<DbConnection> {
   return new Promise((resolve, reject) => {
     const timeout = setTimeout(() => {
       reject(new Error('Connection timeout'));
@@ -69,7 +68,7 @@ export async function createConnection(): Promise<DbConnectionImpl> {
     
     const builder = DbConnection.builder()
       .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-      .withModuleName(SPACETIME_CONFIG.module)
+      .withDatabaseName(SPACETIME_CONFIG.module)
       .onConnect((conn, identity, token) => {
         clearTimeout(timeout);
         console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
@@ -108,6 +107,20 @@ export function getConfig(): DatabaseConfig {
   return { ...SPACETIME_CONFIG };
 }
 
-// Export types from bindings for convenience
+// Export connection API and table helpers from generated bindings
 export * from './index';
-export type { DbConnectionImpl } from 'spacetimedb';
+
+export type {
+  Player,
+  GameSession,
+  ActiveGameSession,
+  PlayerStats,
+  AudioFile,
+  PendingClaim,
+  PrizeHistory,
+  GameEntry,
+  AnonymousSession,
+  PrizePool,
+  Admin,
+  PlayerType,
+} from './types';

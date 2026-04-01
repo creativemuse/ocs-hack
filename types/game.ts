@@ -1,3 +1,13 @@
+/** Trial is free; paid modes share the same on-chain `joinBattle` (solo vs multiplayer is UX + matchmaking). */
+export type PlayerModeChoice = 'trial' | 'paid_solo' | 'paid_multiplayer';
+
+export type GameStartOptions = {
+  isTrial: boolean;
+  /** Required for paid entry verification when using approve + joinBattle. */
+  paidTxHash?: string;
+  playerMode?: PlayerModeChoice;
+};
+
 export type QuestionType = 'name-that-tune' | 'artist-match' | 'release-year' | 'chart-position' | 'genre-classification';
 
 export type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
