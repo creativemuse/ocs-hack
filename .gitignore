@@ -60,15 +60,19 @@ Thumbs.db
 .pnpm-store
 
 ############################################
-<<<<<<< Updated upstream
 # Large contract directories
 ############################################
 lib/chainlink
 sponsored_transactions/node_modules
-=======
-# Foundry
+
+############################################
+# Local toolchain binaries (too large for GitHub)
+############################################
+.tools/
+
+############################################
+# Foundry (repo root; complements broadcast/* cache/* above)
 ############################################
 cache/
 broadcast/
 out/
->>>>>>> Stashed changes
