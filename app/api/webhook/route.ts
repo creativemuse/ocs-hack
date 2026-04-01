@@ -2,6 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { logger } from '@/lib/utils/logger';
 import crypto from 'crypto';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+
+const normalizeAddr = (a: string | undefined): string =>
+  (a ?? '').toLowerCase().replace(/^0x/, '') === ''
+    ? ''
+    : `0x${(a.startsWith('0x') ? a.slice(2) : a).toLowerCase()}`;
 
 /**
  * Webhook endpoint for external service integrations
@@ -329,10 +335,11 @@ async function handleCDPWebhook(event: WebhookEvent): Promise<{ success: boolean
     const cdpEvent = event as unknown as CDPOnchainEvent;
     const eventData = cdpEvent.data;
     
-    const contractAddress = eventData.contractAddress?.toLowerCase();
+    const contractAddress = normalizeAddr(eventData.contractAddress);
     const eventName = eventData.eventName;
     const network = eventData.networkId || 'base-mainnet';
-    
+    const expectedTrivia = normalizeAddr(TRIVIA_CONTRACT_ADDRESS);
+
     logger.info('CDP onchain activity detected:', {
       eventId: cdpEvent.id,
       subscriptionId: eventData.subscriptionId,
@@ -343,11 +350,9 @@ async function handleCDPWebhook(event: WebhookEvent): Promise<{ success: boolean
       blockNumber: eventData.blockNumber,
     });
 
-    // Verify this is for our TriviaBattlev4 contract
-    const TRIVIA_CONTRACT = '0xd8f082fa4ef6a4c59f8366c19a196d488485682b'.toLowerCase();
-    if (contractAddress !== TRIVIA_CONTRACT) {
+    if (!expectedTrivia || contractAddress !== expectedTrivia) {
       logger.warn('CDP webhook received for different contract:', {
-        expected: TRIVIA_CONTRACT,
+        expected: expectedTrivia,
         received: contractAddress,
       });
       return { success: true, message: 'Event from different contract, ignoring' };
@@ -431,7 +436,9 @@ async function handleCDPWebhook(event: WebhookEvent): Promise<{ success: boolean
           
           const sessionId = String(eventData.sessionId || eventData.gameId || '');
           const winners = eventData.winners as string[] | undefined;
-          const amounts = eventData.amounts as string[] | undefined;
+          const amounts = (eventData.amounts ?? eventData.prizeAmounts) as
+            | string[]
+            | undefined;
           
           if (winners && amounts && winners.length === amounts.length) {
             let successCount = 0;
@@ -494,6 +501,22 @@ async function handleCDPWebhook(event: WebhookEvent): Promise<{ success: boolean
         });
         // TODO: Update player entry status in database
         return { success: true, message: 'Player entry recorded' };
+
+      case 'PlayerJoined':
+        logger.info('Player joined (session contract):', {
+          sessionId: eventData.sessionId,
+          player: eventData.player,
+          transactionHash: eventData.transactionHash,
+        });
+        return { success: true, message: 'Player join recorded' };
+
+      case 'SessionStarted':
+        logger.info('Session started:', {
+          sessionId: eventData.sessionId,
+          startTime: eventData.startTime,
+          transactionHash: eventData.transactionHash,
+        });
+        return { success: true, message: 'Session start recorded' };
 
       case 'GameCreated':
         logger.info('Game created event:', {

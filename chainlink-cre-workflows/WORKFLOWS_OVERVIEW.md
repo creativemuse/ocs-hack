@@ -56,19 +56,13 @@ cre workflow deploy weekly-prize-distribution --target production-settings
 - Staging: `config.staging.json`
 - Production: `config.production.json`
 
-**Deployment**:
+**Deployment** (from `chainlink-cre-workflows/`; production contract in `session-monitor/config.production.json`):
 ```bash
-# Install dependencies
-cd session-monitor
-bun install
-cd ..
-
-# Test first (from project root)
-cre workflow simulate session-monitor --target staging-settings
-# Then deploy
-cre workflow deploy session-monitor --target staging-settings
-cre workflow deploy session-monitor --target production-settings
+bun install --cwd session-monitor
+cre workflow deploy session-monitor --target production-settings --yes
+cre workflow activate session-monitor --target production-settings --yes
 ```
+Staging: use `--target staging-settings` and `config.staging.json`.
 
 ---
 

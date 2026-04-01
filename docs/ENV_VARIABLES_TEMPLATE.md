@@ -10,16 +10,15 @@ Create a `.env` file in the project root with the following variables:
 # Private key for deploying contracts (without 0x prefix)
 PRIVATE_KEY=your_64_character_private_key_without_0x
 
-# Contract Addresses (Base Mainnet)
-NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0xaeFd92921ee2a413cE4C5668Ac9558ED68CC2F13
+# Contract Addresses (Base Mainnet) — align with chainlink-cre-workflows/weekly-prize-distribution/config.production.json
+NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6
 NEXT_PUBLIC_USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 
-# SpaceTimeDB Configuration (REQUIRED)
+# SpacetimeDB (production) — see docs/SPACETIMEDB_ENV_SETUP.md
+NEXT_PUBLIC_SPACETIME_HOST=https://maincloud.spacetimedb.com
+NEXT_PUBLIC_SPACETIME_MODULE=beat-me
 SPACETIME_HOST=https://maincloud.spacetimedb.com
-SPACETIME_DATABASE=your_database_id
-SPACETIME_IDENTITY=your_identity_id
 SPACETIME_MODULE=beat-me
-SPACETIME_PORT=443
 
 ############################################
 # CDP API AUTHENTICATION (Choose ONE method)

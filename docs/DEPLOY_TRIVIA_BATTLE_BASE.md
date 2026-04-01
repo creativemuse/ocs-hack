@@ -17,7 +17,7 @@ export ETHERSCAN_API_KEY=...      # Etherscan API v2 key (works for Base / all s
 
 Then:
 
-1. Set `NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS` to the **new** address everywhere (local + Vercel).
+1. Set `NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS` to the **new** address everywhere (local + Vercel). Run `vercel env pull` after updating in the dashboard, or `vercel env add NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS production` so production matches [chainlink-cre-workflows/weekly-prize-distribution/config.production.json](../chainlink-cre-workflows/weekly-prize-distribution/config.production.json).
 2. Update `chainlink-cre-workflows/weekly-prize-distribution/config.production.json` → `contractAddress`.
 3. From `chainlink-cre-workflows/`: put `CRE_ETH_PRIVATE_KEY` in **`chainlink-cre-workflows/.env`**, or pass **`-e weekly-prize-distribution/.env`** if the key only lives under the workflow folder (see `chainlink-cre-workflows/ENV_SETUP.md`).
 

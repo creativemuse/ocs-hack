@@ -53,7 +53,7 @@ forge script script/Deploy.s.sol:DeployScript \
     --rpc-url $BASE_SEPOLIA_RPC_URL \
     --broadcast \
     --verify \
-    --etherscan-api-key $BASESCAN_API_KEY
+    --etherscan-api-key $ETHERSCAN_API_KEY
 
 CONTRACT_ADDRESS=0xYourContractAddress
 ```
@@ -665,7 +665,7 @@ main()
 # .env file
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 BASE_MAINNET_RPC_URL=https://mainnet.base.org
-BASESCAN_API_KEY=your_basescan_api_key
+ETHERSCAN_API_KEY=your_etherscan_api_key
 PRIVATE_KEY=your_private_key
 GAME_ORACLE_ADDRESS=0xYourOracleAddress
 USDC_ADDRESS_BASE=0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
