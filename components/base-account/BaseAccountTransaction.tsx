@@ -5,8 +5,13 @@ import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { createBaseAccountSDK } from '@base-org/account';
 import { base } from 'viem/chains';
-import { numberToHex } from 'viem';
+import { createPublicClient, http, numberToHex, type Hex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+
+const basePublicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org'),
+});
 
 export type BaseAccountTxStatusExtras = {
   /** Last `eth_sendTransaction` hash (e.g. `joinBattle` after approve in a batch). */
@@ -64,9 +69,12 @@ export default function BaseAccountTransaction({
 
       const provider = sdk.getProvider();
 
-      // Send transactions sequentially using Base Account
+      // Smart accounts (4337): each user op bumps the account nonce on-chain only after
+      // inclusion. Sending approve + joinBattle back-to-back causes AA25 invalid account nonce
+      // on the second op — wait for each receipt before the next send.
       const results: string[] = [];
-      for (const call of calls) {
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
         const result = (await provider.request({
           method: 'eth_sendTransaction',
           params: [{
@@ -76,12 +84,24 @@ export default function BaseAccountTransaction({
             data: call.data,
             chainId: numberToHex(base.id),
           }]
-        })) as string;
+        })) as Hex;
+
         results.push(result);
+
+        const receipt = await basePublicClient.waitForTransactionReceipt({
+          hash: result,
+          timeout: 180_000,
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error(
+            `Transaction ${i + 1} of ${calls.length} reverted on-chain. Try again in a moment.`
+          );
+        }
       }
 
       const lastTxHash = results.length > 0 ? results[results.length - 1] : undefined;
-      console.log('Transactions sent:', results);
+      console.log('Transactions confirmed:', results);
       setStatus('success');
       setMessage('Transaction successful!');
       onStatus?.('success', 'Transaction successful!', { lastTxHash });

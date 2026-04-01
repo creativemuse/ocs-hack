@@ -140,14 +140,50 @@ export default function GameEntry({
       // Safely serialize error message to avoid BigInt issues
       const safeMessage = message || 'Unknown transaction error';
       console.error('Transaction failed:', safeMessage);
-      
+
+      const isAccountNonceError =
+        safeMessage.includes('AA25') ||
+        safeMessage.toLowerCase().includes('invalid account nonce');
+
+      if (isAccountNonceError) {
+        const nonceError: TransactionError = {
+          code: 'AA25_INVALID_NONCE',
+          message: 'Invalid smart account nonce',
+          userMessage:
+            'Your wallet is still finishing the USDC approval on-chain. Wait a few seconds, then tap Transact again to send the join step. Sponsored gas may require Coinbase Paymaster rules (e.g. Coinbase Verified User) in CDP.',
+          recoverable: true,
+          retryable: true,
+          details: {
+            suggestion:
+              'If this keeps happening, confirm the first transaction succeeded in your wallet activity, then retry. Check Paymaster sponsorship rules in CDP.',
+            link: 'https://portal.cdp.coinbase.com/products/bundler-and-paymaster',
+          },
+        };
+        setTransactionError(nonceError);
+        setError(nonceError.userMessage);
+        logTransactionError(
+          nonceError,
+          {
+            operation: 'paid_game_entry',
+            contractAddress: TRIVIA_CONTRACT_ADDRESS,
+            functionName: 'joinBattle',
+            userAddress: address || undefined,
+            chainId: base.id,
+          },
+          { message: safeMessage }
+        );
+        return;
+      }
+
       // Check if error is paymaster/bundler related
-      const isPaymasterError = 
+      const isPaymasterError =
         safeMessage?.includes('paymaster') ||
         safeMessage?.includes('bundler') ||
         safeMessage?.includes('sponsor') ||
         safeMessage?.includes('allowlist') ||
-        safeMessage?.includes('Transaction too large');
+        safeMessage?.includes('Transaction too large') ||
+        safeMessage.toLowerCase().includes('attestation') ||
+        safeMessage.includes('Verified User');
       
       if (isPaymasterError) {
         console.error('⚠️ Paymaster/bundler issue detected');
@@ -160,7 +196,8 @@ export default function GameEntry({
         const paymasterError: TransactionError = {
           code: 'PAYMASTER_ERROR',
           message: 'Transaction rejected by paymaster',
-          userMessage: 'Unable to sponsor transaction. Please ensure contracts are allowlisted in CDP Dashboard.',
+          userMessage:
+            'Unable to sponsor gas. In CDP Bundler & Paymaster, confirm contract allowlists and any wallet rules (e.g. Coinbase Verified User attestation). You can also relax sponsorship rules for testing.',
           recoverable: true,
           retryable: false,
           details: {
@@ -545,7 +582,7 @@ export default function GameEntry({
                     className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-gray-300"
                     role="status"
                   >
-                    Entry is <span className="text-white font-medium">1 USDC</span> per session. Gas is often sponsored by the paymaster; you still sign the USDC approval and the join call.
+                    Entry is <span className="text-white font-medium">1 USDC</span> per session. You sign two steps: USDC approval, then join — the app waits for the first to confirm before sending the second (avoids wallet nonce errors). Sponsored gas depends on your CDP Paymaster rules.
                   </div>
                   
                   {isProcessingPayment ? (
