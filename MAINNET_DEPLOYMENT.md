@@ -1,6 +1,6 @@
 # TriviaBattlev4 Mainnet Deployment
 
-> **App / CRE default (current `TriviaBattle.sol`):** `0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f` on Base.  
+> **App / CRE default (current `TriviaBattle.sol`):** `0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6` on Base.  
 > The sections below describe the **TriviaBattlev4** deployment and Chainlink Functions setup for the older address `0xd8F082fa4EF6a4C59F8366c19a196d488485682b`.
 
 ## 🎉 Contract Successfully Deployed to Base Mainnet

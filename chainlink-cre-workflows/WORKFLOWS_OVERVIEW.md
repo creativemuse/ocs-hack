@@ -184,9 +184,8 @@ For workflows to function properly, the TriviaBattle contract must:
 
 ## Monitoring and Debugging
 
-- View workflow logs in the CRE dashboard
-- Use `cre workflow logs <workflow-name>` to view recent logs
-- Check workflow status: `cre workflow status <workflow-name>`
+- View runs, history, and logs in the [CRE dashboard](https://cre.chain.link) (the CLI has no `workflow status` or `workflow logs` subcommands).
+- Optional: `cre workflow hash <workflow-folder>` prints binary/config/workflow hashes for comparison with on-chain registration.
 
 ## Extending Workflows
 

@@ -136,7 +136,7 @@ Shows: wallet address, avatar, total USDC earned
 
 ### 1. Start Development Server
 =======
-1. Set `BASESCAN_API_KEY` in your `.env` file
+1. Set `ETHERSCAN_API_KEY` in your `.env` file
 2. Run:
 >>>>>>> Stashed changes:DEPLOYMENT_SUMMARY.md
 ```bash

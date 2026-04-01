@@ -79,7 +79,7 @@ new TriviaBattle(
 ```bash
 # Set environment variables
 export PRIVATE_KEY=your_private_key
-export BASESCAN_API_KEY=your_api_key
+export ETHERSCAN_API_KEY=your_api_key
 
 # Test deployment (simulation)
 forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle \

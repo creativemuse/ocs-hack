@@ -1,8 +1,26 @@
 # Chainlink CRE Environment Setup
 
+## Where the CRE CLI reads `.env`
+
+By default, `cre` loads **`chainlink-cre-workflows/.env`** (project root next to `project.yaml`). If you only have **`weekly-prize-distribution/.env`**, the CLI will **not** see `CRE_ETH_PRIVATE_KEY` and you get:
+
+`failed to parse private key ... invalid length, need 256 bits`
+
+**Fix (pick one):**
+
+1. **Copy or symlink** your key into the project root:
+   ```bash
+   cd chainlink-cre-workflows
+   cp weekly-prize-distribution/.env .env   # or: ln -s weekly-prize-distribution/.env .env
+   ```
+2. **Pass the env file on every command** (from `chainlink-cre-workflows/`):
+   ```bash
+   cre workflow activate weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
+   ```
+
 ## .env File Configuration
 
-The `.env` file in the `chainlink-cre-workflows/` directory should contain your private key for signing transactions when the workflow writes to the blockchain.
+The `.env` file should contain your private key for signing transactions when the workflow writes to the blockchain (root `.env` or path passed with `-e`).
 
 ### Required Environment Variable
 
@@ -63,13 +81,13 @@ CRE_ETH_PRIVATE_KEY=1234567890abcdef
 After setting up your `.env` file, test the workflow locally:
 
 ```bash
-cd chainlink-cre-workflows/weekly-prize-distribution
-bun install
-cre workflow simulate weekly-prize-distribution --target staging-settings
+cd chainlink-cre-workflows
+bun install --cwd weekly-prize-distribution
+cre workflow simulate weekly-prize-distribution -e weekly-prize-distribution/.env --target staging-settings
 ```
 
 ## Next Steps
 
 1. Ensure your contract's `chainlinkOracle` is set to the CRE forwarder address
-2. Test the workflow locally with `cre workflow simulate`
-3. Deploy the workflow to CRE when ready: `cre workflow deploy weekly-prize-distribution --target staging-settings`
+2. Test the workflow locally with `cre workflow simulate` (use `-e` if `.env` is only under the workflow folder)
+3. Deploy: `cre workflow deploy weekly-prize-distribution -e weekly-prize-distribution/.env --target staging-settings`

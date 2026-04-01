@@ -4,7 +4,7 @@
 
 1. **Wallet with ETH**: You need a wallet with some ETH on Base Sepolia for gas fees
 2. **Private Key**: Your wallet's private key for deployment
-3. **Basescan API Key** (optional): For automatic contract verification
+3. **Etherscan API v2 key** (`ETHERSCAN_API_KEY`, optional): For automatic contract verification on Base
 
 ## Environment Setup
 
@@ -17,8 +17,8 @@ BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 # Your private key for deployment (keep this secret!)
 PRIVATE_KEY=your_private_key_here
 
-# Basescan API key for contract verification (optional)
-BASESCAN_API_KEY=your_basescan_api_key_here
+# Etherscan API v2 key for verification (optional)
+ETHERSCAN_API_KEY=your_etherscan_api_key_here
 
 # Network configuration for frontend
 NEXT_PUBLIC_NETWORK=sepolia

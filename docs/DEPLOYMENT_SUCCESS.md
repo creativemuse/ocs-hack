@@ -38,7 +38,7 @@
 
 ### 1. Verify Contract on Basescan
 
-Set your `BASESCAN_API_KEY` in `.env` and run:
+Set your `ETHERSCAN_API_KEY` in `.env` and run:
 
 ```bash
 forge verify-contract \

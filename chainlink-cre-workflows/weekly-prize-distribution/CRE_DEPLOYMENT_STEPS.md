@@ -2,7 +2,7 @@
 
 After updating `config.production.json`, run everything from the **`chainlink-cre-workflows`** directory (parent of this folder).
 
-**Repo default:** `config.production.json` uses the Base mainnet `TriviaBattle.sol` deployment `0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f` (matches `lib/blockchain/contracts.ts`). Replace this when you deploy a new contract; see `docs/DEPLOY_TRIVIA_BATTLE_BASE.md`.
+**Repo default:** `config.production.json` uses Base mainnet `TriviaBattle.sol` at `0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6` (matches `lib/blockchain/contracts.ts`). Replace when you redeploy; see `docs/DEPLOY_TRIVIA_BATTLE_BASE.md`.
 
 ## 1. RPC for `project.yaml`
 
@@ -14,7 +14,8 @@ The CRE CLI uses `chainlink-cre-workflows/project.yaml` for **Ethereum mainnet**
 cd chainlink-cre-workflows
 bun install --cwd weekly-prize-distribution
 
-cre workflow deploy weekly-prize-distribution --target production-settings --yes
+# Use -e if CRE_ETH_PRIVATE_KEY lives in weekly-prize-distribution/.env (see ../ENV_SETUP.md)
+cre workflow deploy weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
 ```
 
 Successful deploy registers/updates workflow **`weekly-prize-dist-prod`** and uploads `config.production.json` (including your contract address).
@@ -22,15 +23,15 @@ Successful deploy registers/updates workflow **`weekly-prize-dist-prod`** and up
 ## 3. Activate workflow
 
 ```bash
-cre workflow activate weekly-prize-distribution --target production-settings --yes
+cre workflow activate weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
 ```
 
-If the workflow is **already active**, the CLI exits with a message and does not send a transaction (expected after redeploy in some cases).
+If the workflow is **already active**, the CLI prints `workflow is already active, cancelling transaction` (sometimes with a ✗) and **does not send a transaction** — that is normal; your workflow is already running. Use `cre workflow deploy` to push new code/config.
 
 ## 4. Optional: simulate locally
 
 ```bash
-cre workflow simulate weekly-prize-distribution --target production-settings --non-interactive --trigger-index 0
+cre workflow simulate weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --non-interactive --trigger-index 0
 ```
 
 If simulation fails with **no compatible capability** for Base’s chain selector, upgrade the CLI (`cre update`) per the CLI’s hint; older simulators may not include all chain capabilities.
@@ -64,5 +65,6 @@ cast call "$TRIVIA_CONTRACT_ADDRESS" "chainlinkOracle()" --rpc-url "$BASE_RPC_UR
 
 ## 6. Monitor
 
-- Dashboard: [cre.chain.link](https://cre.chain.link) → workflow `weekly-prize-dist-prod`
-- CLI: `cre workflow status weekly-prize-distribution --target production-settings`
+- **Dashboard:** [cre.chain.link](https://cre.chain.link) → workflow `weekly-prize-dist-prod` (runs, history, logs live here).
+- **CLI:** There is no `cre workflow status` or `cre workflow logs`. For local hashes (same algorithm as on-chain workflow id):  
+  `cre workflow hash weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings`

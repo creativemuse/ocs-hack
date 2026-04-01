@@ -97,7 +97,7 @@ The frontend can interact with the contract for **core functionality**:
 ```bash
 # Set environment variables
 export PRIVATE_KEY=your_private_key
-export BASESCAN_API_KEY=your_api_key
+export ETHERSCAN_API_KEY=your_api_key
 
 # Deploy to Base Sepolia
 forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle \

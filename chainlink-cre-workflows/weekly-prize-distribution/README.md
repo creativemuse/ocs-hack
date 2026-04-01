@@ -24,10 +24,9 @@ This Chainlink CRE workflow automatically distributes prizes from the TriviaBatt
    - Update `config.production.json` with your mainnet contract address
 
 3. **Set up environment variables**:
-   - Create a `.env` file under `chainlink-cre-workflows/weekly-prize-distribution/` (or pass `-e`) with:
-     ```
-     CRE_ETH_PRIVATE_KEY=your_private_key_here
-     ```
+   - Put `CRE_ETH_PRIVATE_KEY` (64 hex chars, **no** `0x`) in either:
+     - `chainlink-cre-workflows/.env`, **or**
+     - `weekly-prize-distribution/.env` — then pass **`-e weekly-prize-distribution/.env`** on every `cre workflow …` command (see `../ENV_SETUP.md`).
 
 4. **Run CRE commands from the monorepo workflow root** (`chainlink-cre-workflows/`), not from this subfolder:
    ```bash
@@ -36,13 +35,13 @@ This Chainlink CRE workflow automatically distributes prizes from the TriviaBatt
 
 5. **Test locally** (optional):
    ```bash
-   cre workflow simulate weekly-prize-distribution --target staging-settings --non-interactive --trigger-index 0
+   cre workflow simulate weekly-prize-distribution -e weekly-prize-distribution/.env --target staging-settings --non-interactive --trigger-index 0
    ```
 
 6. **Deploy & activate** (production example):
    ```bash
-   cre workflow deploy weekly-prize-distribution --target production-settings --yes
-   cre workflow activate weekly-prize-distribution --target production-settings --yes
+   cre workflow deploy weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
+   cre workflow activate weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
    ```
 
 7. **On-chain**: call `setChainlinkOracle(forwarder)` on `TriviaBattle` so `onReport` accepts CRE. See [CRE_DEPLOYMENT_STEPS.md](./CRE_DEPLOYMENT_STEPS.md) and `scripts/set-chainlink-oracle.sh` in the repo root.

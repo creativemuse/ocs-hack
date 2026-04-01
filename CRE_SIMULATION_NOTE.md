@@ -72,8 +72,7 @@ If needed, you could temporarily create a test config that points to a testnet f
    ```
 
 3. **Monitor first execution**:
-   - Check CRE dashboard
-   - View logs: `cre workflow logs weekly-prize-distribution --target production-settings`
+   - Check CRE dashboard at https://cre.chain.link (CLI has no `workflow logs`)
    - Verify contract state after execution
 
 4. **Set forwarder address** on contract after deployment (if not already set)
@@ -99,16 +98,7 @@ The workflow will be ready and will execute on the next scheduled trigger (every
 
 After deploying, you can verify the workflow is active:
 
-```bash
-# Check status
-cre workflow status weekly-prize-distribution --target production-settings
-
-# View logs
-cre workflow logs weekly-prize-distribution --target production-settings
-
-# Or check in CRE dashboard
-open https://cre.chain.link
-```
+Open [cre.chain.link](https://cre.chain.link) for workflow status, runs, and logs (current CRE CLI has no `workflow status` or `workflow logs`).
 
 ---
 

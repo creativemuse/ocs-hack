@@ -6,7 +6,7 @@
    ```bash
    PRIVATE_KEY=your_private_key_without_0x_prefix
    BASE_MAINNET_RPC_URL=https://mainnet.base.org
-   BASESCAN_API_KEY=your_basescan_api_key
+   ETHERSCAN_API_KEY=your_etherscan_api_key
    ```
 
 2. **Ensure you have ETH on Base Mainnet** for gas fees:
@@ -69,7 +69,7 @@ Then verify manually:
 forge verify-contract <CONTRACT_ADDRESS> \
   contracts/TriviaBattle.sol:TriviaBattle \
   --chain-id 8453 \
-  --etherscan-api-key $BASESCAN_API_KEY
+  --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 ## After Deployment
@@ -121,7 +121,7 @@ The contract is deployed with:
 
 **If verification fails:**
 1. Wait a few minutes and try manual verification
-2. Ensure BASESCAN_API_KEY is correct
+2. Ensure ETHERSCAN_API_KEY is correct
 3. Check that contract code matches exactly
 
 ## Getting Help

@@ -37,10 +37,7 @@ The forwarder address is the address that CRE uses to call your contract. Get it
 **Option B: Use Base Mainnet Forwarder Address**
 - **Base KeystoneForwarder:** `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` ✅
 
-**Option C: Workflow Logs** (may include forwarder info)
-```bash
-cre workflow logs weekly-prize-distribution --target production-settings
-```
+**Option C: CRE dashboard** — workflow details and execution history (current CLI has no `workflow logs`).
 
 ### Step 2: Set Forwarder on Contract
 
@@ -78,17 +75,7 @@ cast call 0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f \
 
 ## 📊 **Monitor Your Workflow**
 
-### Check Workflow Status
-```bash
-cre workflow status weekly-prize-distribution --target production-settings
-```
-
-### View Workflow Logs
-```bash
-cre workflow logs weekly-prize-distribution --target production-settings
-```
-
-### CRE Dashboard
+### CRE Dashboard (status & logs)
 - Visit: https://cre.chain.link
 - Navigate to your workflow: `weekly-prize-dist-prod`
 - Monitor executions, logs, and status
@@ -153,11 +140,7 @@ Your automated prize distribution system is now live! 🚀
 ## 🔗 **Useful Commands**
 
 ```bash
-# Check workflow status
-cre workflow status weekly-prize-distribution --target production-settings
-
-# View recent logs
-cre workflow logs weekly-prize-distribution --target production-settings
+# Status and logs: use https://cre.chain.link (no cre workflow status/logs commands)
 
 # Check contract owner
 cast call 0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f "owner()" --rpc-url base_mainnet

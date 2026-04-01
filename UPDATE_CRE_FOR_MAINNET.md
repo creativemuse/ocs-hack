@@ -42,11 +42,8 @@ After deploying the workflow, you need to get the Chainlink forwarder address:
 2. Navigate to your workflow: `weekly-prize-dist-prod`
 3. Find the forwarder/executor address in the workflow details
 
-**Option B: From CRE CLI**
-```bash
-# Get workflow details (may include forwarder info)
-cre workflow status weekly-prize-distribution --target production-settings
-```
+**Option B: From CRE CLI**  
+The CRE CLI has no `workflow status` command. Use the dashboard for runtime details, or `cre workflow hash weekly-prize-distribution --target production-settings` for local workflow hashes.
 
 **Option C: Use Base Mainnet Forwarder Address**
 - **Base KeystoneForwarder:** `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` ✅
@@ -121,16 +118,7 @@ Your contract already has everything needed:
 
 After deployment, monitor your workflow:
 
-```bash
-# Check workflow status
-cre workflow status weekly-prize-distribution --target production-settings
-
-# View workflow logs
-cre workflow logs weekly-prize-distribution --target production-settings
-
-# Or check in the CRE dashboard
-open https://cre.chain.link
-```
+Use the [CRE dashboard](https://cre.chain.link) for status, runs, and logs (no `cre workflow status` / `workflow logs` in current CLI).
 
 ---
 

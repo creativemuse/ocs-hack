@@ -18,6 +18,8 @@ coverage
 broadcast/*
 cache/*
 artifacts/*
+.agents/*
+.cursor/*
 
 ############################################
 # Logs

@@ -8,7 +8,7 @@ This guide explains how to deploy the TriviaBattle contract to Base Sepolia (tes
 2. **Private key** - Your deployer wallet's private key
 3. **Base Sepolia ETH** - For testnet deployment (get from [Base Sepolia Faucet](https://www.coinbase.com/faucets/base-ethereum-goerli-faucet))
 4. **Base Mainnet ETH** - For mainnet deployment
-5. **Basescan API Key** - For contract verification (get from [Basescan](https://basescan.org/myapikey))
+5. **Etherscan API v2 key** (`ETHERSCAN_API_KEY`) — [apidashboard](https://etherscan.io/apidashboard)
 
 ## Setup
 
@@ -25,7 +25,7 @@ BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 BASE_MAINNET_RPC_URL=https://mainnet.base.org
 
 # Etherscan API Key for contract verification
-BASESCAN_API_KEY=your_basescan_api_key_here
+ETHERSCAN_API_KEY=your_etherscan_api_key_here
 ```
 
 **⚠️ Security Note:** Never commit your `.env` file. It's already in `.gitignore`.
@@ -184,7 +184,7 @@ cast send <CONTRACT_ADDRESS> "startNewSession()" \
 - Base Mainnet: Ensure you have ETH in your wallet
 
 ### Error: "Contract verification failed"
-- Check that `BASESCAN_API_KEY` is set correctly
+- Check that `ETHERSCAN_API_KEY` is set correctly
 - Wait a few minutes after deployment before verifying
 - Try manual verification on Basescan
 
@@ -203,7 +203,7 @@ forge verify-contract \
   --watch \
   <CONTRACT_ADDRESS> \
   contracts/TriviaBattle.sol:TriviaBattle \
-  <BASESCAN_API_KEY> \
+  <ETHERSCAN_API_KEY> \
   --constructor-args $(cast abi-encode "constructor(address,address,address,address,uint256,uint256,uint256)" <USDC> <LINK> <CHAINLINK_FUNCTIONS> <CHAINLINK_ORACLE> 604800 1000000 80)
 ```
 

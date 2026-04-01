@@ -16,7 +16,7 @@ nano .env  # or use your preferred editor
 - `PRIVATE_KEY` - Your wallet private key (needs ETH for gas)
 - `GAME_ORACLE_ADDRESS` - Backend wallet that submits rankings
 - `PLATFORM_FEE_RECIPIENT` - Wallet that receives 3% platform fees
-- `BASESCAN_API_KEY` - Get from [basescan.org/myapikey](https://basescan.org/myapikey)
+- `ETHERSCAN_API_KEY` - Etherscan API v2 key for Base and other L2s: [etherscan.io/apidashboard](https://etherscan.io/apidashboard)
 
 ### 2. Deploy to Testnet
 
@@ -38,7 +38,7 @@ nano .env  # or use your preferred editor
 - [ ] Deployer wallet has ETH for gas
 - [ ] Oracle address is correct and secure
 - [ ] Platform fee recipient is correct
-- [ ] Basescan API key is valid
+- [ ] `ETHERSCAN_API_KEY` (Etherscan v2) is valid
 - [ ] Contract compiled successfully (`forge build`)
 - [ ] Tested on Sepolia before mainnet
 
@@ -85,7 +85,7 @@ forge verify-contract \
     <CONTRACT_ADDRESS> \
     contracts/TriviaBattlev2.sol:TriviaGame \
     --chain-id 84532 \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     --constructor-args $(cast abi-encode "constructor(address,address,address)" \
         0x036CbD53842c5426634e7929541eC2318f3dCF7e \
         $GAME_ORACLE_ADDRESS \
@@ -96,7 +96,7 @@ forge verify-contract \
     <CONTRACT_ADDRESS> \
     contracts/TriviaBattlev2.sol:TriviaGame \
     --chain-id 8453 \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     --constructor-args $(cast abi-encode "constructor(address,address,address)" \
         0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913 \
         $GAME_ORACLE_ADDRESS \

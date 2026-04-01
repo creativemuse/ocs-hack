@@ -7,7 +7,7 @@ This guide covers deploying and verifying the TriviaBattlev2 smart contract on B
 1. **Foundry Installed** ✅ (Already installed)
 2. **Dependencies Installed** ✅ (OpenZeppelin v5.0.0 and Chainlink v2.9.0)
 3. **Environment Variables Set Up** (See below)
-4. **Basescan API Key** (For contract verification)
+4. **Etherscan API v2 key** (`ETHERSCAN_API_KEY`, for verification on Base and other L2s)
 5. **Private Key with Funds** (ETH for gas on respective networks)
 
 ## Environment Setup
@@ -28,20 +28,15 @@ PLATFORM_FEE_RECIPIENT=0x...
 BASE_SEPOLIA_RPC_URL=https://sepolia.base.org
 BASE_MAINNET_RPC_URL=https://mainnet.base.org
 
-# Basescan API key for verification
-BASESCAN_API_KEY=your_basescan_api_key
-
-# Optional: Etherscan API key (if using Etherscan instead)
+# Etherscan API v2 (one key for Base, Ethereum L1, and other supported explorers)
 ETHERSCAN_API_KEY=your_etherscan_api_key
 ```
 
-### Getting a Basescan API Key
+### Getting an API key (Etherscan v2)
 
-1. Go to [Basescan](https://basescan.org/)
-2. Sign up or log in
-3. Navigate to API Keys section
-4. Create a new API key
-5. Copy the key to your `.env` file
+1. Open [Etherscan API dashboard](https://etherscan.io/apidashboard)
+2. Create an API key and add it to `.env` as `ETHERSCAN_API_KEY`
+3. Use the same key for Foundry/Hardhat verification on Base (chain IDs 8453 / 84532)
 
 ### Important Addresses
 
@@ -83,7 +78,7 @@ forge script script/DeployTriviaBattlev2.s.sol:DeployTriviaBattlev2 \
     --rpc-url $BASE_SEPOLIA_RPC_URL \
     --broadcast \
     --verify \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     -vvvv
 ```
 
@@ -103,7 +98,7 @@ forge script script/DeployTriviaBattlev2.s.sol:DeployTriviaBattlev2 \
     --rpc-url $BASE_MAINNET_RPC_URL \
     --broadcast \
     --verify \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     -vvvv
 ```
 
@@ -128,7 +123,7 @@ forge verify-contract \
     <CONTRACT_ADDRESS> \
     contracts/TriviaBattlev2.sol:TriviaGame \
     --chain-id 84532 \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     --constructor-args $(cast abi-encode "constructor(address,address,address)" <USDC_ADDRESS> <ORACLE_ADDRESS> <FEE_RECIPIENT_ADDRESS>)
 ```
 
@@ -139,7 +134,7 @@ forge verify-contract \
     <CONTRACT_ADDRESS> \
     contracts/TriviaBattlev2.sol:TriviaGame \
     --chain-id 8453 \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     --constructor-args $(cast abi-encode "constructor(address,address,address)" <USDC_ADDRESS> <ORACLE_ADDRESS> <FEE_RECIPIENT_ADDRESS>)
 ```
 
@@ -188,7 +183,7 @@ cast send <CONTRACT_ADDRESS> \
 
 ### Issue: "Verification failed"
 **Solution**: 
-1. Check your Basescan API key is correct
+1. Check your `ETHERSCAN_API_KEY` (Etherscan v2) is correct
 2. Wait a few minutes and try manual verification
 3. Ensure you're using the correct chain ID
 

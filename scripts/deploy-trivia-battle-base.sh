@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 # Deploy contracts/TriviaBattle.sol to Base mainnet via Foundry.
-# Prerequisites: forge, PRIVATE_KEY in env, BASESCAN_API_KEY for --verify
+# Prerequisites: forge, PRIVATE_KEY in env, ETHERSCAN_API_KEY for --verify (Etherscan API v2, all L2s)
 #
 # Usage:
 #   export PRIVATE_KEY=0x...
 #   export BASE_MAINNET_RPC_URL=https://mainnet.base.org   # optional
-#   export BASESCAN_API_KEY=...                             # for verification
+#   export ETHERSCAN_API_KEY=...                             # for verification (v2 key)
 #   ./scripts/deploy-trivia-battle-base.sh
 
 set -euo pipefail
@@ -23,7 +23,7 @@ echo "Deploying TriviaBattle (chainlinkOracle = Base Keystone forwarder in scrip
 forge script script/DeployTriviaBattle.s.sol:DeployTriviaBattle \
   --rpc-url "$RPC" \
   --broadcast \
-  ${BASESCAN_API_KEY:+--verify}
+  ${ETHERSCAN_API_KEY:+--verify}
 
 echo ""
 echo "Next steps:"

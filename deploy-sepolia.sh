@@ -48,8 +48,8 @@ if [ -z "$PLATFORM_FEE_RECIPIENT" ]; then
     exit 1
 fi
 
-if [ -z "$BASESCAN_API_KEY" ]; then
-    echo "⚠️  Warning: BASESCAN_API_KEY not set - contract won't be verified"
+if [ -z "$ETHERSCAN_API_KEY" ]; then
+    echo "⚠️  Warning: ETHERSCAN_API_KEY not set - contract won't be verified"
 fi
 
 echo "📋 Deployment Configuration:"
@@ -76,7 +76,7 @@ forge script script/DeployTriviaBattlev2.s.sol:DeployTriviaBattlev2 \
     --rpc-url $BASE_SEPOLIA_RPC_URL \
     --broadcast \
     --verify \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     -vvvv
 
 if [ $? -eq 0 ]; then

@@ -91,8 +91,8 @@ base_sepolia = "${BASE_SEPOLIA_RPC_URL}"
 base_mainnet = "${BASE_MAINNET_RPC_URL}"
 
 [etherscan]
-base_sepolia = { key = "${BASESCAN_API_KEY}", url = "https://api-sepolia.basescan.org/api" }
-base = { key = "${BASESCAN_API_KEY}", url = "https://api.basescan.org/api" }
+base_sepolia = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=84532" }
+base = { key = "${ETHERSCAN_API_KEY}", url = "https://api.etherscan.io/v2/api?chainid=8453" }
 ```
 
 ### remappings.txt
@@ -151,7 +151,7 @@ forge script script/DeployTriviaBattlev2.s.sol:DeployTriviaBattlev2 \
     --rpc-url $BASE_SEPOLIA_RPC_URL \
     --broadcast \
     --verify \
-    --etherscan-api-key $BASESCAN_API_KEY
+    --etherscan-api-key $ETHERSCAN_API_KEY
 ```
 
 ## Environment Variables Required
@@ -162,7 +162,7 @@ GAME_ORACLE_ADDRESS=            # Backend wallet for rankings
 PLATFORM_FEE_RECIPIENT=         # Receives 3% platform fees
 BASE_SEPOLIA_RPC_URL=           # https://sepolia.base.org
 BASE_MAINNET_RPC_URL=           # https://mainnet.base.org
-BASESCAN_API_KEY=               # For contract verification
+ETHERSCAN_API_KEY=               # For contract verification
 ```
 
 ## Verification
@@ -174,7 +174,7 @@ forge verify-contract \
     <CONTRACT_ADDRESS> \
     contracts/TriviaBattlev2.sol:TriviaGame \
     --chain-id 84532 \
-    --etherscan-api-key $BASESCAN_API_KEY \
+    --etherscan-api-key $ETHERSCAN_API_KEY \
     --constructor-args $(cast abi-encode "constructor(address,address,address)" \
         <USDC_ADDRESS> <ORACLE_ADDRESS> <FEE_RECIPIENT_ADDRESS>)
 ```
@@ -221,7 +221,7 @@ cast send <CONTRACT_ADDRESS> "createGame()" \
 1. **Configure Environment**
    - Copy `env.example` to `.env`
    - Fill in all required values
-   - Get Basescan API key
+   - Get Etherscan API v2 key (`ETHERSCAN_API_KEY`)
 
 2. **Test on Sepolia**
    - Run `./deploy-sepolia.sh`

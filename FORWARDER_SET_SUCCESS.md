@@ -65,7 +65,7 @@ cast send 0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f \
 
 - **View on Basescan**: https://basescan.org/tx/0x1c1e30bf98dca42b9a1dc69b7780b0c68316067e58bd0d9b33e034e503da89c2
 - **CRE Dashboard**: https://cre.chain.link (monitor workflow executions)
-- **Workflow Logs**: `cre workflow logs weekly-prize-distribution --target production-settings`
+- **Workflow runs/logs**: [CRE dashboard](https://cre.chain.link) (CLI has no `workflow logs` subcommand)
 
 ---
 

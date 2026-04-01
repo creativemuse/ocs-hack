@@ -5,13 +5,13 @@ Your app and CRE workflow expect **`contracts/TriviaBattle.sol`** (session model
 ## What was fixed in-repo
 
 - `script/DeployTriviaBattle.s.sol` sets **Base mainnet** `chainlinkOracle` to the **Keystone forwarder** `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` at deploy time (no separate `setChainlinkOracle` tx needed for new deploys).
-- `.env.local` and `chainlink-cre-workflows/weekly-prize-distribution/config.production.json` point at the known-good **`TriviaBattle.sol`** deployment `0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f` (replacing the mismatched address).
+- Repo defaults target **`TriviaBattle.sol`** on Base mainnet at `0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6` (update `.env.local` / Vercel when you deploy again).
 
 ## Deploy a fresh contract (optional)
 
 ```bash
 export PRIVATE_KEY=0x...          # deployer with Base ETH
-export BASESCAN_API_KEY=...       # for contract verification
+export ETHERSCAN_API_KEY=...      # Etherscan API v2 key (works for Base / all supported L2s)
 ./scripts/deploy-trivia-battle-base.sh
 ```
 
@@ -19,7 +19,13 @@ Then:
 
 1. Set `NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS` to the **new** address everywhere (local + Vercel).
 2. Update `chainlink-cre-workflows/weekly-prize-distribution/config.production.json` → `contractAddress`.
-3. From `chainlink-cre-workflows/`: `cre workflow deploy weekly-prize-distribution --target production-settings --yes`
+3. From `chainlink-cre-workflows/`: put `CRE_ETH_PRIVATE_KEY` in **`chainlink-cre-workflows/.env`**, or pass **`-e weekly-prize-distribution/.env`** if the key only lives under the workflow folder (see `chainlink-cre-workflows/ENV_SETUP.md`).
+
+   `cre workflow deploy weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes`
+
+4. Activate (workflow folder is required; same `-e` if needed):
+
+   `cre workflow activate weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes`
 
 ## Verify on BaseScan
 

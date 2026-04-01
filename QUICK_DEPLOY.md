@@ -5,7 +5,7 @@
 1. Set your private key in `.env`:
 ```bash
 PRIVATE_KEY=your_private_key_without_0x
-BASESCAN_API_KEY=your_basescan_api_key
+ETHERSCAN_API_KEY=your_etherscan_api_key
 ```
 
 2. Ensure you have ETH on the target network:

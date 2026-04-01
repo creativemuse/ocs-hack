@@ -55,12 +55,10 @@ contract AutomationCounter is AutomationCompatibleInterface {
         external
         view
         override
-        returns (
-            bool upkeepNeeded,
-            bytes memory /* performData */
-        )
+        returns (bool upkeepNeeded, bytes memory performData)
     {
         upkeepNeeded = (block.timestamp - lastTimeStamp) > INTERVAL;
+        performData = new bytes(0);
     }
 
     /**

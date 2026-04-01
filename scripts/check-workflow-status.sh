@@ -1,5 +1,5 @@
 #!/bin/bash
-# Script to check status and logs for the weekly-prize-distribution CRE workflow
+# Script to point at CRE dashboard / artifacts for weekly-prize-distribution (CLI has no status/logs)
 # Workflow ID: 00e2a445035c11336376e1084248a91975d4bdb70a8c40a112a6bd58fd3ba3bb
 
 set -e
@@ -41,9 +41,9 @@ echo "--------------------------------------------------"
 $CRE_CLI workflow activate weekly-prize-distribution --target "$TARGET" 2>&1 | grep -E "(active|inactive|Error)" || echo "   ⚠️  Could not determine status"
 echo ""
 
-echo "📝 Step 2: Attempting to fetch workflow logs..."
+echo "📝 Step 2: Logs & run history"
 echo "--------------------------------------------------"
-echo "   Note: Log commands may vary by CRE CLI version"
+echo "   The CRE CLI has no workflow logs command — use the dashboard (step 3)."
 echo ""
 
 # Try to get logs - note: actual command may vary

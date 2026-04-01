@@ -154,16 +154,7 @@ After deployment, verify:
 
 Monitor your workflow:
 
-```bash
-# Check workflow status
-cre workflow status weekly-prize-distribution --target production-settings
-
-# View workflow logs
-cre workflow logs weekly-prize-distribution --target production-settings
-
-# Or check in CRE dashboard
-open https://cre.chain.link
-```
+Use the [CRE dashboard](https://cre.chain.link) for status, runs, and logs (current CRE CLI has no `workflow status` or `workflow logs`).
 
 ---
 

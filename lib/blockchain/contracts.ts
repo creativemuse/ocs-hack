@@ -12,11 +12,11 @@ export const USDC_CONTRACT_ADDRESS =
 
 // Trivia Battle smart contract address
 // Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
-// Base Mainnet: 0xc166a6FB38636e8430d6A2Efb7A601c226659425 (old deployment)
+// Base Mainnet: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (deployed 2026-04-01)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
 export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0x2E48c2aae9CC1dF9Ca4e5Cd67be17f299B86eB4f'; // Base Mainnet default
+  '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6'; // Base Mainnet default
 
 // Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
 // NOTE: This is a session-based contract, not game-based. It does NOT have:
