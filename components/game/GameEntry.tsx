@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,7 +20,9 @@ import GaslessBadge from '@/components/base-account/GaslessBadge';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
-import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
+import BaseAccountTransaction, {
+  type BaseAccountTransactionHandle,
+} from '@/components/base-account/BaseAccountTransaction';
 import { parseTransactionError, logTransactionError, type TransactionError, type ErrorContext } from '@/lib/utils/errorHandling';
 import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
@@ -58,7 +60,18 @@ export default function GameEntry({
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [paymentFlowId, setPaymentFlowId] = useState(0);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
+  const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
+  const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+
+  useEffect(() => {
+    if (!isProcessingPayment) return;
+    const t = window.setTimeout(() => {
+      paidTxRef.current?.submit();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [isProcessingPayment, paymentFlowId]);
 
   // Auto-generate funding URL with CDP session token when address is available
   useEffect(() => {
@@ -290,6 +303,7 @@ export default function GameEntry({
     
     console.log('Starting paid game entry process for wallet:', address);
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
+    setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
     setError(null);
 
@@ -324,8 +338,8 @@ export default function GameEntry({
   const handleRetryTransaction = () => {
     setTransactionError(null);
     setError(null);
+    setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
-    // The transaction will be retried automatically by the Transaction component
   };
 
   const handleDismissError = () => {
@@ -587,21 +601,27 @@ export default function GameEntry({
                   
                   {isProcessingPayment ? (
                     <div className="space-y-4">
-                      <BaseAccountTransaction
-          calls={createBaseAccountPaidGameCalls()}
-          onStatus={handleTransactionStatus}
-          className="w-full"
-        >
-                        <Button 
-                          type="button"
-                          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-medium border-0"
-                        >
+                      <div
+                        className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <p className="text-sm font-medium text-amber-200">Processing entry</p>
+                        <p className="mt-2 text-sm text-zinc-200">
                           {playerModeChoice === 'paid_multiplayer'
-                            ? 'Enter Multiplayer Lobby'
-                            : 'Transact'}
-                        </Button>
-                      </BaseAccountTransaction>
+                            ? 'Approve USDC in your wallet, then confirm join. When both transactions confirm, you’ll enter the multiplayer lobby automatically.'
+                            : 'Approve USDC in your wallet, then confirm join. When both transactions confirm, your paid game will start automatically.'}
+                        </p>
+                      </div>
+                      <BaseAccountTransaction
+                        ref={paidTxRef}
+                        calls={paidGameCalls}
+                        onStatus={handleTransactionStatus}
+                        className="w-full"
+                        showSubmitButton={false}
+                      />
                       <Button
+                        type="button"
                         onClick={() => setIsProcessingPayment(false)}
                         variant="outline"
                         className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"

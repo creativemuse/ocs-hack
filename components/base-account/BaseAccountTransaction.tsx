@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useImperativeHandle, forwardRef, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { createBaseAccountSDK } from '@base-org/account';
@@ -18,6 +18,10 @@ export type BaseAccountTxStatusExtras = {
   lastTxHash?: string;
 };
 
+export type BaseAccountTransactionHandle = {
+  submit: () => void;
+};
+
 interface BaseAccountTransactionProps {
   calls: Array<{
     to: `0x${string}`;
@@ -29,26 +33,30 @@ interface BaseAccountTransactionProps {
     message?: string,
     extras?: BaseAccountTxStatusExtras
   ) => void;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   className?: string;
+  /** When false, only status messages render; parent should call `ref.submit()` (e.g. one-click paid entry). */
+  showSubmitButton?: boolean;
 }
 
-export default function BaseAccountTransaction({
-  calls,
-  onStatus,
-  children,
-  className = ''
-}: BaseAccountTransactionProps) {
+const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAccountTransactionProps>(
+  function BaseAccountTransaction(
+    { calls, onStatus, children, className = '', showSubmitButton = true },
+    ref
+  ) {
   const { isConnected, address } = useBaseAccount();
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
+  const inFlightRef = useRef(false);
 
   const handleTransaction = useCallback(async () => {
     if (!isConnected || !address) {
       onStatus?.('error', 'Not connected to Base Account');
       return;
     }
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
 
     setIsLoading(true);
     setStatus('pending');
@@ -128,8 +136,19 @@ export default function BaseAccountTransaction({
       onStatus?.('error', errorMessage);
     } finally {
       setIsLoading(false);
+      inFlightRef.current = false;
     }
   }, [isConnected, address, calls, onStatus]);
+
+  useImperativeHandle(
+    ref,
+    () => ({
+      submit: () => {
+        void handleTransaction();
+      },
+    }),
+    [handleTransaction]
+  );
 
   const getStatusIcon = () => {
     switch (status) {
@@ -146,26 +165,43 @@ export default function BaseAccountTransaction({
 
   return (
     <div className={className}>
-      <Button asChild>
+      {showSubmitButton ? (
+        <Button asChild>
+          <div
+            onClick={!isConnected || isLoading ? undefined : handleTransaction}
+            aria-disabled={!isConnected || isLoading}
+            role="button"
+            className={`w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${!isConnected || isLoading ? 'pointer-events-none opacity-50' : ''}`}
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (!isConnected || isLoading) return;
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                handleTransaction();
+              }
+            }}
+          >
+            {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+            {getStatusIcon()}
+            {children}
+          </div>
+        </Button>
+      ) : (
         <div
-          onClick={(!isConnected || isLoading) ? undefined : handleTransaction}
-          aria-disabled={!isConnected || isLoading}
-          role="button"
-          className={`w-full inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring ${(!isConnected || isLoading) ? 'pointer-events-none opacity-50' : ''}`}
-          tabIndex={0}
-          onKeyDown={(e) => {
-            if ((!isConnected || isLoading)) return;
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              handleTransaction();
-            }
-          }}
+          className="flex min-h-[3rem] flex-col items-center justify-center gap-2 py-2 text-center"
+          aria-live="polite"
+          aria-busy={isLoading}
         >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-          {getStatusIcon()}
-          {children}
+          {isLoading ? (
+            <>
+              <Loader2 className="h-8 w-8 animate-spin text-amber-400" aria-hidden />
+              <span className="text-sm text-zinc-300">
+                Confirm in your wallet, then wait for on-chain confirmation…
+              </span>
+            </>
+          ) : null}
         </div>
-      </Button>
+      )}
       {message && (
         <div className={`mt-2 text-sm text-center ${
           status === 'success' ? 'text-green-400' : 
@@ -177,4 +213,6 @@ export default function BaseAccountTransaction({
       )}
     </div>
   );
-}
+});
+
+export default BaseAccountTransaction;
