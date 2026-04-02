@@ -203,7 +203,7 @@ export async function GET(req: NextRequest) {
                 },
             });
 
-            logger.debug(`✅ Generated ${mode} question: ${correct.artistName} - ${correct.songTitle}`);
+            logger.debug(`✅ Generated ${mode} question successfully`);
         }
 
         logger.info(`🎉 Generated ${questions.length} questions successfully from ${source}`);

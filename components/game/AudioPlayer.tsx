@@ -93,7 +93,7 @@ export default function AudioPlayer({
     const audio = audioRef.current;
     if (!audio) return;
 
-    console.log('🔊 AudioPlayer useEffect triggered for URL:', audioUrl);
+    if (process.env.NODE_ENV === 'development') console.log('🔊 AudioPlayer useEffect triggered for URL:', audioUrl);
 
     // Reset retry count and gateway index when URL changes
     setRetryCount(0);
@@ -109,7 +109,7 @@ export default function AudioPlayer({
     // Try local fallback first for faster loading
     const localUrl = getLocalFallbackUrl(audioUrl);
     if (localUrl && localUrl !== audioUrl) {
-      console.log('🔊 Using local file for faster loading:', localUrl);
+      if (process.env.NODE_ENV === 'development') console.log('🔊 Using local file for faster loading:', localUrl);
       audio.src = localUrl;
       setUseLocalFallback(true);
     } else {
@@ -120,7 +120,7 @@ export default function AudioPlayer({
     audio.preload = 'auto';
     
     // Test CORS preflight for debugging
-    if (audioUrl && audioUrl.startsWith('https://')) {
+    if (process.env.NODE_ENV === 'development' && audioUrl && audioUrl.startsWith('https://')) {
       fetch(audioUrl, { method: 'HEAD' })
         .then(response => {
           console.log('✅ CORS preflight successful:', response.status, response.headers.get('content-type'));
@@ -167,7 +167,7 @@ export default function AudioPlayer({
     };
 
     const handleLoadedMetadata = (): void => {
-      console.log('🔊 Audio metadata loaded:', {
+      if (process.env.NODE_ENV === 'development') console.log('🔊 Audio metadata loaded:', {
         url: audioUrl,
         duration: audio.duration,
         networkState: audio.networkState,
@@ -200,7 +200,7 @@ export default function AudioPlayer({
       setIsLoading(false);
       
       // Log additional debugging information
-      console.log('🔊 Audio error details:', {
+      if (process.env.NODE_ENV === 'development') console.log('🔊 Audio error details:', {
         url: audioUrl,
         networkState: audio.networkState,
         readyState: audio.readyState,
@@ -223,7 +223,7 @@ export default function AudioPlayer({
           if (audio) {
             const localUrl = getLocalFallbackUrl(audioUrl);
             if (localUrl) {
-              console.log(`Using local fallback: ${localUrl}`);
+              if (process.env.NODE_ENV === 'development') console.log(`Using local fallback: ${localUrl}`);
               audio.src = localUrl;
               audio.load();
             } else {
@@ -274,11 +274,11 @@ export default function AudioPlayer({
         }, 1000);
       } else {
         setHasError(true);
-        console.error('🔊 Audio failed to load after all retries:', audioUrl);
+        if (process.env.NODE_ENV === 'development') console.error('🔊 Audio failed to load after all retries:', audioUrl);
         // Try one final fallback to local file
         const localUrl = getLocalFallbackUrl(audioUrl);
         if (localUrl && localUrl !== audioUrl) {
-          console.log('🔊 Final attempt with local fallback:', localUrl);
+          if (process.env.NODE_ENV === 'development') console.log('🔊 Final attempt with local fallback:', localUrl);
           setTimeout(() => {
             if (audio) {
               audio.src = localUrl;
@@ -294,7 +294,7 @@ export default function AudioPlayer({
 
     const tryAutoplay = async (): Promise<void> => {
       try {
-        console.log('🔊 Attempting autoplay for:', audioUrl);
+        if (process.env.NODE_ENV === 'development') console.log('🔊 Attempting autoplay for:', audioUrl);
         // Ensure audio starts from the correct position
         if (hasEnded) {
           audio.currentTime = clipStartSeconds;

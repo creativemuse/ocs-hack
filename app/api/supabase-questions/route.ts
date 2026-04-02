@@ -166,7 +166,7 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      console.log(`✅ Generated ${mode} question: ${correct.artistName} - ${correct.songTitle}`);
+      console.log(`✅ Generated ${mode} question successfully`);
     }
 
     console.log(`🎉 Generated ${questions.length} questions successfully from ${source}`);

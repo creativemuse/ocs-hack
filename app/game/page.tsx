@@ -114,15 +114,15 @@ export default function Game() {
       }
 
       const question = data.questions[0]!;
-      console.log('🎵 Loaded question:', {
+      if (process.env.NODE_ENV === 'development') console.log('🎵 Loaded question:', {
         audioUrl: question.audioUrl,
         songTitle: question.metadata?.songTitle,
         artistName: question.metadata?.artistName,
         source: question.metadata?.source
       });
 
-      // Test if the audio URL is accessible
-      if (question.audioUrl && question.audioUrl.startsWith('http')) {
+      // Test if the audio URL is accessible (dev only)
+      if (process.env.NODE_ENV === 'development' && question.audioUrl && question.audioUrl.startsWith('http')) {
         fetch(question.audioUrl, { method: 'HEAD' })
           .then(response => {
             console.log('🎵 Audio URL test:', {

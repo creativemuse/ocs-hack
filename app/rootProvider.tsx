@@ -2,6 +2,7 @@
 import { ReactNode, useEffect, useState } from "react";
 import { base } from "viem/chains";
 import { createBaseAccountSDK } from "@base-org/account";
+import { OnchainKitProvider } from "@coinbase/onchainkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 
@@ -56,11 +57,13 @@ function BaseAccountProviderWrapper({ children }: { children: ReactNode }) {
 export function RootProvider({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
-      <SpacetimeProvider>
-        <BaseAccountProviderWrapper>
-          {children}
-        </BaseAccountProviderWrapper>
-      </SpacetimeProvider>
+      <OnchainKitProvider apiKey={process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY} chain={base}>
+        <SpacetimeProvider>
+          <BaseAccountProviderWrapper>
+            {children}
+          </BaseAccountProviderWrapper>
+        </SpacetimeProvider>
+      </OnchainKitProvider>
     </QueryClientProvider>
   );
 }
