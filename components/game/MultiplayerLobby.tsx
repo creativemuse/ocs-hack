@@ -65,13 +65,17 @@ export default function MultiplayerLobby({
     setIsEndingRound(true);
     try {
       await onEndLobbyEarly();
+      // Lobby ended successfully — transition to gameplay immediately
+      // instead of relying on useEffect to detect the status change,
+      // which can miss due to SpacetimeDB subscription cache staleness.
+      onRoundStart();
     } catch {
       lobbyEndRequestedRef.current = false;
     } finally {
       endingRoundInFlightRef.current = false;
       setIsEndingRound(false);
     }
-  }, [onEndLobbyEarly]);
+  }, [onEndLobbyEarly, onRoundStart]);
 
   useEffect(() => {
     if (session?.status !== 'lobby') {

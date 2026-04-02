@@ -303,7 +303,6 @@ export const examples = {
         '8.8.8.8',
         'GameEntry'
       );
-      console.log('Session token:', token);
       return token;
     } catch (error) {
       console.error('Error getting session token:', error);
