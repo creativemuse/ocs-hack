@@ -92,88 +92,42 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
       }
 
       if (calls.length > 1) {
-        // Batch via wallet_sendCalls (EIP-5792) — single user operation, no nonce issues.
-        const batchResult = await provider.request({
+        // Batch via wallet_sendCalls — single user operation, no nonce issues.
+        // Uses the same param format as lib/transaction/batchTransactions.ts
+        // which is proven to work with Coinbase Smart Wallet.
+        const batchResult = (await provider.request({
           method: 'wallet_sendCalls',
           params: {
-            version: '2.0.0',
             calls: calls.map(call => ({
               to: call.to,
               data: call.data,
               value: call.value || '0x0',
             })),
-            from: address,
-            chainId: numberToHex(base.id),
             atomicRequired: true,
+            gasless: true,
           },
-        });
+        })) as { transactionHash?: string; hash?: string } | string;
 
-        // EIP-5792: wallet_sendCalls returns { id: string } or may return
-        // a raw string / tx hash depending on wallet implementation.
-        let txHash: Hex | undefined;
-        const bundleId = typeof batchResult === 'string'
-          ? batchResult
-          : (batchResult as { id?: string })?.id;
-
-        // Some wallets return a tx hash directly instead of a bundle ID
-        if (!bundleId && typeof batchResult === 'object' && batchResult !== null) {
-          const res = batchResult as { transactionHash?: Hex; hash?: Hex };
-          txHash = res.transactionHash || res.hash;
-        }
-
-        // Poll wallet_getCallsStatus for bundle confirmation
-        if (bundleId && !txHash) {
-          const pollStart = Date.now();
-          const pollTimeout = 180_000;
-          while (Date.now() - pollStart < pollTimeout) {
-            try {
-              const statusResult = await provider.request({
-                method: 'wallet_getCallsStatus',
-                params: [bundleId],
-              }) as {
-                status: number;
-                receipts?: Array<{ transactionHash: string; status: string }>;
-              };
-
-              // EIP-5792 status codes: 100=pending, 200=confirmed,
-              // 400=offchain failure, 500=complete revert, 600=partial revert
-              const code = typeof statusResult.status === 'number'
-                ? statusResult.status
-                : Number(statusResult.status);
-
-              if (code >= 400) {
-                throw new Error('Batch transaction failed on-chain. Try again in a moment.');
-              }
-
-              if (code === 200 && statusResult.receipts?.length) {
-                const lastReceipt = statusResult.receipts[statusResult.receipts.length - 1];
-                // Verify the receipt shows success (0x1), not revert (0x0)
-                if (lastReceipt.status !== '0x1') {
-                  throw new Error('Batch transaction reverted on-chain. Try again in a moment.');
-                }
-                txHash = lastReceipt.transactionHash as Hex;
-                break;
-              }
-            } catch (e: unknown) {
-              // Re-throw our own errors; ignore transient network glitches
-              if (e instanceof Error && e.message.includes('on-chain')) throw e;
-            }
-
-            await new Promise(r => setTimeout(r, 2000));
-          }
-        } else if (txHash) {
-          // Got a tx hash directly — wait for on-chain confirmation
-          const receipt = await basePublicClient.waitForTransactionReceipt({
-            hash: txHash,
-            timeout: 180_000,
-          });
-          if (receipt.status !== 'success') {
-            throw new Error('Batch transaction reverted on-chain. Try again in a moment.');
-          }
-        }
+        // Extract tx hash — Coinbase Smart Wallet returns { transactionHash }
+        const txHash = (
+          typeof batchResult === 'string'
+            ? batchResult
+            : (batchResult as { transactionHash?: string; hash?: string })?.transactionHash
+              || (batchResult as { transactionHash?: string; hash?: string })?.hash
+        ) as Hex | undefined;
 
         if (!txHash) {
-          throw new Error('Batch transaction timed out waiting for confirmation.');
+          throw new Error('No transaction hash returned from batch. Try again.');
+        }
+
+        // Wait for on-chain confirmation
+        const receipt = await basePublicClient.waitForTransactionReceipt({
+          hash: txHash,
+          timeout: 180_000,
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error('Batch transaction reverted on-chain. Try again in a moment.');
         }
 
         lastTxHash = txHash;
