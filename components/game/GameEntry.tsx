@@ -87,8 +87,7 @@ export default function GameEntry({
         
         // Generate fresh session token
         const sessionToken = await getSessionToken(address);
-        console.log('✅ CDP session token generated:', sessionToken.substring(0, 20) + '...');
-        
+
         // Generate funding URL with session token
         const url = generateFundingUrl({
           walletAddress: address,
@@ -368,8 +367,7 @@ export default function GameEntry({
       
       // Generate fresh session token
       const sessionToken = await getSessionToken(address);
-      console.log('✅ Fresh CDP session token generated:', sessionToken.substring(0, 20) + '...');
-      
+
       // Generate new funding URL
       const url = generateFundingUrl({
         walletAddress: address,
