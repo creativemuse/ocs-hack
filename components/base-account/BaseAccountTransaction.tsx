@@ -87,9 +87,13 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
       // when sending sequential eth_sendTransaction calls.
       let lastTxHash: string | undefined;
 
+      if (calls.length === 0) {
+        throw new Error('No transaction calls provided');
+      }
+
       if (calls.length > 1) {
         // Batch via wallet_sendCalls — single user operation, no nonce issues
-        const batchResult = (await provider.request({
+        const batchResult = await provider.request({
           method: 'wallet_sendCalls',
           params: {
             calls: calls.map(call => ({
@@ -101,20 +105,42 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
             chainId: numberToHex(base.id),
             atomicRequired: true,
           },
-        })) as string;
-
-        // wallet_sendCalls returns a bundle ID; wait for on-chain confirmation
-        const receipt = await basePublicClient.waitForTransactionReceipt({
-          hash: batchResult as Hex,
-          timeout: 180_000,
         });
 
-        if (receipt.status !== 'success') {
-          throw new Error('Batch transaction reverted on-chain. Try again in a moment.');
+        // EIP-5792: wallet_sendCalls returns a bundle ID.
+        // Poll wallet_getCallsStatus to get the actual tx hash(es).
+        const bundleId = typeof batchResult === 'string'
+          ? batchResult
+          : (batchResult as { id?: string })?.id ?? String(batchResult);
+
+        let txHash: Hex | undefined;
+        const pollStart = Date.now();
+        const pollTimeout = 180_000;
+        while (Date.now() - pollStart < pollTimeout) {
+          const statusResult = await provider.request({
+            method: 'wallet_getCallsStatus',
+            params: [bundleId],
+          }) as { status: string; receipts?: Array<{ transactionHash: string }> };
+
+          if (statusResult.status === 'CONFIRMED' && statusResult.receipts?.length) {
+            txHash = statusResult.receipts[statusResult.receipts.length - 1].transactionHash as Hex;
+            break;
+          }
+
+          if (statusResult.status === 'FAILED') {
+            throw new Error('Batch transaction failed on-chain. Try again in a moment.');
+          }
+
+          // Wait before polling again
+          await new Promise(r => setTimeout(r, 2000));
         }
 
-        lastTxHash = batchResult;
-        console.log('Batch transaction confirmed:', batchResult);
+        if (!txHash) {
+          throw new Error('Batch transaction timed out waiting for confirmation.');
+        }
+
+        lastTxHash = txHash;
+        console.log('Batch transaction confirmed:', txHash);
       } else if (calls.length === 1) {
         // Single call — use eth_sendTransaction directly
         const result = (await provider.request({
