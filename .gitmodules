@@ -7,3 +7,6 @@
 [submodule "lib/chainlink"]
 	path = lib/chainlink
 	url = https://github.com/smartcontractkit/chainlink
+[submodule ".claude/worktrees/keen-varahamihira"]
+	path = .claude/worktrees/keen-varahamihira
+	url = https://sirgawain0x@github.com/sirgawain0x/ocs-hack.git
