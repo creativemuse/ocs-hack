@@ -250,7 +250,7 @@ export function useTriviaContract(useGasless: boolean = true) {
         console.error('Only the contract owner can start sessions.');
         setState(prev => ({
           ...prev,
-          error: `No active session. Ask the operator to call startNewSession() on the contract. (Owner: ${contractOwner})`,
+          error: `No active on-chain session. Paid players can open one via joinBattle (USDC); operators may use startNewSession(). Owner: ${contractOwner}`,
         }));
         return false;
       }

@@ -19,6 +19,7 @@ pub enum PlayerType {
 #[sats(name = "SessionStatus")]
 pub enum SessionStatus {
     Waiting,
+    Lobby,
     Active,
     Completed,
 }
@@ -112,6 +113,23 @@ pub struct ActiveGameSession {
     pub entry_fee: f64,
     pub start_time: Timestamp,
     pub created_at: Timestamp,
+    /// When status is Lobby, auto-start the round at this time unless ended early.
+    /// Default supports automatic migration when adding this column; enum changes to `SessionStatus`
+    /// still require `spacetime publish -c on-conflict` (or `-c always`) at least once.
+    #[default(Option::<Timestamp>::None)]
+    pub lobby_until: Option<Timestamp>,
+}
+
+/// Paid multiplayer lobby participants (Next.js validates JWT before calling reducers).
+#[spacetimedb::table(accessor = pool_players, public)]
+#[derive(Clone)]
+pub struct PoolPlayer {
+    #[primary_key]
+    pub player_id: String,
+    pub session_id: String,
+    pub is_paid: bool,
+    pub wallet_address: Option<String>,
+    pub joined_at: Timestamp,
 }
 
 // Player statistics stored in SpacetimeDB
@@ -694,24 +712,67 @@ pub fn get_trial_leaderboard(ctx: &ReducerContext, limit: u32) {
 // ACTIVE GAME SESSION MANAGEMENT
 // ============================================================================
 
+fn reconcile_lobbies_to_active(ctx: &ReducerContext) {
+    let now = ctx.timestamp;
+    let lobby_ids: Vec<u64> = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .filter(|s| s.status == SessionStatus::Lobby)
+        .map(|s| s.id)
+        .collect();
+    for lid in lobby_ids {
+        let Some(mut s) = ctx.db.active_game_sessions().id().find(&lid) else {
+            continue;
+        };
+        if s.status != SessionStatus::Lobby {
+            continue;
+        }
+        if let Some(until) = s.lobby_until {
+            if now >= until {
+                s.status = SessionStatus::Active;
+                s.start_time = now;
+                s.lobby_until = None;
+                ctx.db.active_game_sessions().id().update(s);
+                log::info!("🎮 Lobby auto-started after countdown ({})", lid);
+            }
+        }
+    }
+}
+
+fn delete_pool_players_for_session(ctx: &ReducerContext, session_id: &str) {
+    let ids: Vec<String> = ctx
+        .db
+        .pool_players()
+        .iter()
+        .filter(|p| p.session_id == session_id)
+        .map(|p| p.player_id.clone())
+        .collect();
+    for pid in ids {
+        ctx.db.pool_players().player_id().delete(&pid);
+    }
+}
+
 #[spacetimedb::reducer]
 pub fn get_active_game_session(ctx: &ReducerContext) {
+    reconcile_lobbies_to_active(ctx);
+
     // First, clean up expired sessions (5 minutes = 300 seconds = 300,000,000 microseconds)
     let game_duration = TimeDuration::from_duration(Duration::from_secs(300));
     let now = ctx.timestamp;
-    
-    let expired_sessions: Vec<_> = ctx.db.active_game_sessions().iter()
+
+    let expired_sessions: Vec<_> = ctx
+        .db
+        .active_game_sessions()
+        .iter()
         .filter(|s| {
             match s.status {
                 SessionStatus::Active => {
-                    // Active sessions expire after 5 minutes
                     now.time_duration_since(s.start_time)
                         .map(|elapsed| elapsed >= game_duration)
                         .unwrap_or(false)
                 }
                 SessionStatus::Waiting => {
-                    // Waiting sessions with only trial players that are old (more than 10 minutes) should be cleaned up
-                    // This prevents trial-only sessions from blocking new players indefinitely
                     if s.paid_player_count == 0 && s.trial_player_count > 0 {
                         let ten_min = TimeDuration::from_duration(Duration::from_secs(600));
                         now.time_duration_since(s.created_at)
@@ -721,29 +782,43 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
                         false
                     }
                 }
-                SessionStatus::Completed => true, // Already completed, should be cleaned up
+                SessionStatus::Lobby => false,
+                SessionStatus::Completed => true,
             }
         })
         .map(|s| s.id)
         .collect();
-    
-    // Mark expired sessions as completed
+
     for expired_id in expired_sessions {
         if let Some(mut session) = ctx.db.active_game_sessions().id().find(&expired_id) {
+            let sid = session.session_id.clone();
+            delete_pool_players_for_session(ctx, &sid);
             session.status = SessionStatus::Completed;
             ctx.db.active_game_sessions().id().update(session);
             log::info!("⏰ Marked expired session {} as Completed", expired_id);
         }
     }
-    
-    // Find active or waiting session (excluding completed ones)
-    let active_session = ctx.db.active_game_sessions().iter()
-        .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Waiting))
+
+    let active_session = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .filter(|s| {
+            matches!(
+                s.status,
+                SessionStatus::Active | SessionStatus::Waiting | SessionStatus::Lobby
+            )
+        })
         .max_by_key(|s| s.created_at);
-    
+
     if let Some(session) = active_session {
-        log::info!("🎮 Active game session found: {} (status: {:?}, paid: {}, trial: {})", 
-                  session.session_id, session.status, session.paid_player_count, session.trial_player_count);
+        log::info!(
+            "🎮 Active game session found: {} (status: {:?}, paid: {}, trial: {})",
+            session.session_id,
+            session.status,
+            session.paid_player_count,
+            session.trial_player_count
+        );
     } else {
         log::info!("🎮 No active game session found, creating new one");
         let new_session_id = format!("session_{}", ctx.timestamp);
@@ -758,9 +833,219 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
             entry_fee: 1.0,
             start_time: ctx.timestamp,
             created_at: ctx.timestamp,
+            lobby_until: None,
         });
         log::info!("✅ Created new waiting session: {}", new_session_id);
     }
+}
+
+#[spacetimedb::reducer]
+pub fn join_multiplayer_pool(
+    ctx: &ReducerContext,
+    player_id: String,
+    wallet_address: Option<String>,
+    lobby_duration_sec: u32,
+) -> Result<(), String> {
+    reconcile_lobbies_to_active(ctx);
+    let now = ctx.timestamp;
+    let game_duration = TimeDuration::from_duration(Duration::from_secs(300));
+    let lobby_sec = lobby_duration_sec.clamp(1, 600);
+
+    let mut session_opt = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .filter(|s| {
+            matches!(
+                s.status,
+                SessionStatus::Waiting | SessionStatus::Lobby | SessionStatus::Active
+            )
+        })
+        .max_by_key(|s| s.created_at);
+
+    if session_opt.is_none() {
+        let new_session_id = format!("session_{}", ctx.timestamp);
+        ctx.db.active_game_sessions().insert(ActiveGameSession {
+            id: 0,
+            session_id: new_session_id.clone(),
+            status: SessionStatus::Waiting,
+            player_count: 0,
+            paid_player_count: 0,
+            trial_player_count: 0,
+            prize_pool: 0.0,
+            entry_fee: 1.0,
+            start_time: now,
+            created_at: now,
+            lobby_until: None,
+        });
+        session_opt = ctx
+            .db
+            .active_game_sessions()
+            .iter()
+            .filter(|s| s.session_id == new_session_id)
+            .max_by_key(|s| s.created_at);
+    }
+
+    let mut session = session_opt.ok_or_else(|| "No multiplayer session".to_string())?;
+
+    if let Some(existing) = ctx.db.pool_players().player_id().find(&player_id) {
+        if existing.session_id == session.session_id {
+            return Ok(());
+        }
+        ctx.db.pool_players().player_id().delete(&player_id);
+    }
+
+    loop {
+        if session.status == SessionStatus::Active && session.paid_player_count > 0 {
+            let expired = now
+                .time_duration_since(session.start_time)
+                .map(|elapsed| elapsed >= game_duration)
+                .unwrap_or(false);
+            if !expired {
+                return Err(
+                    "Round in progress — join the next lobby when it opens".to_string(),
+                );
+            }
+            delete_pool_players_for_session(ctx, &session.session_id);
+            session.player_count = 0;
+            session.paid_player_count = 0;
+            session.trial_player_count = 0;
+            session.prize_pool = 0.0;
+            session.status = SessionStatus::Waiting;
+            session.lobby_until = None;
+            session.start_time = now;
+            ctx.db.active_game_sessions().id().update(session.clone());
+            session = ctx
+                .db
+                .active_game_sessions()
+                .id()
+                .find(&session.id)
+                .ok_or_else(|| "Session disappeared".to_string())?;
+            continue;
+        }
+        break;
+    }
+
+    if !matches!(
+        session.status,
+        SessionStatus::Waiting | SessionStatus::Lobby
+    ) {
+        return Err("Cannot start multiplayer lobby in current session state".to_string());
+    }
+
+    if session.status == SessionStatus::Waiting {
+        session.status = SessionStatus::Lobby;
+        session.start_time = now;
+        session.lobby_until = Some(
+            now + TimeDuration::from_duration(Duration::from_secs(lobby_sec as u64)),
+        );
+    }
+
+    session.player_count += 1;
+    session.paid_player_count += 1;
+    session.prize_pool += session.entry_fee;
+
+    let sid_log = session.session_id.clone();
+    ctx.db.pool_players().insert(PoolPlayer {
+        player_id: player_id.clone(),
+        session_id: sid_log.clone(),
+        is_paid: true,
+        wallet_address,
+        joined_at: now,
+    });
+
+    ctx.db.active_game_sessions().id().update(session);
+    log::info!("🎮 join_multiplayer_pool: {} joined {}", player_id, sid_log);
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn leave_multiplayer_pool(ctx: &ReducerContext, player_id: String) -> Result<(), String> {
+    reconcile_lobbies_to_active(ctx);
+    let Some(pp) = ctx.db.pool_players().player_id().find(&player_id) else {
+        return Ok(());
+    };
+    let sid = pp.session_id.clone();
+    let was_paid = pp.is_paid;
+    ctx.db.pool_players().player_id().delete(&player_id);
+
+    let Some(mut session) = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .find(|s| s.session_id == sid)
+    else {
+        return Ok(());
+    };
+
+    if session.player_count > 0 {
+        session.player_count -= 1;
+    }
+    if was_paid && session.paid_player_count > 0 {
+        session.paid_player_count -= 1;
+    }
+
+    let paid_remaining = ctx
+        .db
+        .pool_players()
+        .iter()
+        .filter(|p| p.session_id == sid && p.is_paid)
+        .count() as u32;
+
+    if paid_remaining == 0 && session.status == SessionStatus::Lobby {
+        session.status = SessionStatus::Waiting;
+        session.lobby_until = None;
+        session.prize_pool = 0.0;
+        session.start_time = ctx.timestamp;
+        session.player_count = session.trial_player_count;
+        session.paid_player_count = 0;
+    }
+
+    ctx.db.active_game_sessions().id().update(session);
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn end_multiplayer_lobby(ctx: &ReducerContext) -> Result<(), String> {
+    reconcile_lobbies_to_active(ctx);
+    let now = ctx.timestamp;
+    let lobby_session = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .filter(|s| s.status == SessionStatus::Lobby)
+        .max_by_key(|s| s.created_at);
+    let Some(mut s) = lobby_session else {
+        return Ok(());
+    };
+    s.status = SessionStatus::Active;
+    s.start_time = now;
+    s.lobby_until = None;
+    ctx.db.active_game_sessions().id().update(s);
+    Ok(())
+}
+
+#[spacetimedb::reducer]
+pub fn sync_multiplayer_lobby_ends_after_secs(
+    ctx: &ReducerContext,
+    duration_sec: u32,
+) -> Result<(), String> {
+    reconcile_lobbies_to_active(ctx);
+    let sec = duration_sec.clamp(30, 600);
+    let lobby_session = ctx
+        .db
+        .active_game_sessions()
+        .iter()
+        .filter(|s| s.status == SessionStatus::Lobby)
+        .max_by_key(|s| s.created_at);
+    let Some(mut s) = lobby_session else {
+        return Ok(());
+    };
+    s.lobby_until = Some(
+        ctx.timestamp + TimeDuration::from_duration(Duration::from_secs(sec as u64)),
+    );
+    ctx.db.active_game_sessions().id().update(s);
+    Ok(())
 }
 
 #[spacetimedb::reducer]

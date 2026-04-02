@@ -41,12 +41,15 @@ import CreateGuestPlayerReducer from "./create_guest_player_reducer";
 import CreatePlayerReducer from "./create_player_reducer";
 import CreatePrizePoolReducer from "./create_prize_pool_reducer";
 import EndGameSessionReducer from "./end_game_session_reducer";
+import EndMultiplayerLobbyReducer from "./end_multiplayer_lobby_reducer";
 import GetActiveGameSessionReducer from "./get_active_game_session_reducer";
 import GetLeaderboardReducer from "./get_leaderboard_reducer";
 import GetTopEarnersReducer from "./get_top_earners_reducer";
 import GetTrialLeaderboardReducer from "./get_trial_leaderboard_reducer";
 import GrantAdminPrivilegesReducer from "./grant_admin_privileges_reducer";
 import JoinActiveGameSessionReducer from "./join_active_game_session_reducer";
+import JoinMultiplayerPoolReducer from "./join_multiplayer_pool_reducer";
+import LeaveMultiplayerPoolReducer from "./leave_multiplayer_pool_reducer";
 import LinkWalletToIdentityReducer from "./link_wallet_to_identity_reducer";
 import MarkEntryConsumedReducer from "./mark_entry_consumed_reducer";
 import RecordGuestGameReducer from "./record_guest_game_reducer";
@@ -54,6 +57,7 @@ import RecordPrizeDistributionReducer from "./record_prize_distribution_reducer"
 import RecordQuestionAttemptReducer from "./record_question_attempt_reducer";
 import RevokeAdminPrivilegesReducer from "./revoke_admin_privileges_reducer";
 import StartGameSessionReducer from "./start_game_session_reducer";
+import SyncMultiplayerLobbyEndsAfterSecsReducer from "./sync_multiplayer_lobby_ends_after_secs_reducer";
 import UpdateAnonymousSessionReducer from "./update_anonymous_session_reducer";
 import UpdateGuestPlayerReducer from "./update_guest_player_reducer";
 import UpdatePlayerStatsReducer from "./update_player_stats_reducer";
@@ -76,6 +80,7 @@ import IdentityWalletMappingRow from "./identity_wallet_mapping_table";
 import PendingClaimsRow from "./pending_claims_table";
 import PlayerStatsRow from "./player_stats_table";
 import PlayersRow from "./players_table";
+import PoolPlayersRow from "./pool_players_table";
 import PrizeHistoryRow from "./prize_history_table";
 import PrizePoolsRow from "./prize_pools_table";
 import QuestionAttemptsRow from "./question_attempts_table";
@@ -272,6 +277,17 @@ const tablesSchema = __schema({
       { name: 'players_wallet_address_key', constraint: 'unique', columns: ['walletAddress'] },
     ],
   }, PlayersRow),
+  pool_players: __table({
+    name: 'pool_players',
+    indexes: [
+      { accessor: 'player_id', name: 'pool_players_player_id_idx_btree', algorithm: 'btree', columns: [
+        'playerId',
+      ] },
+    ],
+    constraints: [
+      { name: 'pool_players_player_id_key', constraint: 'unique', columns: ['playerId'] },
+    ],
+  }, PoolPlayersRow),
   prize_history: __table({
     name: 'prize_history',
     indexes: [
@@ -316,12 +332,15 @@ const reducersSchema = __reducers(
   __reducerSchema("create_player", CreatePlayerReducer),
   __reducerSchema("create_prize_pool", CreatePrizePoolReducer),
   __reducerSchema("end_game_session", EndGameSessionReducer),
+  __reducerSchema("end_multiplayer_lobby", EndMultiplayerLobbyReducer),
   __reducerSchema("get_active_game_session", GetActiveGameSessionReducer),
   __reducerSchema("get_leaderboard", GetLeaderboardReducer),
   __reducerSchema("get_top_earners", GetTopEarnersReducer),
   __reducerSchema("get_trial_leaderboard", GetTrialLeaderboardReducer),
   __reducerSchema("grant_admin_privileges", GrantAdminPrivilegesReducer),
   __reducerSchema("join_active_game_session", JoinActiveGameSessionReducer),
+  __reducerSchema("join_multiplayer_pool", JoinMultiplayerPoolReducer),
+  __reducerSchema("leave_multiplayer_pool", LeaveMultiplayerPoolReducer),
   __reducerSchema("link_wallet_to_identity", LinkWalletToIdentityReducer),
   __reducerSchema("mark_entry_consumed", MarkEntryConsumedReducer),
   __reducerSchema("record_guest_game", RecordGuestGameReducer),
@@ -329,6 +348,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_question_attempt", RecordQuestionAttemptReducer),
   __reducerSchema("revoke_admin_privileges", RevokeAdminPrivilegesReducer),
   __reducerSchema("start_game_session", StartGameSessionReducer),
+  __reducerSchema("sync_multiplayer_lobby_ends_after_secs", SyncMultiplayerLobbyEndsAfterSecsReducer),
   __reducerSchema("update_anonymous_session", UpdateAnonymousSessionReducer),
   __reducerSchema("update_guest_player", UpdateGuestPlayerReducer),
   __reducerSchema("update_player_stats", UpdatePlayerStatsReducer),

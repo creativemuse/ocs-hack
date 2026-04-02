@@ -31,6 +31,7 @@ export const ActiveGameSession = __t.object("ActiveGameSession", {
   entryFee: __t.f64(),
   startTime: __t.timestamp(),
   createdAt: __t.timestamp(),
+  lobbyUntil: __t.option(__t.timestamp()),
 });
 export type ActiveGameSession = __Infer<typeof ActiveGameSession>;
 
@@ -212,6 +213,15 @@ export const PlayerType = __t.enum("PlayerType", {
 });
 export type PlayerType = __Infer<typeof PlayerType>;
 
+export const PoolPlayer = __t.object("PoolPlayer", {
+  playerId: __t.string(),
+  sessionId: __t.string(),
+  isPaid: __t.bool(),
+  walletAddress: __t.option(__t.string()),
+  joinedAt: __t.timestamp(),
+});
+export type PoolPlayer = __Infer<typeof PoolPlayer>;
+
 export const PrizeHistory = __t.object("PrizeHistory", {
   id: __t.u64(),
   walletAddress: __t.string(),
@@ -258,6 +268,7 @@ export type QuestionAttempt = __Infer<typeof QuestionAttempt>;
 // The tagged union or sum type for the algebraic type `SessionStatus`.
 export const SessionStatus = __t.enum("SessionStatus", {
   Waiting: __t.unit(),
+  Lobby: __t.unit(),
   Active: __t.unit(),
   Completed: __t.unit(),
 });

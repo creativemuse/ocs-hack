@@ -21,6 +21,7 @@ export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
   t.game_sessions,
   t.player_stats,
   t.active_game_sessions,
+  t.pool_players,
   t.pending_claims,
   t.audio_files,
   t.active_connections.where((row) =>

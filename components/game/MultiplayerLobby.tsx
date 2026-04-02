@@ -51,6 +51,19 @@ export default function MultiplayerLobby({
   const [isPlaying, setIsPlaying] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const syncedDurationRef = useRef(false);
+  const lobbyEndRequestedRef = useRef(false);
+
+  const requestEndLobby = useCallback(() => {
+    if (lobbyEndRequestedRef.current) return;
+    lobbyEndRequestedRef.current = true;
+    void onEndLobbyEarly();
+  }, [onEndLobbyEarly]);
+
+  useEffect(() => {
+    if (session?.status !== 'lobby') {
+      lobbyEndRequestedRef.current = false;
+    }
+  }, [session?.status]);
 
   // Poll session state
   useEffect(() => {
@@ -171,7 +184,7 @@ export default function MultiplayerLobby({
 
     const onEnded = () => {
       setIsPlaying(false);
-      void onEndLobbyEarly();
+      requestEndLobby();
     };
 
     const onPlay = () => setIsPlaying(true);
@@ -189,7 +202,17 @@ export default function MultiplayerLobby({
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
     };
-  }, [onEndLobbyEarly, onSyncDuration]);
+  }, [requestEndLobby, onSyncDuration]);
+
+  // If audio `ended` never fires or server lobby clock hits zero, still end the lobby once
+  useEffect(() => {
+    if (session?.status !== 'lobby') return;
+    if (lobbyEndRequestedRef.current) return;
+    const serverAtZero = lobbyTimeRemaining <= 0;
+    const displayAtZero = displaySec <= 0;
+    if (!serverAtZero && !displayAtZero) return;
+    requestEndLobby();
+  }, [session?.status, lobbyTimeRemaining, displaySec, requestEndLobby]);
 
   // Auto-play on mount
   useEffect(() => {
@@ -443,6 +466,15 @@ export default function MultiplayerLobby({
                 )}
               </ul>
             </div>
+
+            <Button
+              type="button"
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold"
+              onClick={() => requestEndLobby()}
+              aria-label="Start the round now for everyone in this lobby"
+            >
+              Start round now
+            </Button>
 
             <Button
               type="button"

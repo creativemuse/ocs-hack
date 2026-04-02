@@ -27,4 +27,5 @@ export default __t.row({
   entryFee: __t.f64().name("entry_fee"),
   startTime: __t.timestamp().name("start_time"),
   createdAt: __t.timestamp().name("created_at"),
+  lobbyUntil: __t.option(__t.timestamp()).name("lobby_until"),
 });
