@@ -166,7 +166,6 @@ export default function Game() {
   // Cleanup effect - leave game session when component unmounts
   useEffect(() => {
     return () => {
-      // Leave the game session when component unmounts
       leaveGame().catch((error: any) => {
         console.error('Error leaving game session on unmount:', error);
       });

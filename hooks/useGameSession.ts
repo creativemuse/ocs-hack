@@ -206,7 +206,6 @@ export const useGameSession = (): UseGameSessionReturn => {
 
   const leaveGame = useCallback(async () => {
     if (!playerId) {
-      console.warn('No player ID to leave game');
       return;
     }
 
