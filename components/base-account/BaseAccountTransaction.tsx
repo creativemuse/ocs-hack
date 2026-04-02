@@ -5,8 +5,18 @@ import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { createBaseAccountSDK } from '@base-org/account';
 import { base } from 'viem/chains';
-import { numberToHex } from 'viem';
+import { createPublicClient, http, numberToHex, type Hex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
+
+const basePublicClient = createPublicClient({
+  chain: base,
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org'),
+});
+
+export type BaseAccountTxStatusExtras = {
+  /** Last `eth_sendTransaction` hash (e.g. `joinBattle` after approve in a batch). */
+  lastTxHash?: string;
+};
 
 interface BaseAccountTransactionProps {
   calls: Array<{
@@ -14,7 +24,11 @@ interface BaseAccountTransactionProps {
     value: `0x${string}`;
     data: `0x${string}`;
   }>;
-  onStatus?: (status: 'pending' | 'success' | 'error', message?: string) => void;
+  onStatus?: (
+    status: 'pending' | 'success' | 'error',
+    message?: string,
+    extras?: BaseAccountTxStatusExtras
+  ) => void;
   children: React.ReactNode;
   className?: string;
 }
@@ -55,28 +69,42 @@ export default function BaseAccountTransaction({
 
       const provider = sdk.getProvider();
 
-      // Batch all calls into a single atomic operation using EIP-5792 wallet_sendCalls.
-      // This ensures approve + joinBattle execute together, preventing
-      // "execution reverted" from the approval not being mined before joinBattle runs.
-      const result = await provider.request({
-        method: 'wallet_sendCalls',
-        params: [{
-          version: '1',
-          from: address,
-          chainId: numberToHex(base.id),
-          calls: calls.map(call => ({
+      // Smart accounts (4337): each user op bumps the account nonce on-chain only after
+      // inclusion. Sending approve + joinBattle back-to-back causes AA25 invalid account nonce
+      // on the second op — wait for each receipt before the next send.
+      const results: string[] = [];
+      for (let i = 0; i < calls.length; i++) {
+        const call = calls[i];
+        const result = (await provider.request({
+          method: 'eth_sendTransaction',
+          params: [{
+            from: address,
             to: call.to,
             value: call.value,
             data: call.data,
-          })),
-        }]
-      });
-      const results = [result];
+            chainId: numberToHex(base.id),
+          }]
+        })) as Hex;
 
-      console.log('Transactions sent:', results);
+        results.push(result);
+
+        const receipt = await basePublicClient.waitForTransactionReceipt({
+          hash: result,
+          timeout: 180_000,
+        });
+
+        if (receipt.status !== 'success') {
+          throw new Error(
+            `Transaction ${i + 1} of ${calls.length} reverted on-chain. Try again in a moment.`
+          );
+        }
+      }
+
+      const lastTxHash = results.length > 0 ? results[results.length - 1] : undefined;
+      console.log('Transactions confirmed:', results);
       setStatus('success');
       setMessage('Transaction successful!');
-      onStatus?.('success', 'Transaction successful!');
+      onStatus?.('success', 'Transaction successful!', { lastTxHash });
     } catch (error: any) {
       // Safely serialize error to avoid BigInt serialization issues
       const safeError = {
