@@ -112,7 +112,7 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <span className="text-2xl font-bold text-white">
-                  {isLoading ? '...' : formatUSDCBalance(balance)} USDC
+                  {isLoading && balance === 0 ? '...' : formatUSDCBalance(balance)} USDC
                 </span>
                 <StatusIcon className={`h-4 w-4 ${balanceStatus.className}`} />
               </div>
