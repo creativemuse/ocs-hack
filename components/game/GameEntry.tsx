@@ -17,7 +17,7 @@ import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import SpendPermissionBadge from '@/components/base-account/SpendPermissionBadge';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
 import BaseAccountTransaction, {
@@ -60,6 +60,7 @@ export default function GameEntry({
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
   const [paymentFlowId, setPaymentFlowId] = useState(0);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
@@ -121,6 +122,7 @@ export default function GameEntry({
     if (status === 'success') {
       console.log('Paid game transaction successful!');
       setIsProcessingPayment(false);
+      setIsStartingGame(false);
       setTransactionError(null);
       setError(null);
       void onGameStart({
@@ -131,6 +133,7 @@ export default function GameEntry({
       });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
+      setIsStartingGame(false);
       
       // Check if user cancelled/rejected the transaction
       const isUserRejection = 
@@ -258,7 +261,9 @@ export default function GameEntry({
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
     console.log('Trial status:', trialStatus);
     console.log('Player mode choice:', playerModeChoice);
-    
+
+    setIsStartingGame(true);
+
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
       // Trial player - start game immediately
       console.log('Starting trial game');
@@ -268,20 +273,23 @@ export default function GameEntry({
       // Paid player - check if wallet is connected
       if (!address || !isConnected) {
         setError('Please connect your wallet to play in Paid Mode');
+        setIsStartingGame(false);
         return;
       }
-      
+
       // Check if user has enough USDC
       if (!hasEnoughForEntry) {
         setError('Insufficient USDC balance. Please add funds to continue.');
+        setIsStartingGame(false);
         return;
       }
-      
+
       // Start paid game with smart contract interaction
       await handlePaidGameEntry();
     } else {
       // Trial exhausted or other case - show payment flow
       setShowPayment(true);
+      setIsStartingGame(false);
     }
   };
 
@@ -338,6 +346,7 @@ export default function GameEntry({
   const handleRetryTransaction = () => {
     setTransactionError(null);
     setError(null);
+    setIsStartingGame(true);
     setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
   };
@@ -346,6 +355,7 @@ export default function GameEntry({
     setTransactionError(null);
     setError(null);
     setIsProcessingPayment(false);
+    setIsStartingGame(false);
   };
 
   const handleBackToEntry = () => {
@@ -491,10 +501,15 @@ export default function GameEntry({
               </div>
               <Button
                 onClick={handleStartGame}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white cursor-pointer"
+                disabled={isStartingGame}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Play className="h-4 w-4 mr-2" />
-                Start Free Game
+                {isStartingGame ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                {isStartingGame ? 'Starting...' : 'Start Free Game'}
               </Button>
             </>
           ) : isPaidMode ? (
@@ -622,7 +637,7 @@ export default function GameEntry({
                       />
                       <Button
                         type="button"
-                        onClick={() => setIsProcessingPayment(false)}
+                        onClick={() => { setIsProcessingPayment(false); setIsStartingGame(false); }}
                         variant="outline"
                         className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
                       >
@@ -632,14 +647,20 @@ export default function GameEntry({
                   ) : (
                     <Button
                       onClick={handlePaidGameEntry}
-                      disabled={!hasEnoughForEntry}
+                      disabled={!hasEnoughForEntry || isStartingGame}
                       className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
                     >
-                      <Play className="h-4 w-4 mr-2" />
-                      {playerModeChoice === 'paid_multiplayer'
-                        ? 'Enter Multiplayer Lobby'
-                        : 'Start paid game'}
+                      {isStartingGame ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      {isStartingGame
+                        ? 'Processing...'
+                        : playerModeChoice === 'paid_multiplayer'
+                          ? 'Enter Multiplayer Lobby'
+                          : 'Start paid game'}
                     </Button>
                   )}
                   
