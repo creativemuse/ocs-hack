@@ -2,1016 +2,368 @@
 export const ENTRY_FEE_USDC = '1'; // 1 USDC
 export const TRIAL_ENTRY_FEE_USDC = '0'; // 0 USDC for trial players
 
-// USDC contract addresses
-// Base Sepolia: 0x036CbD53842c5426634e7929541eC2318f3dCF7e
-// Base Mainnet: 0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
-// Use environment variable if set, otherwise default to Sepolia
-export const USDC_CONTRACT_ADDRESS =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_USDC_ADDRESS) ||
-  '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // Base Mainnet default
+// USDC contract address on Base Mainnet
+const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
-// Trivia Battle smart contract address
-// Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
-// Base Mainnet: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (deployed 2026-04-01)
-// Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
-// Paid entry verification filters logs by this address — it must match the deployment that emits PlayerJoined.
-export const TRIVIA_CONTRACT_ADDRESS =
-  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6'; // Base Mainnet default
+// Trivia Battle smart contract address (deployed on Base Mainnet)
+// Updated with claim-based prize distribution system
+// Compiled with Solidity 0.8.25 (no compiler warnings)
+// Deployed: 2025-10-13 (with claimWinnings function)
+const TRIVIA_CONTRACT_ADDRESS = '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
 
-// Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
-// NOTE: This is a session-based contract, not game-based. It does NOT have:
-// - currentGameId, games mapping, getGameInfo, getPlayerRanking, calculatePrize, claimPrize, hasPlayerClaimed, hasPlayerEntered, createGame, enterGame
-const TRIVIA_ABI_INLINE = [
+// Contract ABI for trivia battle functionality (updated with claim-based prize distribution)
+export const TRIVIA_ABI = [
   {
-    "type": "constructor",
     "inputs": [
-      {
-        "name": "_usdcAddress",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_linkAddress",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_chainlinkFunctionsAddress",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_chainlinkOracle",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "_sessionInterval",
-        "type": "uint256",
-        "internalType": "uint256"
-      },
-      {
-        "name": "_entryFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
+      { "internalType": "address", "name": "_usdcToken", "type": "address" },
+      { "internalType": "address", "name": "_platformFeeRecipient", "type": "address" }
     ],
-    "stateMutability": "nonpayable"
+    "stateMutability": "nonpayable",
+    "type": "constructor"
   },
   {
-    "type": "function",
-    "name": "CHAINLINK_FEE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "LINK_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MAX_PLAYERS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_PLAYERS",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "MIN_SESSION_INTERVAL",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "PLATFORM_FEE_PERCENTAGE",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "USDC_TOKEN",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IERC20"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "chainlinkFunctions",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "contract IChainlinkFunctions"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "chainlinkOracle",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "currentSessionPrizePool",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "distributePrizes",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "endSession",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "entryFee",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "executeWithdrawal",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "fulfillOracleRequest",
     "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "internalType": "bytes32"
-      },
-      {
-        "name": "response",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "error",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
+      { "internalType": "address", "name": "owner", "type": "address" }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "getContractUsdcBalance",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getCurrentPlayers",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address[]",
-        "internalType": "address[]"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getPendingWithdrawal",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "getPlayerScore",
-    "inputs": [
-      {
-        "name": "player",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "hasParticipated",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "initiateEmergencyWithdraw",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "isSessionActive",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "joinBattle",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "lastSessionTime",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "owner",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "pendingWithdrawals",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "playerScores",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "players",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "renounceOwnership",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "sendChainlinkRequest",
-    "inputs": [
-      {
-        "name": "functionToCall",
-        "type": "string",
-        "internalType": "string"
-      },
-      {
-        "name": "params",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "sessionCounter",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "sessionInterval",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "setChainlinkFunctions",
-    "inputs": [
-      {
-        "name": "_newFunctions",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setChainlinkOracle",
-    "inputs": [
-      {
-        "name": "_newOracle",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setEntryFee",
-    "inputs": [
-      {
-        "name": "_newFee",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setSessionInterval",
-    "inputs": [
-      {
-        "name": "_newInterval",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "setTimeLockDelay",
-    "inputs": [
-      {
-        "name": "_newDelay",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "startNewSession",
-    "inputs": [],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "submitScores",
-    "inputs": [
-      {
-        "name": "playerAddresses",
-        "type": "address[]",
-        "internalType": "address[]"
-      },
-      {
-        "name": "scores",
-        "type": "uint256[]",
-        "internalType": "uint256[]"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "timeLockDelay",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "timeLockEnd",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "onReport",
-    "inputs": [
-      {
-        "name": "metadata",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "report",
-        "type": "bytes",
-        "internalType": "bytes"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "supportsInterface",
-    "inputs": [
-      {
-        "name": "interfaceId",
-        "type": "bytes4",
-        "internalType": "bytes4"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "pure"
-  },
-  {
-    "type": "event",
-    "name": "ChainlinkRequestSent",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "sender",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "functionName",
-        "type": "string",
-        "indexed": false,
-        "internalType": "string"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "ChainlinkResponseReceived",
-    "inputs": [
-      {
-        "name": "requestId",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "response",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
-      },
-      {
-        "name": "error",
-        "type": "bytes",
-        "indexed": false,
-        "internalType": "bytes"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "EmergencyWithdrawalInitiated",
-    "inputs": [
-      {
-        "name": "initiator",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "releaseTime",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "OwnershipTransferred",
-    "inputs": [
-      {
-        "name": "previousOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "newOwner",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PlatformFeeDistributed",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PlayerJoined",
-    "inputs": [
-      {
-        "name": "player",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PrizesDistributed",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "winners",
-        "type": "address[]",
-        "indexed": false,
-        "internalType": "address[]"
-      },
-      {
-        "name": "prizeAmounts",
-        "type": "uint256[]",
-        "indexed": false,
-        "internalType": "uint256[]"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SessionStarted",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "startTime",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "WithdrawalExecuted",
-    "inputs": [
-      {
-        "name": "recipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "error",
     "name": "OwnableInvalidOwner",
-    "inputs": [
-      {
-        "name": "owner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [
+      { "internalType": "address", "name": "account", "type": "address" }
+    ],
     "name": "OwnableUnauthorizedAccount",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+    "type": "error"
   },
   {
-    "type": "error",
+    "inputs": [],
     "name": "ReentrancyGuardReentrantCall",
-    "inputs": []
+    "type": "error"
   },
   {
-    "type": "error",
-    "name": "SafeERC20FailedOperation",
+    "anonymous": false,
     "inputs": [
-      {
-        "name": "token",
-        "type": "address",
-        "internalType": "address"
-      }
-    ]
+      { "indexed": true, "internalType": "address", "name": "previousOwner", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "newOwner", "type": "address" }
+    ],
+    "name": "OwnershipTransferred",
+    "type": "event"
   },
   {
-    "type": "error",
-    "name": "TriviaBattle__AlreadyParticipated",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__InsufficientEntryFee",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__InsufficientUSDCBalance",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__InvalidSessionInterval",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__NoPendingWithdrawal",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__NotEnoughPlayers",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__SessionAlreadyActive",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__SessionIntervalNotElapsed",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__SessionNotActive",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TriviaBattle__TimeLockActive",
+    "anonymous": false,
     "inputs": [
-      {
-        "name": "releaseTime",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" },
+      { "indexed": true, "internalType": "address", "name": "recipient", "type": "address" }
+    ],
+    "name": "PlatformFeeCollected",
+    "type": "event"
   },
   {
-    "type": "error",
-    "name": "TriviaBattle__Unauthorized",
-    "inputs": []
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "oldRecipient", "type": "address" },
+      { "indexed": true, "internalType": "address", "name": "newRecipient", "type": "address" }
+    ],
+    "name": "PlatformFeeRecipientUpdated",
+    "type": "event"
   },
   {
-    "type": "error",
-    "name": "TriviaBattle__WithdrawalAmountTooLow",
-    "inputs": []
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "entryFee", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "platformFee", "type": "uint256" }
+    ],
+    "name": "PlayerJoined",
+    "type": "event"
   },
   {
-    "type": "error",
-    "name": "TriviaBattle__ZeroAddress",
-    "inputs": []
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "sessionId", "type": "uint256" },
+      { "indexed": false, "internalType": "address[]", "name": "winners", "type": "address[]" },
+      { "indexed": false, "internalType": "uint256[]", "name": "amounts", "type": "uint256[]" }
+    ],
+    "name": "PrizesDistributed",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "ScoreSubmitted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "endTime", "type": "uint256" }
+    ],
+    "name": "SessionEnded",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": false, "internalType": "uint256", "name": "startTime", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "duration", "type": "uint256" }
+    ],
+    "name": "SessionStarted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "sessionId", "type": "string" }
+    ],
+    "name": "TrialPlayerJoined",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "string", "name": "sessionId", "type": "string" },
+      { "indexed": false, "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "indexed": false, "internalType": "uint256", "name": "timestamp", "type": "uint256" }
+    ],
+    "name": "TrialScoreSubmitted",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      { "indexed": true, "internalType": "address", "name": "player", "type": "address" },
+      { "indexed": false, "internalType": "uint256", "name": "amount", "type": "uint256" }
+    ],
+    "name": "WinningsClaimed",
+    "type": "event"
+  },
+  {
+    "inputs": [],
+    "name": "ENTRY_FEE",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "PLATFORM_FEE_BPS",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "claimWinnings",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "currentSession",
+    "outputs": [
+      { "internalType": "uint256", "name": "startTime", "type": "uint256" },
+      { "internalType": "uint256", "name": "endTime", "type": "uint256" },
+      { "internalType": "uint256", "name": "prizePool", "type": "uint256" },
+      { "internalType": "uint256", "name": "paidPlayerCount", "type": "uint256" },
+      { "internalType": "uint256", "name": "trialPlayerCount", "type": "uint256" },
+      { "internalType": "bool", "name": "isActive", "type": "bool" },
+      { "internalType": "bool", "name": "prizesDistributed", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "distributePrizes",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "emergencyWithdraw",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "player", "type": "address" }
+    ],
+    "name": "getPlayerScore",
+    "outputs": [
+      { "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "internalType": "bool", "name": "hasJoined", "type": "bool" },
+      { "internalType": "bool", "name": "hasSubmitted", "type": "bool" },
+      { "internalType": "uint256", "name": "submissionTime", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "getSessionInfo",
+    "outputs": [
+      { "internalType": "uint256", "name": "startTime", "type": "uint256" },
+      { "internalType": "uint256", "name": "endTime", "type": "uint256" },
+      { "internalType": "uint256", "name": "prizePool", "type": "uint256" },
+      { "internalType": "uint256", "name": "paidPlayerCount", "type": "uint256" },
+      { "internalType": "uint256", "name": "trialPlayerCount", "type": "uint256" },
+      { "internalType": "bool", "name": "isActive", "type": "bool" },
+      { "internalType": "bool", "name": "prizesDistributed", "type": "bool" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "sessionId", "type": "string" }
+    ],
+    "name": "getTrialPlayerScore",
+    "outputs": [
+      { "internalType": "uint256", "name": "score", "type": "uint256" },
+      { "internalType": "bool", "name": "hasJoined", "type": "bool" },
+      { "internalType": "bool", "name": "hasSubmitted", "type": "bool" },
+      { "internalType": "uint256", "name": "submissionTime", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "joinBattle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "sessionId", "type": "string" }
+    ],
+    "name": "joinTrialBattle",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "owner",
+    "outputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "platformFeeRecipient",
+    "outputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "", "type": "address" }
+    ],
+    "name": "playerWinnings",
+    "outputs": [
+      { "internalType": "uint256", "name": "", "type": "uint256" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "renounceOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "duration", "type": "uint256" }
+    ],
+    "name": "startSession",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "uint256", "name": "score", "type": "uint256" }
+    ],
+    "name": "submitScore",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "string", "name": "sessionId", "type": "string" },
+      { "internalType": "uint256", "name": "score", "type": "uint256" }
+    ],
+    "name": "submitTrialScore",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "newOwner", "type": "address" }
+    ],
+    "name": "transferOwnership",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      { "internalType": "address", "name": "_newRecipient", "type": "address" }
+    ],
+    "name": "updatePlatformFeeRecipient",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "usdcToken",
+    "outputs": [
+      { "internalType": "contract IERC20", "name": "", "type": "address" }
+    ],
+    "stateMutability": "view",
+    "type": "function"
   }
 ] as const;
 
-// Contract ABI for trivia battle functionality (updated with Chainlink Functions integration)
-export const TRIVIA_ABI = TRIVIA_ABI_INLINE;
-
-// USDC ABI for balance checking and approvals
-export const USDC_ABI = [
-  {
-    type: 'function',
-    name: 'balanceOf',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'decimals',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint8' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'symbol',
-    inputs: [],
-    outputs: [{ name: '', type: 'string' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'name',
-    inputs: [],
-    outputs: [{ name: '', type: 'string' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'totalSupply',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
+// USDC contract ABI for token transfers
+const USDC_ABI = [
   {
     type: 'function',
     name: 'transfer',
     inputs: [
+      { name: 'to', type: 'address' },
+      { name: 'amount', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+  },
+  {
+    type: 'function',
+    name: 'transferFrom',
+    inputs: [
+      { name: 'from', type: 'address' },
       { name: 'to', type: 'address' },
       { name: 'amount', type: 'uint256' },
     ],
@@ -1030,45 +382,160 @@ export const USDC_ABI = [
   },
   {
     type: 'function',
-    name: 'allowance',
-    inputs: [
-      { name: 'owner', type: 'address' },
-      { name: 'spender', type: 'address' },
-    ],
+    name: 'balanceOf',
+    inputs: [{ name: 'account', type: 'address' }],
     outputs: [{ name: '', type: 'uint256' }],
     stateMutability: 'view',
   },
   {
     type: 'function',
-    name: 'transferFrom',
-    inputs: [
-      { name: 'from', type: 'address' },
-      { name: 'to', type: 'address' },
-      { name: 'amount', type: 'uint256' },
-    ],
-    outputs: [{ name: '', type: 'bool' }],
-    stateMutability: 'nonpayable',
-  },
-  {
-    type: 'event',
-    name: 'Transfer',
-    inputs: [
-      { name: 'from', type: 'address', indexed: true },
-      { name: 'to', type: 'address', indexed: true },
-      { name: 'value', type: 'uint256', indexed: false },
-    ],
-  },
-  {
-    type: 'event',
-    name: 'Approval',
-    inputs: [
-      { name: 'owner', type: 'address', indexed: true },
-      { name: 'spender', type: 'address', indexed: true },
-      { name: 'value', type: 'uint256', indexed: false },
-    ],
+    name: 'decimals',
+    inputs: [],
+    outputs: [{ name: '', type: 'uint8' }],
+    stateMutability: 'view',
   },
 ] as const;
 
-// Export contract addresses for backward compatibility
-export const TRIVIA_CONTRACT_ADDRESS_EXPORT = TRIVIA_CONTRACT_ADDRESS;
-export const USDC_CONTRACT_ADDRESS_EXPORT = USDC_CONTRACT_ADDRESS;
+export { USDC_ABI };
+
+export class TriviaContract {
+  /**
+   * Check if the contract is deployed and accessible
+   */
+  static async isContractDeployed(): Promise<boolean> {
+    try {
+      // For now, return false since we're using a mock address
+      // In production, this would check the actual contract
+      return false;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /**
+   * Join a trivia battle by paying the entry fee in USDC (for paid players)
+   */
+  static createJoinBattleTransaction() {
+    return {
+      to: USDC_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0), // No ETH value for USDC transfer
+      data: '0x' as `0x${string}`, // transfer() function call to trivia contract
+    };
+  }
+
+  /**
+   * Join a trivia battle without paying entry fee (for trial players)
+   */
+  static createJoinTrialBattleTransaction(sessionId: string) {
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // joinTrialBattle() function call
+    };
+  }
+
+  /**
+   * Submit game score and answers to the smart contract
+   */
+  static createSubmitScoreTransaction(
+    gameId: string,
+    score: number,
+    answerHashes: string[]
+  ) {
+    // Convert answers to bytes32 format
+    const answerBytes32 = answerHashes.map(hash => 
+      hash.padStart(66, '0x' + '0'.repeat(64))
+    );
+    
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // submitScore() function call with encoded parameters
+    };
+  }
+
+  /**
+   * Trigger prize distribution for completed game
+   */
+  static createDistributePrizesTransaction(gameId: string) {
+    return {
+      to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      value: BigInt(0),
+      data: '0x' as `0x${string}`, // distributePrizes() function call
+    };
+  }
+
+  /**
+   * Get current prize pool amount in USDC (mock implementation)
+   */
+  static async getPrizePool(): Promise<bigint> {
+    // Mock implementation - in production this would call the contract
+    return BigInt(0);
+  }
+
+  /**
+   * Get current number of players in the battle (mock implementation)
+   */
+  static async getPlayerCount(): Promise<number> {
+    // Mock implementation - in production this would call the contract
+    return 0;
+  }
+
+  /**
+   * Get current number of trial players in the battle (mock implementation)
+   */
+  static async getTrialPlayerCount(): Promise<number> {
+    // Mock implementation - in production this would call the contract
+    return 0;
+  }
+
+  /**
+   * Convert USDC wei to USDC for display (USDC has 6 decimals)
+   */
+  static usdcWeiToUsdc(usdcWeiValue: bigint): number {
+    return Number(usdcWeiValue) / Math.pow(10, 6);
+  }
+
+  /**
+   * Convert USDC to USDC wei
+   */
+  static usdcToUsdcWei(usdcValue: number): bigint {
+    return BigInt(Math.floor(usdcValue * Math.pow(10, 6)));
+  }
+
+  /**
+   * Generate a unique game ID
+   */
+  static generateGameId(playerAddress: string, timestamp: number): string {
+    const data = `${playerAddress}_${timestamp}_${Math.random()}`;
+    // Simple hash function for demo - in production use proper keccak256
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+      const char = data.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash; // Convert to 32-bit integer
+    }
+    return `0x${Math.abs(hash).toString(16).padStart(64, '0')}`;
+  }
+
+  /**
+   * Hash answer for commitment scheme
+   */
+  static hashAnswer(
+    questionId: string,
+    answer: number,
+    nonce: string
+  ): string {
+    const data = `${questionId}_${answer}_${nonce}`;
+    // Simple hash function for demo
+    let hash = 0;
+    for (let i = 0; i < data.length; i++) {
+      const char = data.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash = hash & hash;
+    }
+    return `0x${Math.abs(hash).toString(16).padStart(64, '0')}`;
+  }
+}
+
+export { TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS };

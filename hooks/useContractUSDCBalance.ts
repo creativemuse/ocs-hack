@@ -1,37 +1,13 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 // Contract addresses (Base Mainnet)
-const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6';
+const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
 const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
 
-// USDC ABI for balance checking
-const USDC_ABI = [
-  {
-    type: 'function',
-    name: 'balanceOf',
-    inputs: [{ name: 'account', type: 'address' }],
-    outputs: [{ name: '', type: 'uint256' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'decimals',
-    inputs: [],
-    outputs: [{ name: '', type: 'uint8' }],
-    stateMutability: 'view',
-  },
-  {
-    type: 'function',
-    name: 'symbol',
-    inputs: [],
-    outputs: [{ name: '', type: 'string' }],
-    stateMutability: 'view',
-  },
-] as const;
+// Public Base RPC endpoint — no wallet connection required
+const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
 
 export interface ContractUSDCBalanceState {
   balance: number;
@@ -42,143 +18,100 @@ export interface ContractUSDCBalanceState {
   decimals: number;
 }
 
+// Helper function to decode ABI-encoded string
+function decodeString(hex: string): string {
+  try {
+    const hexString = hex.slice(2);
+    const bytes = [];
+    for (let i = 0; i < hexString.length; i += 2) {
+      bytes.push(parseInt(hexString.substr(i, 2), 16));
+    }
+    const length = parseInt(hexString.slice(64, 128), 16);
+    const stringBytes = bytes.slice(32, 32 + length);
+    return String.fromCharCode(...stringBytes);
+  } catch {
+    return 'USDC';
+  }
+}
+
+async function rpcCall(method: string, params: unknown[]): Promise<string> {
+  const res = await fetch(BASE_RPC_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+  });
+  const json = await res.json();
+  if (json.error) throw new Error(json.error.message);
+  return json.result;
+}
+
 export function useContractUSDCBalance() {
   const [state, setState] = useState<ContractUSDCBalanceState>({
     balance: 0,
     balanceWei: BigInt(0),
-    isLoading: false,
+    isLoading: true,
     error: null,
     symbol: 'USDC',
     decimals: 6,
   });
 
-  // Initialize Base Account SDK client-side only
-  const [provider, setProvider] = useState<any>(null);
+  const hasFetchedOnce = useRef(false);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const sdk = createBaseAccountSDK({
-          appName: 'BEAT ME',
-          appLogoUrl: 'https://base.org/logo.png',
-          appChainIds: [base.id],
-          subAccounts: {
-            creation: 'on-connect',
-            defaultAccount: 'sub',
-          },
-          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-        });
-        setProvider(sdk.getProvider());
-      } catch (error) {
-        console.error('Failed to initialize Base Account SDK:', error);
-      }
-    }
-  }, []);
-
-  // Fetch contract data using Base Account SDK
   const fetchContractData = useCallback(async () => {
-    if (!provider) return;
-    
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    // Only show loading spinner on the very first fetch
+    if (!hasFetchedOnce.current) {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+    }
 
     try {
-      // Read USDC balance of the TriviaBattle contract
-      const balanceWei = await provider.request({
-        method: 'eth_call',
-        params: [{
-          to: USDC_CONTRACT_ADDRESS,
-          data: `0x70a08231${TRIVIA_CONTRACT_ADDRESS.slice(2).padStart(64, '0')}`, // balanceOf(address)
-        }, 'latest']
-      });
+      const balanceWei = await rpcCall('eth_call', [{
+        to: USDC_CONTRACT_ADDRESS,
+        data: `0x70a08231${TRIVIA_CONTRACT_ADDRESS.slice(2).padStart(64, '0')}`,
+      }, 'latest']);
 
-      // Read USDC decimals
-      const decimals = await provider.request({
-        method: 'eth_call',
-        params: [{
-          to: USDC_CONTRACT_ADDRESS,
-          data: '0x313ce567', // decimals()
-        }, 'latest']
-      });
+      const decimals = await rpcCall('eth_call', [{
+        to: USDC_CONTRACT_ADDRESS,
+        data: '0x313ce567',
+      }, 'latest']);
 
-      // Read USDC symbol
-      const symbol = await provider.request({
-        method: 'eth_call',
-        params: [{
-          to: USDC_CONTRACT_ADDRESS,
-          data: '0x95d89b41', // symbol()
-        }, 'latest']
-      });
+      const symbol = await rpcCall('eth_call', [{
+        to: USDC_CONTRACT_ADDRESS,
+        data: '0x95d89b41',
+      }, 'latest']);
 
-      // Parse the results
-      const balanceWeiBigInt = BigInt(balanceWei as string);
-      const decimalsNum = parseInt(decimals as string, 16);
-      const symbolStr = decodeString(symbol as string);
-
+      const balanceWeiBigInt = BigInt(balanceWei);
+      const decimalsNum = parseInt(decimals, 16);
+      const symbolStr = decodeString(symbol);
       const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);
-      
-      setState(prev => ({
-        ...prev,
+
+      hasFetchedOnce.current = true;
+
+      setState({
         balance,
         balanceWei: balanceWeiBigInt,
         decimals: decimalsNum,
         symbol: symbolStr,
         isLoading: false,
         error: null,
-      }));
+      });
     } catch (error) {
       console.error('Error fetching contract data:', error);
+      hasFetchedOnce.current = true;
+      // Preserve last known balance on error — don't flash "Error" if we had a value
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch contract data',
+        error: prev.balance > 0 ? null : (error instanceof Error ? error.message : 'Failed to fetch contract data'),
       }));
     }
-  }, [provider]);
-
-  // Helper function to decode hex string to string
-  const decodeString = (hex: string): string => {
-    try {
-      // Remove 0x prefix and convert hex to string
-      const hexString = hex.slice(2);
-      const bytes = [];
-      for (let i = 0; i < hexString.length; i += 2) {
-        bytes.push(parseInt(hexString.substr(i, 2), 16));
-      }
-      // Find the length (first 32 bytes) and extract the string
-      const length = parseInt(hexString.slice(64, 128), 16);
-      const stringBytes = bytes.slice(32, 32 + length);
-      return String.fromCharCode(...stringBytes);
-    } catch {
-      return 'USDC'; // fallback
-    }
-  };
-
-  // Initial fetch and periodic refetch
-  useEffect(() => {
-    if (provider) {
-      fetchContractData();
-      
-      // Refetch often so the entry-fee pot visibly updates after each paid join
-      const interval = setInterval(fetchContractData, 5000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [fetchContractData, provider]);
+  }, []);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const onFocus = () => {
-      if (provider) fetchContractData();
-    };
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
-  }, [provider, fetchContractData]);
-
-  useEffect(() => {
-    if (state.error) {
-      console.error('Contract USDC Balance Error:', state.error);
-    }
-  }, [state.error]);
+    fetchContractData();
+    // Poll every 30 seconds instead of 10 to reduce flicker and RPC load
+    const interval = setInterval(fetchContractData, 30000);
+    return () => clearInterval(interval);
+  }, [fetchContractData]);
 
   const refreshBalance = useCallback(() => {
     fetchContractData();

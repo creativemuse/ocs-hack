@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useBaseAccount } from './useBaseAccount';
 import { createBaseAccountSDK } from '@base-org/account';
 import { base } from 'viem/chains';
@@ -71,6 +71,8 @@ export function useUSDCBalance() {
     }
   }, []);
 
+  const hasFetchedOnce = useRef(false);
+
   // Fetch USDC balance using Base Account SDK
   const fetchUSDCBalance = useCallback(async () => {
     if (!address || !isConnected || !provider) {
@@ -85,7 +87,10 @@ export function useUSDCBalance() {
       return;
     }
 
-    setState(prev => ({ ...prev, isLoading: true, error: null }));
+    // Only show loading spinner on the very first fetch
+    if (!hasFetchedOnce.current) {
+      setState(prev => ({ ...prev, isLoading: true, error: null }));
+    }
 
     try {
       // Read USDC balance
@@ -111,6 +116,8 @@ export function useUSDCBalance() {
       const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);
       const hasEnough = balance >= ENTRY_FEE_USDC;
       
+      hasFetchedOnce.current = true;
+
       setState(prev => ({
         ...prev,
         balance,
@@ -121,10 +128,12 @@ export function useUSDCBalance() {
       }));
     } catch (error) {
       console.error('Error fetching USDC balance:', error);
+      hasFetchedOnce.current = true;
+      // Preserve last known balance on error
       setState(prev => ({
         ...prev,
         isLoading: false,
-        error: error instanceof Error ? error.message : 'Failed to fetch USDC balance',
+        error: prev.balance > 0 ? null : (error instanceof Error ? error.message : 'Failed to fetch USDC balance'),
       }));
     }
   }, [address, isConnected, provider]);
@@ -134,8 +143,8 @@ export function useUSDCBalance() {
     if (provider) {
       fetchUSDCBalance();
       
-      // Set up periodic refetch every 10 seconds
-      const interval = setInterval(fetchUSDCBalance, 10000);
+      // Set up periodic refetch every 30 seconds
+      const interval = setInterval(fetchUSDCBalance, 30000);
       
       return () => clearInterval(interval);
     }
