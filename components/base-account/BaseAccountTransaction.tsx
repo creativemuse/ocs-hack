@@ -37,14 +37,19 @@ interface BaseAccountTransactionProps {
   className?: string;
   /** When false, only status messages render; parent should call `ref.submit()` (e.g. one-click paid entry). */
   showSubmitButton?: boolean;
+  /** Parent-provided address — avoids race where this component's own useBaseAccount hasn't resolved yet. */
+  connectedAddress?: string | null;
 }
 
 const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAccountTransactionProps>(
   function BaseAccountTransaction(
-    { calls, onStatus, children, className = '', showSubmitButton = true },
+    { calls, onStatus, children, className = '', showSubmitButton = true, connectedAddress },
     ref
   ) {
-  const { isConnected, address } = useBaseAccount();
+  const { isConnected: hookConnected, address: hookAddress } = useBaseAccount();
+  // Prefer parent-provided address to avoid race condition where hook hasn't resolved yet
+  const address = connectedAddress || hookAddress;
+  const isConnected = Boolean(address) || hookConnected;
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');

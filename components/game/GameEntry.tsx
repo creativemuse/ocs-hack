@@ -619,6 +619,7 @@ export default function GameEntry({
                         onStatus={handleTransactionStatus}
                         className="w-full"
                         showSubmitButton={false}
+                        connectedAddress={address}
                       />
                       <Button
                         type="button"
