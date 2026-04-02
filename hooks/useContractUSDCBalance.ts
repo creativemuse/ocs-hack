@@ -1,10 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef } from 'react';
-
-// Contract addresses (Base Mainnet)
-const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0xc166a6FB38636e8430d6A2Efb7A601c226659425';
-const USDC_CONTRACT_ADDRESS = '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+import { TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 // Public Base RPC endpoint — no wallet connection required
 const BASE_RPC_URL = process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
@@ -16,6 +13,7 @@ export interface ContractUSDCBalanceState {
   error: string | null;
   symbol: string;
   decimals: number;
+  entryFee: number;
 }
 
 // Helper function to decode ABI-encoded string
@@ -53,6 +51,7 @@ export function useContractUSDCBalance() {
     error: null,
     symbol: 'USDC',
     decimals: 6,
+    entryFee: 0,
   });
 
   const hasFetchedOnce = useRef(false);
@@ -79,10 +78,17 @@ export function useContractUSDCBalance() {
         data: '0x95d89b41',
       }, 'latest']);
 
+      // Read the on-chain entry fee from the Trivia contract (entryFee() selector: 0x072ea61c)
+      const entryFeeRaw = await rpcCall('eth_call', [{
+        to: TRIVIA_CONTRACT_ADDRESS,
+        data: '0x072ea61c',
+      }, 'latest']);
+
       const balanceWeiBigInt = BigInt(balanceWei);
       const decimalsNum = parseInt(decimals, 16);
       const symbolStr = decodeString(symbol);
       const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);
+      const entryFee = Number(BigInt(entryFeeRaw)) / (10 ** decimalsNum);
 
       hasFetchedOnce.current = true;
 
@@ -93,6 +99,7 @@ export function useContractUSDCBalance() {
         symbol: symbolStr,
         isLoading: false,
         error: null,
+        entryFee,
       });
     } catch (error) {
       console.error('Error fetching contract data:', error);

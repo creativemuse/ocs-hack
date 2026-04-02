@@ -88,6 +88,7 @@ function HomePage() {
     isLoading: contractBalanceLoading,
     error: contractBalanceError,
     refreshBalance: refreshContractUsdcBalance,
+    entryFee: contractEntryFee,
   } = useContractUSDCBalance();
 
   // Automatically switch to paid solo if trial is exhausted
@@ -1114,7 +1115,7 @@ function HomePage() {
                     </p>
                   </div>
                   <p className="font-['Audiowide:Regular',_sans-serif] text-[#000000] text-[9px] leading-snug max-w-full">
-                    On-chain prize pot. Grows by {ENTRY_FEE_USDC} USDC per paid entry. Updates every few seconds.
+                    On-chain prize pot. Grows by {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC per paid entry. Updates every few seconds.
                   </p>
                   <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0 w-full" data-node-id="3:161">
                     <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:159">
