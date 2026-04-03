@@ -58,10 +58,12 @@ export async function GET() {
     console.warn('⚠️ SpacetimeDB initialization failed, using in-memory session fallback');
   }
 
-  reconcileLobbyToActive();
-  const session = memGet();
-  const timeRemaining = memTime(session);
-  const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(session);
+  // Return the paid_multiplayer session by default for GET (lobby status)
+  const mode: JoinPlayerMode = 'paid_multiplayer';
+  reconcileLobbyToActive(mode);
+  const session = memGet(mode);
+  const timeRemaining = memTime(session, mode);
+  const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(session, mode);
   const inLobby = session.status === 'lobby';
 
   const isWaiting = session.status === 'waiting';
@@ -183,9 +185,9 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ error: msg }, { status: 409 });
       }
 
-      reconcileLobbyToActive();
-      const timeRemaining = memTime(s);
-      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
+      reconcileLobbyToActive(mode);
+      const timeRemaining = memTime(s, mode);
+      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s, mode);
       const inLobby = s.status === 'lobby';
       const isFirstPaidPlayer =
         actualIsPaidPlayer && s.paid_player_count === 1 && (s.status === 'active' || s.status === 'lobby');
@@ -210,10 +212,11 @@ export async function POST(req: NextRequest) {
     }
 
     if (action === 'end_lobby') {
-      reconcileLobbyToActive();
-      const s = endLobbyNow();
-      const timeRemaining = memTime(s);
-      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
+      const lobbyMode: JoinPlayerMode = playerMode ?? 'paid_multiplayer';
+      reconcileLobbyToActive(lobbyMode);
+      const s = endLobbyNow(lobbyMode);
+      const timeRemaining = memTime(s, lobbyMode);
+      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s, lobbyMode);
       const inLobby = s.status === 'lobby';
       const isWaiting = s.status === 'waiting';
       const isLobbyOpen = inLobby && lobbyTimeRemaining > 0;
@@ -238,8 +241,9 @@ export async function POST(req: NextRequest) {
       if (!Number.isFinite(sec)) {
         return NextResponse.json({ error: 'durationSec required' }, { status: 400 });
       }
-      const s = syncLobbyDurationSec(sec);
-      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
+      const syncMode: JoinPlayerMode = playerMode ?? 'paid_multiplayer';
+      const s = syncLobbyDurationSec(sec, syncMode);
+      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s, syncMode);
       const inLobby = s.status === 'lobby';
       return NextResponse.json({
         session: s,
@@ -260,10 +264,11 @@ export async function POST(req: NextRequest) {
         console.warn('⚠️ SpacetimeDB connection check failed, using memory fallback:', e);
       }
 
-      const s = memLeave(playerId);
-      reconcileLobbyToActive();
-      const timeRemaining = memTime(s);
-      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
+      const leaveMode: JoinPlayerMode | undefined = playerMode ?? undefined;
+      const s = memLeave(playerId, leaveMode);
+      reconcileLobbyToActive(leaveMode);
+      const timeRemaining = memTime(s, leaveMode);
+      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s, leaveMode);
       const inLobby = s.status === 'lobby';
       const waitingForPaidPlayer = s.paid_player_count === 0 && !inLobby;
 
