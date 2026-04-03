@@ -15,7 +15,6 @@ import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
-import SpendPermissionBadge from '@/components/base-account/SpendPermissionBadge';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
@@ -560,7 +559,6 @@ export default function GameEntry({
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
                 <GaslessBadge isGasless={true} />
-                <SpendPermissionBadge showDetails={false} />
               </div>
 
               {!isConnected || !address ? (
@@ -705,7 +703,6 @@ export default function GameEntry({
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
                 <GaslessBadge isGasless={true} />
-                <SpendPermissionBadge showDetails={false} />
               </div>
               <Button
                 onClick={handleStartGame}

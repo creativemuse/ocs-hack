@@ -54,7 +54,7 @@ const trySpacetimeSessionPayload = async () => {
   return buildSpacetimeGameSessionApiPayload(row, pool);
 };
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
     const spacetimePayload = await trySpacetimeSessionPayload();
     if (spacetimePayload) {
@@ -64,8 +64,11 @@ export async function GET() {
     console.warn('⚠️ SpacetimeDB session query failed, using memory fallback:', spacetimeError);
   }
 
+  const url = new URL(req.url);
+  const mode = (url.searchParams.get('mode') as JoinPlayerMode) || 'paid_solo';
+
   reconcileLobbyToActive();
-  const session = memGet();
+  const session = memGet(mode);
   return NextResponse.json(buildMemorySessionJson(session));
 }
 
