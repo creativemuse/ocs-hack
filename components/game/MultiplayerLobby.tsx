@@ -16,6 +16,8 @@ type MultiplayerLobbyProps = {
   onEndLobbyEarly: () => Promise<void>;
   onSyncDuration: (sec: number) => Promise<void>;
   refetch: () => Promise<void>;
+  /** Shown when API calls (e.g. start round) fail */
+  sessionError?: string | null;
 };
 
 const formatAddr = (id: string, wallet?: string) => {
@@ -37,6 +39,7 @@ export default function MultiplayerLobby({
   onEndLobbyEarly,
   onSyncDuration,
   refetch,
+  sessionError,
 }: MultiplayerLobbyProps) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -51,6 +54,35 @@ export default function MultiplayerLobby({
   const [isPlaying, setIsPlaying] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
   const syncedDurationRef = useRef(false);
+  const lobbyEndRequestedRef = useRef(false);
+  const endingRoundInFlightRef = useRef(false);
+  const [isEndingRound, setIsEndingRound] = useState(false);
+
+  const requestEndLobby = useCallback(async () => {
+    if (lobbyEndRequestedRef.current || endingRoundInFlightRef.current) return;
+    endingRoundInFlightRef.current = true;
+    lobbyEndRequestedRef.current = true;
+    setIsEndingRound(true);
+    try {
+      await onEndLobbyEarly();
+      // Lobby ended successfully — transition to gameplay immediately
+      // instead of relying on useEffect to detect the status change,
+      // which can miss due to SpacetimeDB subscription cache staleness.
+      lobbySeenRef.current = false;
+      onRoundStart();
+    } catch {
+      lobbyEndRequestedRef.current = false;
+    } finally {
+      endingRoundInFlightRef.current = false;
+      setIsEndingRound(false);
+    }
+  }, [onEndLobbyEarly, onRoundStart]);
+
+  useEffect(() => {
+    if (session?.status !== 'lobby') {
+      lobbyEndRequestedRef.current = false;
+    }
+  }, [session?.status]);
 
   // Poll session state
   useEffect(() => {
@@ -171,7 +203,7 @@ export default function MultiplayerLobby({
 
     const onEnded = () => {
       setIsPlaying(false);
-      void onEndLobbyEarly();
+      void requestEndLobby();
     };
 
     const onPlay = () => setIsPlaying(true);
@@ -189,7 +221,17 @@ export default function MultiplayerLobby({
       el.removeEventListener('play', onPlay);
       el.removeEventListener('pause', onPause);
     };
-  }, [onEndLobbyEarly, onSyncDuration]);
+  }, [requestEndLobby, onSyncDuration]);
+
+  // If audio `ended` never fires or server lobby clock hits zero, still end the lobby once
+  useEffect(() => {
+    if (session?.status !== 'lobby') return;
+    if (lobbyEndRequestedRef.current) return;
+    const serverAtZero = lobbyTimeRemaining <= 0;
+    const displayAtZero = displaySec <= 0;
+    if (!serverAtZero && !displayAtZero) return;
+    requestEndLobby();
+  }, [session?.status, lobbyTimeRemaining, displaySec, requestEndLobby]);
 
   // Auto-play on mount
   useEffect(() => {
@@ -443,6 +485,25 @@ export default function MultiplayerLobby({
                 )}
               </ul>
             </div>
+
+            {sessionError ? (
+              <p
+                className="text-sm text-red-400 text-center rounded-md border border-red-500/40 bg-red-950/40 px-3 py-2"
+                role="alert"
+              >
+                {sessionError}
+              </p>
+            ) : null}
+
+            <Button
+              type="button"
+              className="w-full bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold"
+              onClick={() => void requestEndLobby()}
+              disabled={isEndingRound}
+              aria-label="Start the round now for everyone in this lobby"
+            >
+              {isEndingRound ? 'Starting round…' : 'Start round now'}
+            </Button>
 
             <Button
               type="button"

@@ -21,10 +21,17 @@ export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
   t.game_sessions,
   t.player_stats,
   t.active_game_sessions,
+  t.pool_players,
   t.pending_claims,
   t.audio_files,
   t.active_connections.where((row) =>
     row.lastActivity.gte(Timestamp.UNIX_EPOCH)
   ),
   t.identity_wallet_mapping,
+];
+
+/** Minimal subscriptions for serverless `/api/game-session` — avoids long initial sync (504 on Vercel). */
+export const buildGameSessionOnlySubscriptionQueries = (t: AppSubscriptionTables) => [
+  t.active_game_sessions,
+  t.pool_players,
 ];

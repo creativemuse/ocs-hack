@@ -23,9 +23,38 @@ const audiowide = localFont({
   display: "swap",
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_URL ??
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+const siteTitle = "BEAT ME";
+const siteDescription = "Name the tune, win a reward.";
+
 export const metadata: Metadata = {
-  title: "BEAT ME",
-  description: "Name the tune, win a reward.",
+  metadataBase: new URL(siteUrl),
+  title: siteTitle,
+  description: siteDescription,
+  openGraph: {
+    title: siteTitle,
+    description: siteDescription,
+    url: "/",
+    siteName: siteTitle,
+    type: "website",
+    images: [
+      {
+        url: "/assets/BEATME_hero.png",
+        width: 1200,
+        height: 1200,
+        alt: "BEAT ME — Name the tune, win the reward",
+      },
+    ],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: siteTitle,
+    description: siteDescription,
+    images: ["/assets/BEATME_hero.png"],
+  },
   other: {
     "fc:frame": JSON.stringify({
       version: "next",

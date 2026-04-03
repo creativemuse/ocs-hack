@@ -11,6 +11,9 @@
     },
     "app/api/spacetime-player/route.ts": {
       "maxDuration": 10
+    },
+    "app/api/game-session/route.ts": {
+      "maxDuration": 60
     }
   },
   "build": {

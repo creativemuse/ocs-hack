@@ -1,10 +1,10 @@
 import { useCallback, useMemo, useState, useEffect } from 'react';
-import { useWriteContract, useWaitForTransactionReceipt, usePublicClient, useAccount, useWalletClient } from 'wagmi';
-import { createPaidGameCalls } from '@/lib/transaction/paidGameCalls';
+import { useWaitForTransactionReceipt, usePublicClient, useAccount, useWalletClient } from 'wagmi';
 import { useAccountCapabilities } from './useAccountCapabilities';
 import { usePaidGameEntryWithERC20Gas } from './usePaidGameEntryWithERC20Gas';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS, USDC_ABI, USDC_CONTRACT_ADDRESS, ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
-import { parseUnits, decodeErrorResult, encodeFunctionData, toHex } from 'viem';
+import { BUILDER_CODE_DATA_SUFFIX, appendBuilderCode } from '@/lib/blockchain/builderCode';
+import { parseUnits, encodeFunctionData, toHex } from 'viem';
 import { base } from 'wagmi/chains';
 
 interface GameEntryResult {
@@ -27,9 +27,8 @@ export function usePaidGameEntry() {
   const [currentStep, setCurrentStep] = useState<TransactionStep>('idle');
   const [finalTxHash, setFinalTxHash] = useState<string | undefined>(undefined);
   const [approvalHash, setApprovalHash] = useState<string | undefined>(undefined);
+  const [txError, setTxError] = useState<Error | null>(null);
 
-  // For EOA (Normal Account) - uses ETH for gas
-  const { writeContractAsync: writeContractEOA, error: eoaError } = useWriteContract();
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
   const { address } = useAccount();
@@ -61,9 +60,9 @@ export function usePaidGameEntry() {
 
 
   const joinGameEOA = useCallback(async () => {
-    const calls = createPaidGameCalls();
     setFinalTxHash(undefined);
     setApprovalHash(undefined);
+    setTxError(null);
 
     try {
       if (!publicClient || !address) {
@@ -95,14 +94,23 @@ export function usePaidGameEntry() {
         console.log('✨ MagicSpend detected, skipping strict balance check');
       }
 
-      // Sequential Execution
+      if (!walletClient) {
+        throw new Error('Wallet client not available');
+      }
+
+      // Sequential Execution with Builder Code (ERC-8021) attribution
+      const entryFeeWei = parseUnits(ENTRY_FEE_USDC, 6);
+
       setCurrentStep('approving_usdc');
       console.log('EOA: Approving USDC...');
-      const approvalTxHash = await writeContractEOA({
-        address: calls[0].address,
-        abi: calls[0].abi,
-        functionName: calls[0].functionName as "approve",
-        args: calls[0].args as [`0x${string}`, bigint],
+      const approveData = appendBuilderCode(encodeFunctionData({
+        abi: USDC_ABI,
+        functionName: 'approve',
+        args: [TRIVIA_CONTRACT_ADDRESS as `0x${string}`, entryFeeWei],
+      }));
+      const approvalTxHash = await walletClient.sendTransaction({
+        to: USDC_CONTRACT_ADDRESS as `0x${string}`,
+        data: approveData,
       });
 
       setApprovalHash(approvalTxHash);
@@ -119,23 +127,28 @@ export function usePaidGameEntry() {
 
       setCurrentStep('joining_battle');
       console.log('EOA: Joining battle...');
-      const hash = await writeContractEOA({
-        address: calls[1].address,
-        abi: calls[1].abi,
-        functionName: calls[1].functionName as "joinBattle",
-        args: calls[1].args as [],
+      const joinData = appendBuilderCode(encodeFunctionData({
+        abi: TRIVIA_ABI,
+        functionName: 'joinBattle',
+        args: [],
+      }));
+      const hash = await walletClient.sendTransaction({
+        to: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+        data: joinData,
       });
 
       setFinalTxHash(hash);
       setCurrentStep('complete');
     } catch (error) {
       console.error('❌ EOA transaction error:', error);
+      setTxError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
-  }, [writeContractEOA, publicClient, address, supportsMagicSpend]);
+  }, [walletClient, publicClient, address, supportsMagicSpend]);
 
   const joinGameBatch = useCallback(async () => {
     setFinalTxHash(undefined);
+    setTxError(null);
     setCurrentStep('batching_transaction');
 
     try {
@@ -179,7 +192,10 @@ export function usePaidGameEntry() {
           chainId: `0x${base.id.toString(16)}`, // 8453 in hex
           from: address,
           calls: batchCalls,
-          capabilities: capabilities // Pass discovered capabilities (paymaster etc)
+          capabilities: {
+            ...capabilities,
+            dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true }
+          }
         }]
       });
 
@@ -218,6 +234,7 @@ export function usePaidGameEntry() {
 
     } catch (error) {
       console.error('❌ Batch transaction failed:', error);
+      setTxError(error instanceof Error ? error : new Error(String(error)));
       throw error;
     }
   }, [walletClient, address, publicClient, capabilities]);
@@ -267,17 +284,17 @@ export function usePaidGameEntry() {
 
   // Reset step on success/fail
   useEffect(() => {
-    if (result.success || eoaError) {
+    if (result.success || txError) {
       // If error, reset quickly. If success, maybe keep it 'complete' a bit?
       // Keeping existing logic
     }
-  }, [result, eoaError]);
+  }, [result, txError]);
 
 
   return {
     joinGameUniversal,
     result,
-    error: eoaError, // or batch error state if we add it
+    error: txError,
     isSmartAccount: !!supportsAtomicBatch,
     isEOA: !supportsAtomicBatch,
     isLoading: currentStep !== 'idle' && currentStep !== 'complete',

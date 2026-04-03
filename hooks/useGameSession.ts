@@ -206,7 +206,6 @@ export const useGameSession = (): UseGameSessionReturn => {
 
   const leaveGame = useCallback(async () => {
     if (!playerId) {
-      console.warn('No player ID to leave game');
       return;
     }
 
@@ -241,28 +240,35 @@ export const useGameSession = (): UseGameSessionReturn => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'end_lobby' }),
       });
-      if (!response.ok) return;
+      if (!response.ok) {
+        const errText = await response.text().catch(() => '');
+        const msg = errText || `Failed to end lobby (${response.status})`;
+        setError(msg);
+        throw new Error(msg);
+      }
       const data = await response.json();
       applySessionPayload(data);
+      setError(null);
     } catch (e) {
-      console.error('endLobby failed', e);
+      const msg = e instanceof Error ? e.message : 'Failed to end lobby';
+      setError(msg);
+      throw e;
     }
   }, [applySessionPayload]);
 
   const syncLobbyDuration = useCallback(
     async (durationSec: number) => {
-      try {
-        const response = await fetch('/api/game-session', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'sync_lobby_duration', durationSec }),
-        });
-        if (!response.ok) return;
-        const data = await response.json();
-        applySessionPayload(data);
-      } catch (e) {
-        console.error('syncLobbyDuration failed', e);
+      const response = await fetch('/api/game-session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'sync_lobby_duration', durationSec }),
+      });
+      if (!response.ok) {
+        console.warn('syncLobbyDuration non-OK', response.status);
+        return;
       }
+      const data = await response.json();
+      applySessionPayload(data);
     },
     [applySessionPayload]
   );

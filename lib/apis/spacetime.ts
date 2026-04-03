@@ -8,6 +8,7 @@ import { Identity } from 'spacetimedb';
 
 import {
   buildAppSubscriptionQueries,
+  buildGameSessionOnlySubscriptionQueries,
   type AppSubscriptionTables,
 } from '../spacetime/appSubscriptionQueries';
 
@@ -25,6 +26,8 @@ import {
   type PrizePool,
   type Admin,
 } from '../spacetime/database';
+import type { PoolPlayer } from '../spacetime/types';
+import { pickCurrentActiveGameSession } from './mapSpacetimeGameSession';
 
 // Re-export types for convenience
 export type {
@@ -40,6 +43,7 @@ export type {
   PrizePool,
   Admin,
 };
+export type { PoolPlayer };
 
 export interface TopEarner {
   walletAddress: string;
@@ -120,15 +124,19 @@ class SpacetimeDBClient {
               .onApplied(() => {
                 console.log('✅ SpacetimeDB subscription applied');
               })
-              .subscribe((t) =>
-                buildAppSubscriptionQueries(t as unknown as AppSubscriptionTables)
-              );
+              .subscribe((t) => {
+                const tbl = t as unknown as AppSubscriptionTables;
+                return typeof window === 'undefined'
+                  ? buildGameSessionOnlySubscriptionQueries(tbl)
+                  : buildAppSubscriptionQueries(tbl);
+              });
             
             resolve();
           })
           .onDisconnect(() => {
             console.log('🔌 Disconnected from SpacetimeDB');
             this.isConnected = false;
+            this.connection = null;
           })
           .onConnectError((error) => {
             if (connectionResolved) return;
@@ -435,11 +443,59 @@ class SpacetimeDBClient {
     }
   }
 
+  /**
+   * Runs server-side reconcile (lobby → active, expiry) then returns the current
+   * Waiting | Lobby | Active row with the latest createdAt (matches module logic).
+   */
   async getActiveGameSession(): Promise<ActiveGameSession | null> {
     if (!this.connection) return null;
 
-    const activeSessions = Array.from(this.connection.db.active_game_sessions.iter()) as ActiveGameSession[];
-    return activeSessions.length > 0 ? activeSessions[0] : null;
+    await this.connection.reducers.getActiveGameSession({});
+    const rows = Array.from(this.connection.db.active_game_sessions.iter()) as ActiveGameSession[];
+    return pickCurrentActiveGameSession(rows);
+  }
+
+  getPoolPlayersForSession(sessionId: string): PoolPlayer[] {
+    if (!this.connection) return [];
+    return Array.from(this.connection.db.pool_players.iter() as Iterable<PoolPlayer>).filter(
+      (p) => p.sessionId === sessionId
+    );
+  }
+
+  async joinMultiplayerPool(
+    playerId: string,
+    walletAddress: string | undefined,
+    lobbyDurationSec: number
+  ): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+    await this.connection.reducers.joinMultiplayerPool({
+      playerId,
+      walletAddress: walletAddress ?? undefined,
+      lobbyDurationSec,
+    });
+  }
+
+  async leaveMultiplayerPool(playerId: string): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+    await this.connection.reducers.leaveMultiplayerPool({ playerId });
+  }
+
+  async endMultiplayerLobby(): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+    await this.connection.reducers.endMultiplayerLobby({});
+  }
+
+  async syncMultiplayerLobbyEndsAfterSecs(durationSec: number): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+    await this.connection.reducers.syncMultiplayerLobbyEndsAfterSecs({ durationSec });
   }
 
   async joinActiveGameSession(playerType: 'paid' | 'trial' = 'paid'): Promise<void> {

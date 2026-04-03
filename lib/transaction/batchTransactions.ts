@@ -1,6 +1,7 @@
 import { createBaseAccountSDK } from '@base-org/account';
 import { base } from 'viem/chains';
 import { Interface } from 'ethers';
+import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
 
 export interface BatchCall {
   to: string;
@@ -60,7 +61,10 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
           value: call.value || '0x0'
         })),
         atomicRequired,
-        gasless
+        gasless,
+        capabilities: {
+          dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true }
+        }
       }
     })) as { transactionHash?: string; hash?: string };
 

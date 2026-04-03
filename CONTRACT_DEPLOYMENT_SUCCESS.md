@@ -15,7 +15,7 @@
 - **Chainlink Functions:** `0x0000000000000000000000000000000000000000` (to be set later)
 - **Chainlink Oracle:** `0x0000000000000000000000000000000000000000` (to be set later)
 - **Session Interval:** 1 week (604800 seconds)
-- **Entry Fee:** 1 USDC (1,000,000 wei, 6 decimals)
+- **Entry Fee:** 1 USDC (100,000 wei, 6 decimals)
 - **Owner:** `0xf57E8952e2EC5F82376ff8Abf65f01c2401ee294`
 
 ## Contract Interface Changes

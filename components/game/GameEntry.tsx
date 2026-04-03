@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -17,10 +17,12 @@ import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import SpendPermissionBadge from '@/components/base-account/SpendPermissionBadge';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
-import BaseAccountTransaction from '@/components/base-account/BaseAccountTransaction';
+import BaseAccountTransaction, {
+  type BaseAccountTransactionHandle,
+} from '@/components/base-account/BaseAccountTransaction';
 import { parseTransactionError, logTransactionError, type TransactionError, type ErrorContext } from '@/lib/utils/errorHandling';
 import TransactionErrorDisplay from '@/components/ui/TransactionErrorDisplay';
 import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
@@ -58,7 +60,19 @@ export default function GameEntry({
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [isStartingGame, setIsStartingGame] = useState(false);
+  const [paymentFlowId, setPaymentFlowId] = useState(0);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
+  const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
+  const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+
+  useEffect(() => {
+    if (!isProcessingPayment) return;
+    const t = window.setTimeout(() => {
+      paidTxRef.current?.submit();
+    }, 0);
+    return () => window.clearTimeout(t);
+  }, [isProcessingPayment, paymentFlowId]);
 
   // Auto-generate funding URL with CDP session token when address is available
   useEffect(() => {
@@ -74,8 +88,7 @@ export default function GameEntry({
         
         // Generate fresh session token
         const sessionToken = await getSessionToken(address);
-        console.log('✅ CDP session token generated:', sessionToken.substring(0, 20) + '...');
-        
+
         // Generate funding URL with session token
         const url = generateFundingUrl({
           walletAddress: address,
@@ -108,6 +121,7 @@ export default function GameEntry({
     if (status === 'success') {
       console.log('Paid game transaction successful!');
       setIsProcessingPayment(false);
+      setIsStartingGame(false);
       setTransactionError(null);
       setError(null);
       void onGameStart({
@@ -118,6 +132,7 @@ export default function GameEntry({
       });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
+      setIsStartingGame(false);
       
       // Check if user cancelled/rejected the transaction
       const isUserRejection = 
@@ -245,7 +260,9 @@ export default function GameEntry({
     console.log('Game start requested:', { playerModeChoice, isConnected, address, hasEnoughForEntry, balance });
     console.log('Trial status:', trialStatus);
     console.log('Player mode choice:', playerModeChoice);
-    
+
+    setIsStartingGame(true);
+
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
       // Trial player - start game immediately
       console.log('Starting trial game');
@@ -255,20 +272,23 @@ export default function GameEntry({
       // Paid player - check if wallet is connected
       if (!address || !isConnected) {
         setError('Please connect your wallet to play in Paid Mode');
+        setIsStartingGame(false);
         return;
       }
-      
+
       // Check if user has enough USDC
       if (!hasEnoughForEntry) {
         setError('Insufficient USDC balance. Please add funds to continue.');
+        setIsStartingGame(false);
         return;
       }
-      
+
       // Start paid game with smart contract interaction
       await handlePaidGameEntry();
     } else {
       // Trial exhausted or other case - show payment flow
       setShowPayment(true);
+      setIsStartingGame(false);
     }
   };
 
@@ -290,6 +310,7 @@ export default function GameEntry({
     
     console.log('Starting paid game entry process for wallet:', address);
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
+    setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
     setError(null);
 
@@ -324,14 +345,16 @@ export default function GameEntry({
   const handleRetryTransaction = () => {
     setTransactionError(null);
     setError(null);
+    setIsStartingGame(true);
+    setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
-    // The transaction will be retried automatically by the Transaction component
   };
 
   const handleDismissError = () => {
     setTransactionError(null);
     setError(null);
     setIsProcessingPayment(false);
+    setIsStartingGame(false);
   };
 
   const handleBackToEntry = () => {
@@ -354,8 +377,7 @@ export default function GameEntry({
       
       // Generate fresh session token
       const sessionToken = await getSessionToken(address);
-      console.log('✅ Fresh CDP session token generated:', sessionToken.substring(0, 20) + '...');
-      
+
       // Generate new funding URL
       const url = generateFundingUrl({
         walletAddress: address,
@@ -477,10 +499,15 @@ export default function GameEntry({
               </div>
               <Button
                 onClick={handleStartGame}
-                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white cursor-pointer"
+                disabled={isStartingGame}
+                className="w-full bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-white cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                <Play className="h-4 w-4 mr-2" />
-                Start Free Game
+                {isStartingGame ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Play className="h-4 w-4 mr-2" />
+                )}
+                {isStartingGame ? 'Starting...' : 'Start Free Game'}
               </Button>
             </>
           ) : isPaidMode ? (
@@ -587,20 +614,29 @@ export default function GameEntry({
                   
                   {isProcessingPayment ? (
                     <div className="space-y-4">
+                      <div
+                        className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
+                        role="status"
+                        aria-live="polite"
+                      >
+                        <p className="text-sm font-medium text-amber-200">Processing entry</p>
+                        <p className="mt-2 text-sm text-zinc-200">
+                          {playerModeChoice === 'paid_multiplayer'
+                            ? 'Approve USDC in your wallet, then confirm join. When both transactions confirm, you’ll enter the multiplayer lobby automatically.'
+                            : 'Approve USDC in your wallet, then confirm join. When both transactions confirm, your paid game will start automatically.'}
+                        </p>
+                      </div>
                       <BaseAccountTransaction
-          calls={createBaseAccountPaidGameCalls()}
-          onStatus={handleTransactionStatus}
-          className="w-full"
-        >
-                        <Button 
-                          type="button"
-                          className="w-full bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-white font-medium border-0"
-                        >
-                          Transact
-                        </Button>
-                      </BaseAccountTransaction>
+                        ref={paidTxRef}
+                        calls={paidGameCalls}
+                        onStatus={handleTransactionStatus}
+                        className="w-full"
+                        showSubmitButton={false}
+                        connectedAddress={address}
+                      />
                       <Button
-                        onClick={() => setIsProcessingPayment(false)}
+                        type="button"
+                        onClick={() => { setIsProcessingPayment(false); setIsStartingGame(false); }}
                         variant="outline"
                         className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
                       >
@@ -610,12 +646,20 @@ export default function GameEntry({
                   ) : (
                     <Button
                       onClick={handlePaidGameEntry}
-                      disabled={!hasEnoughForEntry}
+                      disabled={!hasEnoughForEntry || isStartingGame}
                       className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                       style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
                     >
-                      <Play className="h-4 w-4 mr-2" />
-                      Start Paid Game
+                      {isStartingGame ? (
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      ) : (
+                        <Play className="h-4 w-4 mr-2" />
+                      )}
+                      {isStartingGame
+                        ? 'Processing...'
+                        : playerModeChoice === 'paid_multiplayer'
+                          ? 'Enter Multiplayer Lobby'
+                          : 'Start paid game'}
                     </Button>
                   )}
                   

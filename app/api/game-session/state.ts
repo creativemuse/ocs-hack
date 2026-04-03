@@ -114,7 +114,23 @@ export const joinActiveSession = (
     throw new Error('Multiplayer lobby in progress — try multiplayer or wait');
   }
 
-  if (inferredMode === 'paid_solo' && session.status === 'active' && session.paid_player_count > 0) {
+  const paidPlayersInSession = session.players.filter((p) => p.isPaidPlayer);
+  const walletNorm = opts?.walletAddress?.toLowerCase();
+  const solePaidWallet = paidPlayersInSession[0]?.walletAddress?.toLowerCase();
+  /** Matches TriviaBattle.joinBattle: solo player pays again → new on-chain session; allow same wallet to re-enter memory session. */
+  const isSoloPaidReplay =
+    inferredMode === 'paid_solo' &&
+    isPaidPlayer &&
+    session.status === 'active' &&
+    paidPlayersInSession.length === 1 &&
+    Boolean(walletNorm && solePaidWallet && walletNorm === solePaidWallet);
+
+  if (
+    inferredMode === 'paid_solo' &&
+    session.status === 'active' &&
+    session.paid_player_count > 0 &&
+    !isSoloPaidReplay
+  ) {
     throw new Error('A paid game is already in progress');
   }
 
@@ -134,7 +150,9 @@ export const joinActiveSession = (
     walletAddress: opts?.walletAddress,
   };
 
-  const newPlayers = [...session.players, newPlayer];
+  const newPlayers = isSoloPaidReplay
+    ? [...session.players.filter((p) => !p.isPaidPlayer), newPlayer]
+    : [...session.players, newPlayer];
   const newPaidPlayerCount = newPlayers.filter((p) => p.isPaidPlayer).length;
   const newTrialPlayerCount = newPlayers.filter((p) => !p.isPaidPlayer).length;
   const newPlayerCount = newPlayers.length;
@@ -145,7 +163,7 @@ export const joinActiveSession = (
   let nextLobbyUntil = session.lobby_until_ms;
 
   if (isPaidPlayer) {
-    nextPrizePool = session.prize_pool + session.entry_fee;
+    nextPrizePool = isSoloPaidReplay ? session.entry_fee : session.prize_pool + session.entry_fee;
   }
 
   if (inferredMode === 'paid_multiplayer' && isPaidPlayer) {
@@ -160,11 +178,17 @@ export const joinActiveSession = (
       throw new Error('Cannot start multiplayer lobby in current session state');
     }
   } else if (inferredMode === 'paid_solo' && isPaidPlayer) {
-    const isFirstPaid = session.paid_player_count === 0;
-    if (isFirstPaid || session.status === 'waiting') {
+    if (isSoloPaidReplay) {
       nextStatus = 'active';
       nextStartTime = now;
       nextLobbyUntil = null;
+    } else {
+      const isFirstPaid = session.paid_player_count === 0;
+      if (isFirstPaid || session.status === 'waiting') {
+        nextStatus = 'active';
+        nextStartTime = now;
+        nextLobbyUntil = null;
+      }
     }
   }
 

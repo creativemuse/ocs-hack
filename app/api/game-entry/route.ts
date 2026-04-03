@@ -47,8 +47,12 @@ export async function POST(req: NextRequest) {
       anonId = ensuredAnon;
     }
 
-    // Initialize SpacetimeDB connection
-    await spacetimeClient.initialize();
+    // Initialize SpacetimeDB connection (non-fatal — game can proceed without it)
+    try {
+      await spacetimeClient.initialize();
+    } catch (initError) {
+      console.warn('⚠️ SpacetimeDB initialization failed (non-fatal):', initError);
+    }
 
     // Trials: allow only if they have remaining (wallet) or anon games_played < 1
     if (isTrial) {
@@ -85,9 +89,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Create game entry in SpaceTimeDB
-    await spacetimeClient.createGameEntry(sessionId, walletAddress, anonId, isTrial, paidTxHash);
-    
+    // Create game entry in SpaceTimeDB (non-fatal — JWT can still be issued without it)
+    try {
+      await spacetimeClient.createGameEntry(sessionId, walletAddress, anonId, isTrial, paidTxHash);
+    } catch (spacetimeError) {
+      console.warn('⚠️ SpacetimeDB createGameEntry failed (non-fatal):', spacetimeError);
+    }
+
     // Create a mock entry object for JWT generation
     const entry = {
       id: sessionId, // Use sessionId as the entry ID

@@ -29,7 +29,8 @@
     "test:leaderboard": "tsx scripts/test-leaderboard-earnings.ts",
     "test:cross-device": "tsx scripts/test-cross-device-persistence.ts",
     "spacetime:generate": "spacetime generate --lang typescript --out-dir lib/spacetime --module-path spacetime-module/beat-me -y --include-private",
-    "spacetime:generate:docker": "docker run --rm -v \"$(pwd):/module\" -w /module clockworklabs/spacetime:latest generate --lang typescript --out-dir lib/spacetime --module-path spacetime-module/beat-me -y --include-private"
+    "spacetime:generate:docker": "docker run --rm -v \"$(pwd):/module\" -w /module clockworklabs/spacetime:latest generate --lang typescript --out-dir lib/spacetime --module-path spacetime-module/beat-me -y --include-private",
+    "spacetime:publish:maincloud": "spacetime publish -s maincloud -p spacetime-module/beat-me -c=on-conflict -y beat-me"
   },
   "dependencies": {
     "@base-org/account": "^2.4.0",
