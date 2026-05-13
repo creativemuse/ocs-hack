@@ -140,15 +140,15 @@ export function useUSDCBalance() {
 
   // Update state when balance changes
   useEffect(() => {
-    if (provider) {
+    if (provider && isConnected && address) {
       fetchUSDCBalance();
-      
+
       // Set up periodic refetch every 30 seconds
       const interval = setInterval(fetchUSDCBalance, 30000);
-      
+
       return () => clearInterval(interval);
     }
-  }, [fetchUSDCBalance, provider]);
+  }, [fetchUSDCBalance, provider, isConnected, address]);
 
   const refreshBalance = useCallback(() => {
     fetchUSDCBalance();

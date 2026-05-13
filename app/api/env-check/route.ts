@@ -6,10 +6,6 @@ export async function GET(req: NextRequest) {
       url: !!process.env.SUPABASE_URL,
       anonKey: !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     },
-    onchainkit: {
-      apiKey: !!process.env.NEXT_PUBLIC_ONCHAINKIT_API_KEY,
-      serverApiKey: !!process.env.ONCHAINKIT_API_KEY,
-    },
     cdp: {
       // New CDP API credentials
       apiKeyName: !!process.env.CDP_API_KEY_NAME,

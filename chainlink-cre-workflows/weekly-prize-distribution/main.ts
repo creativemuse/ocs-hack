@@ -116,8 +116,22 @@ const onWeeklyDistribution = (
     }
   }
 
-  // Step 3: Call distributePrizes()
-  runtime.log("Conditions met. Executing distributePrizes()...")
+  // Step 3: Verify player scores exist before distribution
+  // The contract's _findTopPlayers() sorts by playerScores mapping.
+  // If no scores have been submitted, distribution would give prizes to arbitrary players.
+  const hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
+
+  if (!hasScores) {
+    const reason = `No player scores submitted for session ${sessionInfo.sessionCounter}. Scores must be set via submitScores() before distribution. Skipping to prevent incorrect prize allocation.`
+    runtime.log(reason)
+    return {
+      distributionExecuted: false,
+      reason,
+    }
+  }
+
+  // Step 4: Call distributePrizes()
+  runtime.log("All conditions met including score verification. Executing distributePrizes()...")
 
   try {
     const txHash = callDistributePrizes(
@@ -206,20 +220,21 @@ function readSessionInfo(
     data: bytesToHex(sessionIntervalResult.data),
   }) as bigint
 
-  // Read prize pool from USDC balance
-  const getContractUsdcBalanceCall = encodeFunctionData({
-    abi: [{ inputs: [], name: "getContractUsdcBalance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
-    functionName: "getContractUsdcBalance",
+  // Read prize pool from the session-specific state variable (not total USDC balance,
+  // which includes pending withdrawals and platform fees)
+  const currentSessionPrizePoolCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "currentSessionPrizePool", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "currentSessionPrizePool",
   })
   const prizePoolResult = evmClient
     .callContract(runtime, {
-      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getContractUsdcBalanceCall }),
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: currentSessionPrizePoolCall }),
       blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
     })
     .result()
   const prizePool = decodeFunctionResult({
-    abi: [{ inputs: [], name: "getContractUsdcBalance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
-    functionName: "getContractUsdcBalance",
+    abi: [{ inputs: [], name: "currentSessionPrizePool", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "currentSessionPrizePool",
     data: bytesToHex(prizePoolResult.data),
   }) as bigint
 
@@ -280,6 +295,76 @@ function readSessionInfo(
     prizesDistributed,
     sessionCounter, // Include sessionCounter in return value
   }
+}
+
+// Verify that at least one player has a non-zero score submitted on-chain.
+// Without scores, _findTopPlayers() would return players in arbitrary order.
+function verifyScoresExist(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig
+): boolean {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  const contractAddress = evmConfig.contractAddress as `0x${string}`
+
+  // First get the current players list
+  const getCurrentPlayersCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
+    functionName: "getCurrentPlayers",
+  })
+  const playersResult = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    })
+    .result()
+  const players = decodeFunctionResult({
+    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
+    functionName: "getCurrentPlayers",
+    data: bytesToHex(playersResult.data),
+  }) as `0x${string}`[]
+
+  if (players.length === 0) {
+    runtime.log("No players found in current session")
+    return false
+  }
+
+  // Check all players for scores. The contract caps at MAX_PLAYERS (100),
+  // and submitScores() sets all scores atomically, so if any player has a
+  // score they all should. We check all to be safe.
+  const playersToCheck = players
+  let hasAnyScore = false
+
+  for (const player of playersToCheck) {
+    const getScoreCall = encodeFunctionData({
+      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      functionName: "getPlayerScore",
+      args: [player],
+    })
+    const scoreResult = evmClient
+      .callContract(runtime, {
+        call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getScoreCall }),
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      })
+      .result()
+    const score = decodeFunctionResult({
+      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      functionName: "getPlayerScore",
+      data: bytesToHex(scoreResult.data),
+    }) as bigint
+
+    if (score > BigInt(0)) {
+      hasAnyScore = true
+      runtime.log(`Player ${player} has score: ${score}`)
+      break
+    }
+  }
+
+  if (!hasAnyScore) {
+    runtime.log(`Checked ${playersToCheck.length} players - no scores found`)
+  }
+
+  return hasAnyScore
 }
 
 // Call distributePrizes() on the contract

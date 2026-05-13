@@ -3,14 +3,18 @@
 import { Clock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { useSessionCountdown } from '@/hooks/useSessionCountdown';
-import { useTriviaContract } from '@/hooks/useTriviaContract';
+import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 
 export default function SessionCountdown() {
-  const { sessionActive } = useTriviaContract();
-  // useTriviaContract (Base Account) does not expose lastSessionTime/sessionInterval yet
-  const countdown = useSessionCountdown(undefined, undefined);
+  const { isSessionActive, lastSessionTime, sessionInterval } = useContractUSDCBalance();
 
-  if (sessionActive || !countdown || countdown.isExpired) {
+  // Convert to bigint for useSessionCountdown (expects bigint | undefined)
+  const lastSessionTimeBigInt = lastSessionTime > 0 ? BigInt(lastSessionTime) : undefined;
+  const sessionIntervalBigInt = sessionInterval > 0 ? BigInt(sessionInterval) : undefined;
+
+  const countdown = useSessionCountdown(lastSessionTimeBigInt, sessionIntervalBigInt);
+
+  if (isSessionActive || !countdown || countdown.isExpired) {
     return null;
   }
 

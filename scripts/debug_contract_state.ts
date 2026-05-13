@@ -12,7 +12,7 @@ const MINIMAL_ABI = [
 
 const publicClient = createPublicClient({
     chain: base,
-    transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || `https://base-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY || '5Uele1-f9VradlbXgrDgqCeAO5_AefTd'}`),
+    transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || (() => { throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required. Set it in .env'); })()),
 });
 
 async function main() {

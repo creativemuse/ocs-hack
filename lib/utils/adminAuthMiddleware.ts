@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { createHash, timingSafeEqual } from 'crypto';
 import { logger } from './logger';
 
 /**
@@ -29,8 +30,10 @@ export function validateAdminAuth(req: NextRequest): boolean {
     return false;
   }
 
-  // Validate token matches admin secret
-  if (token !== adminSecret) {
+  // Validate token matches admin secret using timing-safe comparison
+  const tokenHash = createHash('sha256').update(token).digest();
+  const secretHash = createHash('sha256').update(adminSecret).digest();
+  if (!timingSafeEqual(tokenHash, secretHash)) {
     logger.warn('Invalid admin token provided');
     return false;
   }

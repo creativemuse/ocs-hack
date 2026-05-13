@@ -243,7 +243,23 @@ export function useBaseAccount(): UseBaseAccountReturn {
           }
         }
       } catch (error) {
-        console.error('Error checking Base Account connection:', error);
+        // Error 4100 or similar means not connected — silently handle
+        // Return prev unchanged when already disconnected to prevent re-render loop
+        setState(prev => {
+          if (prev.isConnected) {
+            return {
+              ...prev,
+              address: null,
+              subAccountAddress: null,
+              universalAddress: null,
+              isConnected: false,
+              isConnecting: false,
+              chainId: null,
+              error: null,
+            };
+          }
+          return prev;
+        });
       }
     };
 

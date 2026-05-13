@@ -6,16 +6,22 @@
 // Get allowed origins from environment variable or use defaults
 const getAllowedOrigins = (): string[] => {
   const envOrigins = process.env.ALLOWED_ORIGINS;
-  
+
   if (envOrigins) {
     return envOrigins.split(',').map(origin => origin.trim());
   }
-  
-  // Default origins for development
+
+  // In production, require explicit ALLOWED_ORIGINS
+  if (process.env.NODE_ENV === 'production') {
+    console.warn('ALLOWED_ORIGINS not set in production — only the default production origin is allowed');
+    return ['https://beatme.creativeplatform.xyz'];
+  }
+
+  // Development defaults
   return [
     'https://beatme.creativeplatform.xyz',
     'http://localhost:3000',
-    'http://localhost:3001'
+    'http://localhost:3001',
   ];
 };
 

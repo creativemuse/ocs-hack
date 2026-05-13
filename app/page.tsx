@@ -9,23 +9,20 @@ import { formatTimeRemainingText } from '@/lib/utils/timeUtils';
 import GameEntry from '@/components/game/GameEntry';
 import MultiplayerLobby from '@/components/game/MultiplayerLobby';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
-import GamePayment from '@/components/game/GamePayment';
+// GamePayment view removed — no longer needed in the flow
 import AudioPlayer from '@/components/game/AudioPlayer';
 import ActivePlayers from '@/components/game/ActivePlayers';
 import type { TriviaQuestion, PlayerModeChoice, GameStartOptions } from '@/types/game';
-import { ScoringSystem } from '@/lib/game/scoring';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
-import { Trophy } from 'lucide-react';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { isLobbySessionStatus } from '@/lib/utils/gameSessionStatus';
-import BaseAccountButton from '@/components/base-account/BaseAccountButton';
 import { ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
 
 function HomePage() {
@@ -47,7 +44,6 @@ function HomePage() {
   } = useGameSession();
   const [showGameEntry, setShowGameEntry] = useState(false);
   const [showGuestMode, setShowGuestMode] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
   const [playerModeChoice, setPlayerModeChoice] = useState<PlayerModeChoice>('trial');
   const [gameStarted, setGameStarted] = useState(false);
   const [isGuestMode, setIsGuestMode] = useState(false);
@@ -74,6 +70,8 @@ function HomePage() {
   const [gameCompleted, setGameCompleted] = useState(false);
   const [completedAsTrial, setCompletedAsTrial] = useState(false);
   const [audioError, setAudioError] = useState(false);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
   const timerTriggeredRef = useRef(false);
   const lastGameWasPaidRef = useRef(false);
   const paidScoreSavedRef = useRef(false);
@@ -89,6 +87,11 @@ function HomePage() {
     error: contractBalanceError,
     refreshBalance: refreshContractUsdcBalance,
     entryFee: contractEntryFee,
+    sessionPrizePool,
+    playerCount: onChainPlayerCount,
+    isSessionActive: onChainSessionActive,
+    lastSessionTime: onChainLastSessionTime,
+    sessionInterval: onChainSessionInterval,
   } = useContractUSDCBalance();
 
   // Automatically switch to paid solo if trial is exhausted
@@ -98,6 +101,13 @@ function HomePage() {
       setPlayerModeChoice('paid_solo');
     }
   }, [trialStatus.gamesRemaining, trialStatus.isTrialActive, playerModeChoice]);
+
+  // Refetch session when time remaining hits 0 so canJoin updates promptly
+  useEffect(() => {
+    if (timeRemaining === 0 && !canJoin) {
+      refetch();
+    }
+  }, [timeRemaining, canJoin, refetch]);
 
   useEffect(() => {
     setInviteUrl(`${window.location.origin}/?mode=multiplayer`);
@@ -125,6 +135,7 @@ function HomePage() {
           body: JSON.stringify({
             walletAddress: wallet,
             finalScore,
+            entryToken: entryToken ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -145,6 +156,8 @@ function HomePage() {
     setGameError(null);
     setSelectedAnswer(null);
     setIsAnswered(false);
+    setIsVerifying(false);
+    setVerifiedCorrectAnswer(null);
     setStartTime(Date.now());
     setGameTimeRemaining(10);
     setAudioError(false);
@@ -230,19 +243,7 @@ function HomePage() {
   };
 
   const handleWalletConnect = () => {
-    setShowGameEntry(false);
-    setShowPayment(true);
-  };
-
-  const handlePaymentComplete = () => {
-    setShowPayment(false);
-    setIsTrialGame(false);
-    setGameStarted(true);
-    loadRandomQuestion();
-  };
-
-  const handlePaymentBack = () => {
-    setShowPayment(false);
+    // Payment view removed — go straight to game entry with paid modes
     setShowGameEntry(true);
   };
 
@@ -294,7 +295,6 @@ function HomePage() {
       setJoinGameStartError(null);
       setShowGameEntry(false);
       setShowGuestMode(false);
-      setShowPayment(false);
       setGameStarted(false);
       setIsGuestMode(false);
       setGameCompleted(false);
@@ -309,27 +309,40 @@ function HomePage() {
     }
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
+  const handleAnswerSelect = async (answerIndex: number) => {
     if (isAnswered || !currentQuestion || gameTimeRemaining <= 0) return;
-    
+
+    // Optimistically highlight the selected answer immediately
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
-    
-    const isCorrect = answerIndex === currentQuestion.correctAnswer;
-    if (isCorrect) {
-      const timeSpentMs = Date.now() - startTime;
-      const timeSpent = Math.round(timeSpentMs / 100) / 10;
-      
-      const pointsEarned = ScoringSystem.calculateQuestionScore(
-        true,
-        timeSpent,
-        currentQuestion.timeLimit,
-        currentQuestion.difficulty,
-        0
-      );
-      
-      setScore(prev => prev + pointsEarned);
-      setTotalScore(prev => prev + pointsEarned);
+    setIsVerifying(true);
+
+    try {
+      const res = await fetch('/api/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionToken: currentQuestion.questionToken,
+          selectedAnswer: answerIndex,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setVerifiedCorrectAnswer(data.correctAnswer);
+        if (data.isCorrect && data.pointsEarned > 0) {
+          setScore(prev => prev + data.pointsEarned);
+          setTotalScore(prev => prev + data.pointsEarned);
+        }
+      } else {
+        // Verification failed (expired token, etc.) — treat as incorrect, no points
+        console.warn('Answer verification failed:', res.status);
+      }
+    } catch (error) {
+      console.error('Answer verification error:', error);
+      // Network error — treat as incorrect, no points
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -344,10 +357,8 @@ function HomePage() {
         if (isTrialGame) {
           setCompletedAsTrial(true);
           try {
-            console.log('🎯 Trial game completed, updating trial status...');
             await incrementTrialGame();
             setIsTrialGame(false);
-            console.log('✅ Trial status updated, new status:', trialStatus);
           } catch (error) {
             console.error('Error updating trial status:', error);
           }
@@ -370,18 +381,6 @@ function HomePage() {
     
     // Round to nearest 0.1 seconds for smoother display
     const roundedRemaining = Math.round(remaining * 10) / 10;
-    
-    // Debug logging for song-specific timing issues
-    if (currentQuestion && Math.abs(remaining - roundedRemaining) > 0.1) {
-      console.log('🎵 Timing debug:', {
-        song: currentQuestion.metadata.songTitle || 'Unknown',
-        currentTime: currentTime.toFixed(2),
-        duration: duration.toFixed(2),
-        audioRemaining: audioRemaining.toFixed(2),
-        roundedRemaining: roundedRemaining.toFixed(2),
-        remaining: remaining.toFixed(2)
-      });
-    }
     
     // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
     setGameTimeRemaining(prev => {
@@ -411,7 +410,6 @@ function HomePage() {
   }, [currentQuestion, isAnswered]);
 
   const handleAudioError = () => {
-    console.log('Audio failed, trying different question...');
     setAudioError(true);
     setTimeout(() => {
       loadRandomQuestion();
@@ -475,16 +473,6 @@ function HomePage() {
     return `${totalPlayers} PLAYERS ARE PLAYING`;
   };
 
-  // Show payment screen
-  if (showPayment) {
-    return (
-      <GamePayment 
-        onPaymentComplete={handlePaymentComplete}
-        onBack={handlePaymentBack}
-      />
-    );
-  }
-
   // Show guest mode entry
   if (showGuestMode) {
     return (
@@ -499,36 +487,13 @@ function HomePage() {
     );
   }
 
-  // Show trial completion screen if user has used all free games
-  if (trialStatus.requiresWallet) {
-    return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
-        <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <div className="bg-gradient-to-br from-white to-gray-50 rounded-lg shadow-lg border-0 p-8 text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-white" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-800 mb-2">
-              Trial Games Complete!
-            </h1>
-            <p className="text-gray-600 text-lg mb-4">
-              {`You've played ${trialStatus.gamesPlayed} free games. Connect your wallet to continue playing and earn rewards!`}
-            </p>
-            {/* Base Account Wallet Component */}
-            <div className="flex justify-center">
-              <BaseAccountButton
-                className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600 !text-white !px-8 !py-3 !rounded-lg !text-lg !font-semibold"
-                onConnect={() => setShowPayment(true)}
-              />
-            </div>
-            <p className="text-sm text-gray-500 mt-4">
-              Connect your wallet to continue playing and earn rewards!
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  // When trial is exhausted, automatically show game entry with paid modes
+  // (Trial Games Complete screen has been removed — users go straight to game entry)
+  useEffect(() => {
+    if (trialStatus.requiresWallet && !gameCompleted && !gameStarted && !showGameEntry && !showGuestMode && !inMultiplayerLobby) {
+      setShowGameEntry(true);
+    }
+  }, [trialStatus.requiresWallet, gameCompleted, gameStarted, showGameEntry, showGuestMode, inMultiplayerLobby]);
 
   // Paid multiplayer lobby (memory session)
   if (inMultiplayerLobby) {
@@ -540,6 +505,15 @@ function HomePage() {
         sessionError={gameSessionError}
         onRoundStart={() => {
           setInMultiplayerLobby(false);
+          // Reset game state to prevent stale values from previous game
+          setGameCompleted(false);
+          setCompletedAsTrial(false);
+          setTotalScore(0);
+          setScore(0);
+          setCurrentRound(1);
+          setQuestionNumberInRound(1);
+          paidScoreSavedRef.current = false;
+          // Start gameplay
           setGameStarted(true);
           loadRandomQuestion();
         }}
@@ -569,27 +543,25 @@ function HomePage() {
               </div>
 
               <div
-                className="grid grid-cols-1 gap-2 sm:grid-cols-3 mb-6"
+                className="grid grid-cols-1 gap-2 sm:grid-cols-2 mb-6"
                 role="group"
                 aria-label="Play mode"
               >
-                <button
-                  type="button"
-                  disabled={trialStatus.gamesRemaining === 0}
-                  onClick={() => setPlayerModeChoice('trial')}
-                  className={cn(
-                    'rounded-lg border px-3 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500',
-                    playerModeChoice === 'trial'
-                      ? 'border-green-500/60 bg-green-500/10 text-white'
-                      : 'border-gray-700/50 bg-gray-800/30 text-gray-400 hover:border-gray-600',
-                    trialStatus.gamesRemaining === 0 && 'opacity-50 cursor-not-allowed'
-                  )}
-                >
-                  <span className="font-medium text-white">Trial</span>
-                  <span className="mt-1 block text-xs text-gray-400">
-                    {trialStatus.gamesRemaining === 0 ? 'Used' : '1 free play'}
-                  </span>
-                </button>
+                {trialStatus.gamesRemaining > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setPlayerModeChoice('trial')}
+                    className={cn(
+                      'rounded-lg border px-3 py-3 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500',
+                      playerModeChoice === 'trial'
+                        ? 'border-green-500/60 bg-green-500/10 text-white'
+                        : 'border-gray-700/50 bg-gray-800/30 text-gray-400 hover:border-gray-600'
+                    )}
+                  >
+                    <span className="font-medium text-white">Trial</span>
+                    <span className="mt-1 block text-xs text-gray-400">1 free play</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setPlayerModeChoice('paid_solo')}
@@ -617,14 +589,6 @@ function HomePage() {
                   <span className="mt-1 block text-xs text-gray-400">Paid — shared pool</span>
                 </button>
               </div>
-
-              {trialStatus.gamesRemaining === 0 && (
-                <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
-                  <p className="text-sm text-blue-300">
-                    Your free trial is used. Choose Solo or Multiplayer to play with USDC.
-                  </p>
-                </div>
-              )}
 
               <div className="text-center">
                 {playerModeChoice === 'trial' ? (
@@ -654,6 +618,8 @@ function HomePage() {
             playerModeChoice={playerModeChoice}
             joinStartError={joinGameStartError}
             onDismissJoinStartError={() => setJoinGameStartError(null)}
+            sessionBusy={!canJoin}
+            sessionTimeRemaining={timeRemaining}
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">
@@ -718,28 +684,14 @@ function HomePage() {
                 </div>
               )}
 
-              {/* Trial Exhausted Notice */}
-              {trialStatus.requiresWallet && (
+              {/* Trial Exhausted Notice - directs user to home for paid modes */}
+              {trialStatus.requiresWallet && completedAsTrial && (
                 <div className="bg-purple-500/10 border border-purple-500/20 rounded-lg p-4 mb-6">
                   <div className="text-purple-300 text-sm">
-                    <p className="font-medium mb-2">🎯 Trial Games Complete!</p>
-                    <p className="text-purple-200/80 mb-3">
-                      {`You've used all your free games. Connect your wallet to continue playing and earn rewards!`}
+                    <p className="font-medium mb-2">Want to keep playing?</p>
+                    <p className="text-purple-200/80">
+                      Head back to the home screen to connect your wallet and play for real prizes!
                     </p>
-                    <div className="flex justify-center">
-                      <div className="flex flex-col items-center gap-2">
-                        <BaseAccountButton
-                          className="!bg-gradient-to-r !from-purple-500 !to-pink-500 hover:!from-purple-600 hover:!to-pink-600 !text-white !px-6 !py-2 !rounded-lg !text-sm !font-semibold"
-                          onConnect={() => setShowPayment(true)}
-                        />
-                        <button
-                          onClick={() => setShowPayment(true)}
-                          className="w-full text-left px-4 py-2 text-white hover:text-white hover:bg-white/10 transition-colors rounded-md"
-                        >
-                          💳 Buy USDC
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               )}
@@ -772,7 +724,7 @@ function HomePage() {
               onClick={handleBackToHome}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg"
             >
-              Play Again
+              Back to Home
             </button>
           </div>
         </div>
@@ -915,11 +867,17 @@ function HomePage() {
                 disabled={isAnswered || gameTimeRemaining <= 0}
                 className={`p-4 rounded-lg text-left transition-colors cursor-pointer ${
                   isAnswered
-                    ? selectedAnswer === index
-                      ? index === currentQuestion.correctAnswer
-                        ? 'bg-green-600 text-white'  // Green if selected AND correct
-                        : 'bg-red-600 text-white'    // Red if selected AND wrong
-                      : 'bg-gray-700 text-gray-400'  // Gray for unselected options
+                    ? isVerifying
+                      ? selectedAnswer === index
+                        ? 'bg-purple-600 text-white animate-pulse'  // Pulsing while verifying
+                        : 'bg-gray-700 text-gray-400'
+                      : selectedAnswer === index
+                        ? verifiedCorrectAnswer === index
+                          ? 'bg-green-600 text-white'  // Green if selected AND correct
+                          : 'bg-red-600 text-white'    // Red if selected AND wrong
+                        : verifiedCorrectAnswer === index
+                          ? 'bg-green-600/50 text-white'  // Dim green to reveal correct answer
+                          : 'bg-gray-700 text-gray-400'  // Gray for unselected options
                     : gameTimeRemaining <= 0
                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     : 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
@@ -1110,17 +1068,25 @@ function HomePage() {
                       ) : contractBalanceLoading ? (
                         '...'
                       ) : (
-                        `${contractUSDCBalance.toFixed(3)} USDC`
+                        `${sessionPrizePool.toFixed(3)} USDC`
                       )}
                     </p>
                   </div>
                   <p className="font-['Audiowide:Regular',_sans-serif] text-[#000000] text-[9px] leading-snug max-w-full">
-                    On-chain prize pot. Grows by {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC per paid entry. Updates every few seconds.
+                    Current session prize pool. Grows by {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC per paid entry.
                   </p>
+                  {/* Prize distribution breakdown */}
+                  {!contractBalanceLoading && sessionPrizePool > 0 && (
+                    <div className="flex gap-3 w-full font-['Audiowide:Regular',_sans-serif] text-[#000000] text-[8px]">
+                      <span>1st: {(sessionPrizePool * 0.9 * 0.6).toFixed(2)}</span>
+                      <span>2nd: {(sessionPrizePool * 0.9 * 0.3).toFixed(2)}</span>
+                      <span>3rd: {(sessionPrizePool * 0.9 * 0.1).toFixed(2)}</span>
+                    </div>
+                  )}
                   <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0 w-full" data-node-id="3:161">
                     <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:159">
                       <p className="leading-[normal] whitespace-pre">
-                        {getPlayerCountDisplay()}
+                        {onChainPlayerCount > 0 ? `${onChainPlayerCount} on-chain players` : getPlayerCountDisplay()}
                       </p>
                     </div>
                   </div>

@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Trophy, Medal, Award, TrendingUp, Clock, Target } from 'lucide-react';
-import { Avatar, Name } from '@coinbase/onchainkit/identity';
-import { base } from 'viem/chains';
+import { BaseAvatar } from '@/components/identity/BaseAvatar';
+import { BaseName } from '@/components/identity/BaseName';
 import type { LeaderboardEntry } from '@/types/game';
 import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
 
@@ -160,13 +160,12 @@ export default function LiveRankings({
                             />
                           </div>
                         ) : (
-                          <Avatar
+                          <BaseAvatar
                             address={entry.playerAddress as `0x${string}`}
-                            chain={base}
                             className="h-8 w-8"
                             defaultComponent={
                               <div className="h-8 w-8 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                                {entry.playerName?.slice(0, 2).toUpperCase() || 
+                                {entry.playerName?.slice(0, 2).toUpperCase() ||
                                  entry.playerAddress.slice(2, 4).toUpperCase()}
                               </div>
                             }
@@ -180,9 +179,8 @@ export default function LiveRankings({
                             ) : entry.playerName ? (
                               <span>{entry.playerName}</span>
                             ) : (
-                              <Name 
+                              <BaseName
                                 address={entry.playerAddress as `0x${string}`}
-                                chain={base}
                               />
                             )}
                             {isCurrentPlayer && (

@@ -14,7 +14,6 @@ import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import { PlayerActivityMonitor } from '@/components/game/CDPEventMonitor';
 import type { TriviaQuestion, GameStartOptions } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
-import { ScoringSystem } from '@/lib/game/scoring';
 import { GuestSessionManager } from '@/lib/utils/guestSessionManager';
 import { useGameSession } from '@/hooks/useGameSession';
 import { useSocialShare } from '@/hooks/useSocialShare';
@@ -26,7 +25,7 @@ import { useBaseAccount } from '@/hooks/useBaseAccount';
 
 export default function Game() {
   const router = useRouter();
-  const { leaveGame, joinGame } = useGameSession();
+  const { leaveGame, joinGame, canJoin, timeRemaining: sessionTimeLeft } = useGameSession();
   const { shareGameAchievement } = useSocialShare();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +55,8 @@ export default function Game() {
   const [sessionIsTrial, setSessionIsTrial] = useState(false);
   const { address } = useBaseAccount();
   const paidScoreSavedRef = useRef(false);
+  const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -66,6 +67,8 @@ export default function Game() {
     setTimeRemaining(10);
     setAudioCurrentTime(0);
     setAudioError(false);
+    setVerifiedCorrectAnswer(null);
+    setIsVerifying(false);
     timerTriggeredRef.current = false; // Reset timer trigger
 
     try {
@@ -201,36 +204,42 @@ export default function Game() {
     handleLeaveRoom();
   };
 
-  const handleAnswerSelect = (answerIndex: number) => {
-    if (isAnswered || !currentQuestion || timeRemaining <= 0) return;
-    
+  const handleAnswerSelect = async (answerIndex: number) => {
+    if (isAnswered || !currentQuestion || timeRemaining <= 0 || isVerifying) return;
+
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
-    
-    const isCorrect = answerIndex === currentQuestion.correctAnswer;
-    if (isCorrect) {
-      // Calculate precise time spent with millisecond accuracy, then round to tenths
-      const timeSpentMs = Date.now() - startTime;
-      const timeSpent = Math.round(timeSpentMs / 100) / 10; // Round to nearest 0.1 seconds
-      
-      // Use the new scoring system for time-based points
-      const pointsEarned = ScoringSystem.calculateQuestionScore(
-        true,
-        timeSpent,
-        currentQuestion.timeLimit,
-        currentQuestion.difficulty,
-        0 // No streak bonus for single questions
-      );
-      
-      setScore(prev => prev + pointsEarned);
-      setTotalScore(prev => {
-        const newTotal = prev + pointsEarned;
-        // Check if this might be a new high score and update the display
-        if (highScores.length > 0 && newTotal >= Math.max(...highScores.map(s => s.score))) {
-          // This could be a new high score, but we'll wait until game completion to submit
-        }
-        return newTotal;
+    setIsVerifying(true);
+
+    try {
+      const res = await fetch('/api/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionToken: currentQuestion.questionToken,
+          selectedAnswer: answerIndex,
+        }),
       });
+
+      if (!res.ok) {
+        console.error('Failed to verify answer:', res.statusText);
+        return;
+      }
+
+      const { isCorrect, correctAnswer, pointsEarned } = await res.json();
+      setVerifiedCorrectAnswer(correctAnswer);
+
+      if (isCorrect) {
+        setScore(prev => prev + pointsEarned);
+        setTotalScore(prev => {
+          const newTotal = prev + pointsEarned;
+          return newTotal;
+        });
+      }
+    } catch (err) {
+      console.error('Error verifying answer:', err);
+    } finally {
+      setIsVerifying(false);
     }
   };
 
@@ -397,7 +406,12 @@ export default function Game() {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
-          <GameEntry onGameStart={handleGameStart} playerModeChoice="paid_solo" />
+          <GameEntry
+            onGameStart={handleGameStart}
+            playerModeChoice="paid_solo"
+            sessionBusy={!canJoin}
+            sessionTimeRemaining={sessionTimeLeft}
+          />
         </div>
       </div>
     );
@@ -653,9 +667,9 @@ export default function Game() {
               <div 
                 key={index}
                 className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full transition-colors ${
-                  selectedAnswer === index 
-                    ? index === currentQuestion.correctAnswer 
-                      ? 'bg-green-200 border-2 border-green-500' 
+                  selectedAnswer === index && verifiedCorrectAnswer !== null
+                    ? index === verifiedCorrectAnswer
+                      ? 'bg-green-200 border-2 border-green-500'
                       : 'bg-red-200 border-2 border-red-500'
                     : isAnswered || timeRemaining <= 0
                     ? 'cursor-not-allowed opacity-50'
@@ -675,9 +689,9 @@ export default function Game() {
                   <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0 w-full" data-node-id="3:430">
                     <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#000000] text-[8px] text-nowrap" data-node-id="3:431">
                       <p className="leading-[normal] whitespace-pre">
-                        {selectedAnswer === index 
-                          ? index === currentQuestion.correctAnswer 
-                            ? '✅ CORRECT!' 
+                        {selectedAnswer === index && verifiedCorrectAnswer !== null
+                          ? index === verifiedCorrectAnswer
+                            ? '✅ CORRECT!'
                             : '❌ INCORRECT'
                           : ''
                         }

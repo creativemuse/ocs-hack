@@ -9,28 +9,35 @@ import Timer from './Timer';
 import type { TriviaQuestion } from '@/types/game';
 import { Music, User, Calendar, TrendingUp, Tag } from 'lucide-react';
 import Image from 'next/image';
-import { ScoringSystem } from '@/lib/game/scoring';
 
 interface TriviaQuestionProps {
   question: TriviaQuestion;
   questionNumber: number;
   totalQuestions: number;
   onAnswer: (selectedAnswer: number, timeSpent: number) => void;
+  /** Revealed correct answer index from server verification. Null while verifying. */
+  verifiedCorrectAnswer?: number | null;
+  /** Whether answer verification is in progress */
+  isVerifying?: boolean;
   className?: string;
 }
 
-export default function TriviaQuestion({ 
-  question, 
-  questionNumber, 
-  totalQuestions, 
-  onAnswer, 
-  className = '' 
+export default function TriviaQuestion({
+  question,
+  questionNumber,
+  totalQuestions,
+  onAnswer,
+  verifiedCorrectAnswer: externalVerified,
+  isVerifying: externalVerifying,
+  className = ''
 }: TriviaQuestionProps) {
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
   const [startTime, setStartTime] = useState<number>(Date.now());
   const [isAnswered, setIsAnswered] = useState(false);
   const [pointsEarned, setPointsEarned] = useState<number>(0);
   const [timeSpent, setTimeSpent] = useState<number>(0);
+  const [verifiedAnswer, setVerifiedAnswer] = useState<number | null>(null);
+  const [verifying, setVerifying] = useState(false);
 
   useEffect(() => {
     setSelectedAnswer(null);
@@ -38,31 +45,46 @@ export default function TriviaQuestion({
     setStartTime(Date.now());
     setPointsEarned(0);
     setTimeSpent(0);
+    setVerifiedAnswer(null);
+    setVerifying(false);
   }, [question.id]);
 
-  const handleAnswerSelection = (answerIndex: number): void => {
+  // Sync external verification state if provided by parent
+  const resolvedCorrect = externalVerified ?? verifiedAnswer;
+  const isCurrentlyVerifying = externalVerifying ?? verifying;
+
+  const handleAnswerSelection = async (answerIndex: number): Promise<void> => {
     if (isAnswered) return;
-    
+
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
-    
-    // Calculate precise time spent with millisecond accuracy, then round to tenths
+    setVerifying(true);
+
     const timeSpentMs = Date.now() - startTime;
-    const calculatedTimeSpent = Math.round(timeSpentMs / 100) / 10; // Round to nearest 0.1 seconds
+    const calculatedTimeSpent = Math.round(timeSpentMs / 100) / 10;
     setTimeSpent(calculatedTimeSpent);
-    
-    // Calculate points earned if correct
-    if (answerIndex === question.correctAnswer) {
-      const points = ScoringSystem.calculateQuestionScore(
-        true,
-        calculatedTimeSpent,
-        question.timeLimit,
-        question.difficulty,
-        0 // No streak bonus in this context
-      );
-      setPointsEarned(points);
+
+    // Verify answer server-side
+    try {
+      const res = await fetch('/api/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionToken: question.questionToken,
+          selectedAnswer: answerIndex,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setVerifiedAnswer(data.correctAnswer);
+        if (data.isCorrect) setPointsEarned(data.pointsEarned);
+      }
+    } catch {
+      // Network error — no points awarded
+    } finally {
+      setVerifying(false);
     }
-    
+
     onAnswer(answerIndex, calculatedTimeSpent);
   };
 
@@ -110,15 +132,21 @@ export default function TriviaQuestion({
     if (!isAnswered) {
       return 'hover:bg-blue-50 hover:border-blue-300 border-gray-200';
     }
-    
-    if (index === question.correctAnswer) {
+
+    if (isCurrentlyVerifying) {
+      return selectedAnswer === index
+        ? 'bg-purple-100 border-purple-400 animate-pulse'
+        : 'bg-gray-50 border-gray-200 text-gray-500';
+    }
+
+    if (resolvedCorrect !== null && index === resolvedCorrect) {
       return 'bg-green-100 border-green-500 text-green-800';
     }
-    
-    if (index === selectedAnswer && index !== question.correctAnswer) {
+
+    if (index === selectedAnswer && resolvedCorrect !== null && index !== resolvedCorrect) {
       return 'bg-red-100 border-red-500 text-red-800';
     }
-    
+
     return 'bg-gray-50 border-gray-200 text-gray-500';
   };
 
@@ -233,7 +261,11 @@ export default function TriviaQuestion({
           {/* Result Message */}
           {isAnswered && (
             <div className="text-center pt-4">
-              {selectedAnswer === question.correctAnswer ? (
+              {isCurrentlyVerifying ? (
+                <div className="text-purple-600 font-semibold text-lg animate-pulse">
+                  Checking answer...
+                </div>
+              ) : resolvedCorrect !== null && selectedAnswer === resolvedCorrect ? (
                 <div className="space-y-2">
                   <div className="text-green-600 font-semibold text-lg">
                     🎉 Correct! Great job!
@@ -247,11 +279,11 @@ export default function TriviaQuestion({
                 </div>
               ) : selectedAnswer === -1 ? (
                 <div className="text-orange-600 font-semibold text-lg">
-                  ⏰ Time&apos;s up! The answer was &quot;{question.options[question.correctAnswer]}&quot;
+                  ⏰ Time&apos;s up!{resolvedCorrect !== null && <> The answer was &quot;{question.options[resolvedCorrect]}&quot;</>}
                 </div>
               ) : (
                 <div className="text-red-600 font-semibold text-lg">
-                  ❌ Incorrect. The answer was &quot;{question.options[question.correctAnswer]}&quot;
+                  ❌ Incorrect.{resolvedCorrect !== null && <> The answer was &quot;{question.options[resolvedCorrect]}&quot;</>}
                 </div>
               )}
             </div>

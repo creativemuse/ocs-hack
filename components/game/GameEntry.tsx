@@ -36,6 +36,10 @@ interface GameEntryProps {
   playerModeChoice?: PlayerModeChoice;
   joinStartError?: string | null;
   onDismissJoinStartError?: () => void;
+  /** true when the session for this mode has an active round */
+  sessionBusy?: boolean;
+  /** seconds remaining in the active round (from server) */
+  sessionTimeRemaining?: number;
 }
 
 export default function GameEntry({
@@ -45,10 +49,12 @@ export default function GameEntry({
   playerModeChoice = 'trial',
   joinStartError,
   onDismissJoinStartError,
+  sessionBusy = false,
+  sessionTimeRemaining = 0,
 }: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
-  const { address, universalAddress, isConnected } = useBaseAccount();
+  const { address, universalAddress, isConnected, connect } = useBaseAccount();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -65,6 +71,22 @@ export default function GameEntry({
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
 
+  // Local countdown timer that ticks every second from the server-provided value
+  const [localCountdown, setLocalCountdown] = useState(sessionTimeRemaining);
+  useEffect(() => {
+    setLocalCountdown(sessionTimeRemaining);
+  }, [sessionTimeRemaining]);
+  useEffect(() => {
+    if (localCountdown <= 0) return;
+    const t = window.setInterval(() => {
+      setLocalCountdown((c) => Math.max(0, c - 1));
+    }, 1000);
+    return () => clearInterval(t);
+  }, [localCountdown > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+  const countdownMins = Math.floor(localCountdown / 60);
+  const countdownSecs = localCountdown % 60;
+  const countdownText = `${countdownMins}:${countdownSecs.toString().padStart(2, '0')}`;
+
   useEffect(() => {
     if (!isProcessingPayment) return;
     const t = window.setTimeout(() => {
@@ -72,6 +94,11 @@ export default function GameEntry({
     }, 0);
     return () => window.clearTimeout(t);
   }, [isProcessingPayment, paymentFlowId]);
+
+  // Reset funding URL when wallet address changes to prevent funding the wrong account
+  useEffect(() => {
+    setFundingUrl(null);
+  }, [address]);
 
   // Auto-generate funding URL with CDP session token when address is available
   useEffect(() => {
@@ -262,6 +289,12 @@ export default function GameEntry({
 
     setIsStartingGame(true);
 
+    if (playerModeChoice === 'trial' && !trialStatus.isTrialActive) {
+      setError('Your free trial has been used. Please select a paid mode.');
+      setIsStartingGame(false);
+      return;
+    }
+
     if (playerModeChoice === 'trial' && trialStatus.isTrialActive) {
       // Trial player - start game immediately
       console.log('Starting trial game');
@@ -285,8 +318,7 @@ export default function GameEntry({
       // Start paid game with smart contract interaction
       await handlePaidGameEntry();
     } else {
-      // Trial exhausted or other case - show payment flow
-      setShowPayment(true);
+      // Trial exhausted but not in paid mode — parent auto-redirects to paid_solo
       setIsStartingGame(false);
     }
   };
@@ -517,7 +549,7 @@ export default function GameEntry({
                   <SubAccountDisplay showActions={true} />
                 ) : (
                   <div className="text-center">
-                    <SignInWithBaseButton colorScheme="light" />
+                    <SignInWithBaseButton colorScheme="light" onClick={connect} />
                   </div>
                 )}
               </div>
@@ -595,6 +627,37 @@ export default function GameEntry({
                     <div className="text-xs text-gray-400 mt-1">
                       {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
                     </div>
+
+                    {/* CDP Onramp - Buy USDC button when balance is insufficient */}
+                    {!hasEnoughForEntry && !balanceLoading && (
+                      <div className="mt-3 pt-3 border-t border-gray-700/50">
+                        <Button
+                          onClick={() => {
+                            if (fundingUrl) {
+                              window.open(fundingUrl, '_blank', 'noopener,noreferrer');
+                            }
+                          }}
+                          disabled={!fundingUrl || isFundingUrlGenerating}
+                          className="w-full !bg-gradient-to-r !from-blue-500 !to-indigo-500 hover:!from-blue-400 hover:!to-indigo-400 text-white text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                          size="sm"
+                        >
+                          {isFundingUrlGenerating ? (
+                            <>
+                              <Loader2 className="h-3 w-3 mr-2 animate-spin" />
+                              Initializing Onramp...
+                            </>
+                          ) : (
+                            <>
+                              <Coins className="h-3 w-3 mr-2" />
+                              Buy USDC with Card
+                            </>
+                          )}
+                        </Button>
+                        <p className="text-[10px] text-gray-400 text-center mt-1.5">
+                          Powered by Coinbase Onramp &middot; Card or Apple Pay
+                        </p>
+                      </div>
+                    )}
                   </div>
 
                   <div className="text-sm text-gray-300 text-center mb-4">
@@ -610,6 +673,22 @@ export default function GameEntry({
                     Entry is <span className="text-white font-medium">1 USDC</span> per session. You sign two steps: USDC approval, then join — the app waits for the first to confirm before sending the second (avoids wallet nonce errors). Sponsored gas depends on your CDP Paymaster rules.
                   </div>
                   
+                  {/* Session-busy info banner — paid players can still enter (auto-reset) */}
+                  {sessionBusy && localCountdown > 0 && !isProcessingPayment && (
+                    <div
+                      className="mb-3 rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-3 text-center"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-sm text-amber-200 font-medium">
+                        Round in progress &mdash; {countdownText} remaining
+                      </p>
+                      <p className="mt-1 text-xs text-gray-400">
+                        Your entry will start a new session automatically
+                      </p>
+                    </div>
+                  )}
+
                   {isProcessingPayment ? (
                     <div className="space-y-4">
                       <div
@@ -695,24 +774,9 @@ export default function GameEntry({
               )}
             </>
           ) : (
-            <>
-              <div className="text-sm text-gray-300 text-center">
-                Ready to compete for rewards?
-              </div>
-              <div className="flex items-center justify-center gap-2 text-sm mb-4">
-                <Coins className="h-4 w-4 text-yellow-400" />
-                <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                <GaslessBadge isGasless={true} />
-              </div>
-              <Button
-                onClick={handleStartGame}
-                className="w-full !bg-gradient-to-r !from-yellow-500 !to-orange-500 hover:!from-yellow-400 hover:!to-orange-400 !text-white border-0 shadow-lg cursor-pointer"
-                style={{ background: 'linear-gradient(to right, #eab308, #f97316)' }}
-              >
-                <Play className="h-4 w-4 mr-2" />
-                Start Normal Game
-              </Button>
-            </>
+            <div className="text-center text-sm text-gray-400 py-4">
+              <p>Select a play mode above to get started.</p>
+            </div>
           )}
         </CardContent>
       </Card>

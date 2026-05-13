@@ -1,7 +1,7 @@
 'use client';
 
-import { Avatar, Name } from '@coinbase/onchainkit/identity';
-import { base } from 'viem/chains';
+import { BaseAvatar } from '@/components/identity/BaseAvatar';
+import { BaseName } from '@/components/identity/BaseName';
 import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
 import Image from 'next/image';
 
@@ -91,9 +91,8 @@ export default function UserProfileDisplay({
             </div>
           ) : address ? (
             // Fallback to OnchainKit Avatar for Basename/ENS resolution
-            <Avatar
+            <BaseAvatar
               address={address}
-              chain={base}
               className={`${avatarSizeClass} ${avatarClassName}`}
               defaultComponent={
                 <div className={`${avatarSizeClass} bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xs font-bold`}>
@@ -118,9 +117,8 @@ export default function UserProfileDisplay({
             <span className={nameClassName}>{displayName}</span>
           ) : address ? (
             // Fallback to OnchainKit Name for Basename resolution
-            <Name
+            <BaseName
               address={address}
-              chain={base}
               className={nameClassName}
             />
           ) : (

@@ -7,15 +7,3 @@
 [submodule "lib/chainlink"]
 	path = lib/chainlink
 	url = https://github.com/smartcontractkit/chainlink
-[submodule ".claude/worktrees/keen-varahamihira"]
-	path = .claude/worktrees/keen-varahamihira
-	url = https://sirgawain0x@github.com/sirgawain0x/ocs-hack.git
-[submodule ".claude/worktrees/loving-torvalds"]
-	path = .claude/worktrees/loving-torvalds
-	url = https://sirgawain0x@github.com/sirgawain0x/ocs-hack.git
-[submodule ".claude/worktrees/nice-goldberg"]
-	path = .claude/worktrees/nice-goldberg
-	url = https://sirgawain0x@github.com/sirgawain0x/ocs-hack.git
-[submodule ".claude/worktrees/reverent-wilbur"]
-	path = .claude/worktrees/reverent-wilbur
-	url = https://sirgawain0x@github.com/sirgawain0x/ocs-hack.git

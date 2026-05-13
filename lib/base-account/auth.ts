@@ -86,15 +86,20 @@ Issued At: ${new Date().toISOString()}`;
  */
 async function getAccountAddress(): Promise<string> {
   const provider = getProvider();
-  const accounts = (await provider.request({
-    method: 'eth_accounts',
-    params: []
-  })) as string[];
-  
+  let accounts: string[] = [];
+  try {
+    accounts = (await provider.request({
+      method: 'eth_accounts',
+      params: []
+    })) as string[];
+  } catch {
+    throw new Error('No account connected');
+  }
+
   if (!accounts || accounts.length === 0) {
     throw new Error('No account connected');
   }
-  
+
   return accounts[0];
 }
 

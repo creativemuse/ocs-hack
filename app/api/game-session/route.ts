@@ -140,10 +140,8 @@ export async function POST(req: NextRequest) {
                 );
               }
             } catch (spacetimeError) {
-              const msg =
-                spacetimeError instanceof Error ? spacetimeError.message : 'Cannot join session';
-              console.warn('⚠️ SpacetimeDB paid multiplayer join failed:', spacetimeError);
-              return NextResponse.json({ error: msg }, { status: 409 });
+              console.warn('⚠️ SpacetimeDB paid multiplayer join failed, falling through to memory:', spacetimeError);
+              // Fall through to in-memory session — paid players are never rejected
             }
           }
         } catch {

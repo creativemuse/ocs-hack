@@ -310,10 +310,13 @@ export const useGameSession = (): UseGameSessionReturn => {
     fetchSession();
   }, [fetchSession]);
 
+  // Poll faster (5s) when a paid round is active so the UI updates promptly
+  const pollInterval =
+    session?.status === 'active' && session.paid_player_count > 0 ? 5000 : 30000;
   useEffect(() => {
-    const interval = setInterval(fetchSession, 30000);
+    const interval = setInterval(fetchSession, pollInterval);
     return () => clearInterval(interval);
-  }, [fetchSession]);
+  }, [fetchSession, pollInterval]);
 
   return {
     session,

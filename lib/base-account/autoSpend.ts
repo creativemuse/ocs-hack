@@ -10,6 +10,37 @@ if (!USDC_ADDRESS) {
   console.error('Missing environment variable: NEXT_PUBLIC_USDC_ADDRESS');
 }
 
+function getAutoSpendSDK() {
+  return createBaseAccountSDK({
+    appName: 'BEAT ME',
+    appLogoUrl: 'https://base.org/logo.png',
+    appChainIds: [base.id],
+    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
+    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
+  });
+}
+
+/**
+ * Safely get connected accounts from provider.
+ * Returns null if no accounts are connected or if eth_accounts throws (e.g. error 4100).
+ */
+async function getConnectedAccounts(provider: ReturnType<ReturnType<typeof getAutoSpendSDK>['getProvider']>): Promise<{ universal: string; subAccount: string } | null> {
+  let accounts: string[] = [];
+  try {
+    accounts = (await provider.request({ method: 'eth_accounts', params: [] })) as string[];
+  } catch {
+    return null;
+  }
+
+  if (accounts.length === 0) return null;
+
+  const universal = accounts[0];
+  const subAccount = accounts[1];
+  if (!subAccount) return null;
+
+  return { universal, subAccount };
+}
+
 /**
  * Configures Auto Spend Permissions for the current Base Account.
  * This allows the sub-account to automatically spend from the universal account.
@@ -19,36 +50,20 @@ export async function configureAutoSpend(): Promise<{
   transactionHash?: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
   if (!USDC_ADDRESS) {
     return { success: false, error: 'USDC address not configured' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    const accounts = (await provider.request({ method: 'eth_accounts', params: [] })) as string[];
-    
-    if (accounts.length === 0) {
+    const provider = getAutoSpendSDK().getProvider();
+    const connected = await getConnectedAccounts(provider);
+    if (!connected) {
       return { success: false, error: 'No Base Account connected' };
     }
 
-    const universalAddress = accounts[0];
-    const subAccountAddress = accounts[1];
-
-    if (!subAccountAddress) {
-      return { success: false, error: 'No sub-account found' };
-    }
-
     console.log('Configuring Auto Spend Permissions:', {
-      universal: universalAddress,
-      subAccount: subAccountAddress,
+      universal: connected.universal,
+      subAccount: connected.subAccount,
       amount: AUTO_SPEND_AMOUNT,
       duration: AUTO_SPEND_DURATION
     });
@@ -58,7 +73,7 @@ export async function configureAutoSpend(): Promise<{
       method: 'wallet_requestSpendPermission',
       params: {
         tokenAddress: USDC_ADDRESS,
-        spenderAddress: subAccountAddress,
+        spenderAddress: connected.subAccount,
         amount: parseUnits(AUTO_SPEND_AMOUNT, 6).toString(),
         duration: AUTO_SPEND_DURATION,
         autoSpend: true // Enable auto-spend functionality
@@ -90,31 +105,15 @@ export async function checkAutoSpendStatus(): Promise<{
   spender?: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
   if (!USDC_ADDRESS) {
     return { isConfigured: false, error: 'USDC address not configured' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    const accounts = (await provider.request({ method: 'eth_accounts', params: [] })) as string[];
-    
-    if (accounts.length === 0) {
+    const provider = getAutoSpendSDK().getProvider();
+    const connected = await getConnectedAccounts(provider);
+    if (!connected) {
       return { isConfigured: false, error: 'No Base Account connected' };
-    }
-
-    const universalAddress = accounts[0];
-    const subAccountAddress = accounts[1];
-
-    if (!subAccountAddress) {
-      return { isConfigured: false, error: 'No sub-account found' };
     }
 
     // Check current allowance
@@ -124,13 +123,13 @@ export async function checkAutoSpendStatus(): Promise<{
       new JsonRpcProvider()
     );
 
-    const allowance = await tokenContract.allowance(universalAddress, subAccountAddress);
+    const allowance = await tokenContract.allowance(connected.universal, connected.subAccount);
     const requiredAllowance = parseUnits(AUTO_SPEND_AMOUNT, 6);
 
     return {
       isConfigured: allowance.gte(requiredAllowance),
       allowance: formatUnits(allowance, 6),
-      spender: subAccountAddress
+      spender: connected.subAccount
     };
 
   } catch (error: any) {
@@ -150,36 +149,20 @@ export async function revokeAutoSpend(): Promise<{
   transactionHash?: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
   if (!USDC_ADDRESS) {
     return { success: false, error: 'USDC address not configured' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    const accounts = (await provider.request({ method: 'eth_accounts', params: [] })) as string[];
-    
-    if (accounts.length === 0) {
+    const provider = getAutoSpendSDK().getProvider();
+    const connected = await getConnectedAccounts(provider);
+    if (!connected) {
       return { success: false, error: 'No Base Account connected' };
     }
 
-    const universalAddress = accounts[0];
-    const subAccountAddress = accounts[1];
-
-    if (!subAccountAddress) {
-      return { success: false, error: 'No sub-account found' };
-    }
-
     console.log('Revoking Auto Spend Permissions:', {
-      universal: universalAddress,
-      subAccount: subAccountAddress
+      universal: connected.universal,
+      subAccount: connected.subAccount
     });
 
     // Revoke Auto Spend Permission
@@ -187,7 +170,7 @@ export async function revokeAutoSpend(): Promise<{
       method: 'wallet_revokeSpendPermission',
       params: {
         tokenAddress: USDC_ADDRESS,
-        spenderAddress: subAccountAddress
+        spenderAddress: connected.subAccount
       }
     })) as { transactionHash?: string; hash?: string };
 
@@ -219,34 +202,18 @@ export async function getAutoSpendConfig(): Promise<{
   isActive?: boolean;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
   try {
-    const provider = sdk.getProvider();
-    const accounts = (await provider.request({ method: 'eth_accounts', params: [] })) as string[];
-    
-    if (accounts.length === 0) {
+    const provider = getAutoSpendSDK().getProvider();
+    const connected = await getConnectedAccounts(provider);
+    if (!connected) {
       return { error: 'No Base Account connected' };
-    }
-
-    const universalAddress = accounts[0];
-    const subAccountAddress = accounts[1];
-
-    if (!subAccountAddress) {
-      return { error: 'No sub-account found' };
     }
 
     const status = await checkAutoSpendStatus();
 
     return {
-      universalAddress,
-      subAccountAddress,
+      universalAddress: connected.universal,
+      subAccountAddress: connected.subAccount,
       tokenAddress: USDC_ADDRESS,
       amount: AUTO_SPEND_AMOUNT,
       duration: AUTO_SPEND_DURATION,

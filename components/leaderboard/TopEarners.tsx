@@ -4,9 +4,7 @@ import { useTopEarners, type LeaderboardViewType } from '@/hooks/useTopEarners';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { Loader2 } from 'lucide-react';
-// OnchainKit Name component removed - using Base Account instead
-import { base } from 'viem/chains';
-import { Name } from '@coinbase/onchainkit/identity';
+import { BaseName } from '@/components/identity/BaseName';
 
 interface TopEarnersProps {
   limit?: number;
@@ -35,9 +33,8 @@ export default function TopEarners({ limit = 10, className = '', viewType = 'sco
     }
     
     return (
-      <Name 
+      <BaseName
         address={walletAddress as `0x${string}`}
-        chain={base}
         className="text-[#ffffff] text-[12px]"
       />
     );

@@ -64,6 +64,7 @@ export default function AutoSpendManager() {
   };
 
   useEffect(() => {
+    if (!isConnected) return;
     fetchStatus();
     const interval = setInterval(fetchStatus, 15000); // Refresh every 15 seconds
     return () => clearInterval(interval);

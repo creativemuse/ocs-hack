@@ -5,14 +5,15 @@ export class BillboardAPI {
   private static readonly RAPIDAPI_KEY = process.env.RAPIDAPI_KEY || '';
   
   private static getBaseUrl(): string {
-    // For server-side requests, we need to construct the full URL
     if (typeof window === 'undefined') {
-      // Server-side: use environment variable or default
-      return process.env.NEXT_PUBLIC_BASE_URL || process.env.VERCEL_URL 
-        ? `https://${process.env.VERCEL_URL}` 
-        : 'http://localhost:3000';
+      // Server-side: use env var or Vercel URL
+      if (process.env.NEXT_PUBLIC_URL) return process.env.NEXT_PUBLIC_URL;
+      if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+      if (process.env.NODE_ENV === 'production') {
+        return 'https://beatme.creativeplatform.xyz';
+      }
+      return 'http://localhost:3000';
     }
-    // Client-side: use current origin
     return window.location.origin;
   }
 

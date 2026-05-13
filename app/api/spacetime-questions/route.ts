@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { storachaStorage } from '@/lib/apis/storacha';
+import { signQuestionToken } from '@/lib/utils/questionToken';
 
 type Mode = 'name-that-tune' | 'artist-match';
 type DifficultyLevel = 'easy' | 'medium' | 'hard' | 'expert';
@@ -151,16 +152,19 @@ export async function GET(req: NextRequest) {
       // Always use local files for faster loading
       audioUrl = correct.path;
 
+      const qId = `sp_${Date.now()}_${i}`;
+      const correctAns = correctIndex >= 0 ? correctIndex : 0;
+      const tl = getTimeLimit(difficulty);
       questions.push({
-        id: `sp_${Date.now()}_${i}`,
+        id: qId,
         type: mode,
-        question: mode === 'name-that-tune' 
-          ? 'What song is this?' 
+        question: mode === 'name-that-tune'
+          ? 'What song is this?'
           : `Who performs "${correct.songTitle}"?`,
         options,
-        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+        questionToken: signQuestionToken(qId, correctAns, tl, difficulty),
         audioUrl,
-        timeLimit: getTimeLimit(difficulty),
+        timeLimit: tl,
         difficulty,
         metadata: {
           artistName: correct.artistName,
@@ -169,7 +173,6 @@ export async function GET(req: NextRequest) {
         },
       });
 
-      console.log(`✅ Generated ${mode} question successfully`);
     }
 
     console.log(`🎉 Generated ${questions.length} questions successfully from ${source}`);

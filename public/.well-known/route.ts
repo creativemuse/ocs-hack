@@ -24,11 +24,11 @@ export async function GET() {
       "screenshotUrls": [],
       "primaryCategory": "games",
       "tags": ["music", "trivia", "earn"],
-      "heroImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "heroImageUrl": "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
       "tagline": "Can you beat me?",
       "ogTitle": "BEAT ME",
       "ogDescription": "Name that tune, win your reward.",
-      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      "ogImageUrl": "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
       "noindex": true
     }
   });

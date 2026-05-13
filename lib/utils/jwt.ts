@@ -10,9 +10,11 @@ const base64url = (input: Buffer | string): string => {
 const b64uJson = (obj: unknown): string => base64url(Buffer.from(JSON.stringify(obj)));
 
 function getSecret(): Buffer {
-  const secret = process.env.ENTRY_TOKEN_SECRET || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'dev-secret';
-  if (process.env.NODE_ENV === 'production' && !process.env.ENTRY_TOKEN_SECRET) {
-    throw new Error('ENTRY_TOKEN_SECRET is required in production');
+  const secret = process.env.ENTRY_TOKEN_SECRET;
+  if (!secret) {
+    throw new Error(
+      'ENTRY_TOKEN_SECRET is required. Generate one with: openssl rand -hex 32'
+    );
   }
   return Buffer.from(secret);
 }

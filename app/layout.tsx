@@ -42,7 +42,7 @@ export const metadata: Metadata = {
     type: "website",
     images: [
       {
-        url: "/assets/BEATME_hero.png",
+        url: "/assets/BEAT_ME_thumbnail.png",
         width: 1200,
         height: 1200,
         alt: "BEAT ME — Name the tune, win the reward",
@@ -53,19 +53,20 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/assets/BEATME_hero.png"],
+    images: ["/assets/BEAT_ME_thumbnail.png"],
   },
   other: {
+    "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID ?? "",
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME_hero.png",
+      imageUrl: "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
       button: {
         title: "Can you BEAT ME?",
         action: {
           type: "launch_frame",
           name: "BEAT ME",
           url: "https://beatme.creativeplatform.xyz",
-          splashImageUrl: "https://beatme.creativeplatform.xyz/assets/BEATME.png",
+          splashImageUrl: "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
           splashBackgroundColor: "#000000"
         }
       }

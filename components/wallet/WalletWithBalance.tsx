@@ -16,7 +16,7 @@ interface WalletWithBalanceProps {
 }
 
 export default function WalletWithBalance({ onFundingSuccess, className = '' }: WalletWithBalanceProps) {
-  const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
+  const { address, subAccountAddress, universalAddress, isConnected, connect } = useBaseAccount();
   const { balance, hasEnoughForEntry, isLoading, error, refreshBalance } = useUSDCBalance();
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
@@ -173,7 +173,7 @@ export default function WalletWithBalance({ onFundingSuccess, className = '' }: 
             </CardContent>
           </Card>
         ) : (
-          <SignInWithBaseButton colorScheme="light" />
+          <SignInWithBaseButton colorScheme="light" onClick={connect} />
         )}
       </div>
     </div>

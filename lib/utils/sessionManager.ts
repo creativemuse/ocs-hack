@@ -1,6 +1,7 @@
 export class SessionManager {
   private static readonly SESSION_KEY = 'beatme_session_id';
   private static readonly TRIAL_GAMES_KEY = 'beatme_trial_games';
+  private static readonly TRIAL_COMPLETED_KEY = 'beatme_trial_completed';
   private static readonly LAST_SYNC_KEY = 'beatme_last_sync';
 
   private static generateUUID(): string {
@@ -64,9 +65,20 @@ export class SessionManager {
     return (now - lastSync) > 5 * 60 * 1000;
   }
 
+  static isTrialCompleted(): boolean {
+    if (typeof window === 'undefined') return false;
+    return localStorage.getItem(this.TRIAL_COMPLETED_KEY) === 'true';
+  }
+
+  static setTrialCompleted(): void {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(this.TRIAL_COMPLETED_KEY, 'true');
+  }
+
   static resetTrialGames(): void {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(this.TRIAL_GAMES_KEY);
+    localStorage.removeItem(this.TRIAL_COMPLETED_KEY);
     localStorage.removeItem(this.LAST_SYNC_KEY);
   }
 
@@ -74,6 +86,7 @@ export class SessionManager {
     if (typeof window === 'undefined') return;
     localStorage.removeItem(this.SESSION_KEY);
     localStorage.removeItem(this.TRIAL_GAMES_KEY);
+    localStorage.removeItem(this.TRIAL_COMPLETED_KEY);
     localStorage.removeItem(this.LAST_SYNC_KEY);
   }
 

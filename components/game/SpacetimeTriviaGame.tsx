@@ -9,8 +9,7 @@ import TriviaQuestion from '@/components/game/TriviaQuestion';
 import GameStats from '@/components/game/GameStats';
 import Timer from '@/components/game/Timer';
 import type { GameState, DifficultyLevel, QuestionType, TriviaQuestion as TQ } from '@/types/game';
-import { Music, Trophy, Clock, Target, Play, ArrowLeft } from 'lucide-react';
-import { ScoringSystem } from '@/lib/game/scoring';
+import { Music, Trophy, Clock, Target, Play } from 'lucide-react';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { SessionManager } from '@/lib/utils/sessionManager';
 import GameScoreCard from './GameScoreCard';
@@ -143,31 +142,41 @@ export default function SpacetimeTriviaGame({ className = '', onWalletConnect, o
     }
   }, [startRound]);
 
-  const handleAnswer = useCallback((selectedAnswer: number, timeSpent: number) => {
+  const handleAnswer = useCallback(async (selectedAnswer: number, timeSpent: number) => {
     const currentQ = gameState.questions[gameState.currentQuestion];
     if (!currentQ) return;
 
-    const isCorrect = selectedAnswer === currentQ.correctAnswer;
+    let isCorrect = false;
+    let pointsEarned = 0;
+    let verifiedTimeSpent = timeSpent;
 
-    let streak = 0;
-    for (let i = gameState.answers.length - 1; i >= 0; i--) {
-      if (gameState.answers[i]!.isCorrect) streak++;
-      else break;
+    try {
+      const res = await fetch('/api/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionToken: currentQ.questionToken,
+          selectedAnswer,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        isCorrect = data.isCorrect;
+        pointsEarned = data.pointsEarned;
+        verifiedTimeSpent = data.timeSpent;
+      } else {
+        console.error('Failed to verify answer:', res.statusText);
+      }
+    } catch (err) {
+      console.error('Error verifying answer:', err);
     }
-
-    const pointsEarned = ScoringSystem.calculateQuestionScore(
-      isCorrect,
-      timeSpent,
-      currentQ.timeLimit,
-      currentQ.difficulty,
-      streak
-    );
 
     const newAnswer = {
       questionId: currentQ.id,
       selectedAnswer,
       isCorrect,
-      timeSpent,
+      timeSpent: verifiedTimeSpent,
       pointsEarned,
     };
 
@@ -304,59 +313,15 @@ export default function SpacetimeTriviaGame({ className = '', onWalletConnect, o
     };
   };
 
-  // Show trial completion screen if user has used all free games
-  if (trialStatus.requiresWallet) {
-    return (
-      <div className={`max-w-4xl mx-auto ${className}`}>
-        <Card className="shadow-lg border-0 bg-gradient-to-br from-white to-gray-50">
-          <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-gradient-to-r from-purple-500 to-pink-500 rounded-full flex items-center justify-center mb-4">
-              <Trophy className="w-8 h-8 text-white" />
-            </div>
-            <CardTitle className="text-2xl font-bold text-gray-800 mb-2">
-              Trial Games Complete!
-            </CardTitle>
-            <p className="text-gray-600 text-lg mb-4">
-              You&apos;ve played {trialStatus.gamesPlayed} free {trialStatus.gamesPlayed === 1 ? 'game' : 'games'}. Connect your wallet to continue playing and earn rewards!
-            </p>
-          </CardHeader>
-          <CardContent className="text-center space-y-4">
-            <Button
-              onClick={() => {
-                if (onWalletConnect) {
-                  onWalletConnect();
-                } else {
-                  // Fallback: redirect to main page to trigger wallet connection
-                  window.location.href = '/';
-                }
-              }}
-              size="lg"
-              className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-8 py-3"
-              disabled={isConnected && !!address}
-            >
-              {isConnected && address ? 'Wallet Connected' : 'Connect Wallet to Continue'}
-            </Button>
-            
-            {/* Back button */}
-            {onBack && (
-              <Button
-                onClick={onBack}
-                variant="ghost"
-                size="sm"
-                className="text-gray-600 hover:text-gray-800"
-              >
-                <ArrowLeft className="w-4 h-4 mr-2" />
-                Back to Game Entry
-              </Button>
-            )}
-            
-            <p className="text-sm text-gray-500">
-              Connect your wallet to continue playing and earn rewards!
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-    );
+  // When trial is exhausted, navigate back to game entry instead of showing a blocking screen
+  useEffect(() => {
+    if (trialStatus.requiresWallet && gameState.gameStatus === 'waiting' && onBack) {
+      onBack();
+    }
+  }, [trialStatus.requiresWallet, gameState.gameStatus, onBack]);
+
+  if (trialStatus.requiresWallet && gameState.gameStatus === 'waiting') {
+    return null;
   }
 
   if (gameState.gameStatus === 'waiting') {

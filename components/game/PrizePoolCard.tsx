@@ -82,35 +82,30 @@ export default function PrizePoolCard({
           </div>
         </div>
 
-        {/* Prize Distribution */}
+        {/* Prize Distribution — matches deployed TriviaBattle contract (10% platform fee, then 60/30/10) */}
         <div className="bg-black/20 rounded-lg p-4">
           <h4 className="text-sm font-semibold text-gray-200 mb-3">Prize Distribution</h4>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <div className="text-center">
               <div className="text-yellow-400 font-bold text-lg">
                 {formatCurrency(prizePool.distribution.first)}
               </div>
-              <div className="text-xs text-gray-300">1st Place</div>
+              <div className="text-xs text-gray-300">1st (60%)</div>
             </div>
             <div className="text-center">
               <div className="text-gray-400 font-bold text-lg">
                 {formatCurrency(prizePool.distribution.second)}
               </div>
-              <div className="text-xs text-gray-300">2nd Place</div>
+              <div className="text-xs text-gray-300">2nd (30%)</div>
             </div>
             <div className="text-center">
               <div className="text-amber-600 font-bold text-lg">
                 {formatCurrency(prizePool.distribution.third)}
               </div>
-              <div className="text-xs text-gray-300">3rd Place</div>
-            </div>
-            <div className="text-center">
-              <div className="text-blue-400 font-bold text-lg">
-                {formatCurrency(prizePool.distribution.participation)}
-              </div>
-              <div className="text-xs text-gray-300">Participation</div>
+              <div className="text-xs text-gray-300">3rd (10%)</div>
             </div>
           </div>
+          <div className="text-xs text-gray-400 mt-2 text-center">10% platform fee deducted before distribution</div>
         </div>
 
         {/* Participants */}

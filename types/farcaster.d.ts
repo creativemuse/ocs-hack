@@ -4,6 +4,7 @@ declare global {
     sdk?: {
       actions?: {
         ready?: () => void;
+        addFrame?: () => Promise<void>;
       };
     };
   }

@@ -11,7 +11,6 @@ import GameStats from './GameStats';
 import Timer from './Timer';
 import type { GameState, DifficultyLevel, QuestionType, TriviaQuestion as TQ } from '@/types/game';
 import { Music, Trophy, Clock, Target, Play, Upload, DollarSign } from 'lucide-react';
-import { ScoringSystem } from '@/lib/game/scoring';
 
 interface BlockchainTriviaGameProps {
   walletAddress?: string;
@@ -153,35 +152,52 @@ export default function BlockchainTriviaGame({
     const currentQ = gameState.questions[gameState.currentQuestion];
     if (!currentQ) return;
 
-    const isCorrect = answer === currentQ.correctAnswer;
-    const points = isCorrect ? ScoringSystem.calculateQuestionScore(
-      true,
-      15 - gameState.timeRemaining, // timeSpent
-      15, // timeLimit
-      currentQ.difficulty,
-      0 // currentStreak - could be calculated from previous answers
-    ) : 0;
+    try {
+      const res = await fetch('/api/verify-answer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          questionToken: currentQ.questionToken,
+          selectedAnswer: answer,
+        }),
+      });
 
-    const newScore = gameState.score + points;
-    const newAnswers = [...gameState.answers, {
-      questionId: currentQ.id,
-      selectedAnswer: answer,
-      isCorrect,
-      timeSpent: 15 - gameState.timeRemaining,
-      pointsEarned: points
-    }];
+      let isCorrect = false;
+      let points = 0;
+      let timeSpent = 15 - gameState.timeRemaining;
 
-    setGameState(prev => ({
-      ...prev,
-      score: newScore,
-      answers: newAnswers,
-      currentQuestion: prev.currentQuestion + 1,
-      timeRemaining: prev.questions[prev.currentQuestion + 1]?.timeLimit || 15,
-    }));
+      if (res.ok) {
+        const data = await res.json();
+        isCorrect = data.isCorrect;
+        points = data.pointsEarned;
+        timeSpent = data.timeSpent;
+      } else {
+        console.error('Failed to verify answer:', res.statusText);
+      }
 
-    // Check if round is complete
-    if (gameState.currentQuestion + 1 >= gameState.questions.length) {
-      await handleRoundComplete(newScore);
+      const newScore = gameState.score + points;
+      const newAnswers = [...gameState.answers, {
+        questionId: currentQ.id,
+        selectedAnswer: answer,
+        isCorrect,
+        timeSpent,
+        pointsEarned: points
+      }];
+
+      setGameState(prev => ({
+        ...prev,
+        score: newScore,
+        answers: newAnswers,
+        currentQuestion: prev.currentQuestion + 1,
+        timeRemaining: prev.questions[prev.currentQuestion + 1]?.timeLimit || 15,
+      }));
+
+      // Check if round is complete
+      if (gameState.currentQuestion + 1 >= gameState.questions.length) {
+        await handleRoundComplete(newScore);
+      }
+    } catch (err) {
+      console.error('Error verifying answer:', err);
     }
   }, [gameState, handleRoundComplete]);
 

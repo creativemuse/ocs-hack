@@ -54,18 +54,29 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ SpacetimeDB initialization failed (non-fatal):', initError);
     }
 
-    // Trials: allow only if they have remaining (wallet) or anon games_played < 1
+    // Trials: allow only if they have remaining games
     if (isTrial) {
-      if (walletAddress) {
-        // For wallet users, check if they have trial games remaining
-        // Note: In a real implementation, you'd query SpaceTimeDB for player data
-        // For now, we'll assume they have 1 trial game remaining
-        console.log(`🎯 Trial entry for wallet: ${walletAddress}`);
-      } else if (anonId) {
-        // For anonymous users, check if they've used their trial
-        // Note: In a real implementation, you'd query SpaceTimeDB for anonymous session data
-        // For now, we'll allow the trial
-        console.log(`🎯 Trial entry for anonymous: ${anonId}`);
+      try {
+        if (walletAddress) {
+          const profile = spacetimeClient.getPlayerProfile(walletAddress);
+          if (profile && profile.trialGamesRemaining !== undefined && profile.trialGamesRemaining <= 0) {
+            return NextResponse.json(
+              { error: 'Trial games exhausted. Connect your wallet to play for USDC.' },
+              { status: 403, headers: resHeaders },
+            );
+          }
+        } else if (anonId) {
+          const anonSession = spacetimeClient.getAnonymousSession(anonId);
+          if (anonSession && (anonSession.gamesPlayed ?? 0) >= 1) {
+            return NextResponse.json(
+              { error: 'Trial games exhausted. Connect your wallet to play for USDC.' },
+              { status: 403, headers: resHeaders },
+            );
+          }
+        }
+      } catch (trialCheckError) {
+        // If SpacetimeDB is unavailable, allow the trial (fail-open for UX)
+        console.warn('Trial validation check failed (allowing):', trialCheckError);
       }
     } else {
       // Paid: require wallet and tx hash; verify on-chain before issuing JWT

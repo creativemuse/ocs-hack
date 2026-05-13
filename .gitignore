@@ -20,6 +20,7 @@ cache/*
 artifacts/*
 .agents/*
 .cursor/*
+.claude/worktrees/
 
 ############################################
 # Logs
@@ -76,3 +77,6 @@ sponsored_transactions/node_modules
 cache/
 broadcast/
 out/
+
+# Sentry Config File
+.env.sentry-build-plugin

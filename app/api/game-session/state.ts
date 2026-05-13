@@ -132,7 +132,14 @@ export const joinActiveSession = (
     return session;
   }
 
-  /* ── Same-mode blocking (cross-mode is intentionally absent) ────── */
+  /* ── Same-mode handling ──────────────────────────────────────────── */
+  /*
+   * Paid players are NEVER rejected. If a round is active, the lane is
+   * force-reset so the new paid player gets a fresh session. The
+   * blockchain payment is irreversible — if they paid, they play.
+   *
+   * Trial players ARE blocked when the lane is busy (no money lost).
+   */
 
   const paidPlayersInSession = session.players.filter((p) => p.isPaidPlayer);
   const walletNorm = opts?.walletAddress?.toLowerCase();
@@ -150,16 +157,28 @@ export const joinActiveSession = (
     session.paid_player_count > 0 &&
     !isSoloPaidReplay
   ) {
-    const elapsed = Math.floor((now - session.start_time) / 1000);
-    const remaining = Math.max(0, FIVE_MINUTES_SECONDS - elapsed);
-    throw new Error(`A paid solo game is already in progress (${fmtRemaining(remaining)} remaining)`);
+    if (isPaidPlayer) {
+      // Force-reset: paid player always gets a session
+      sessionLanes[inferredMode] = createWaitingSession();
+      session = sessionLanes[inferredMode]!;
+    } else {
+      const elapsed = Math.floor((now - session.start_time) / 1000);
+      const remaining = Math.max(0, FIVE_MINUTES_SECONDS - elapsed);
+      throw new Error(`A paid solo game is in progress (${fmtRemaining(remaining)} remaining)`);
+    }
   }
 
   if (inferredMode === 'paid_multiplayer' && session.status === 'active' && session.paid_player_count > 0) {
     const elapsed = Math.floor((now - session.start_time) / 1000);
     const remaining = Math.max(0, FIVE_MINUTES_SECONDS - elapsed);
     if (remaining > 0) {
-      throw new Error(`Multiplayer round in progress (${fmtRemaining(remaining)} remaining) — join the next lobby when it opens`);
+      if (isPaidPlayer) {
+        // Force-reset: paid player always gets a session
+        sessionLanes[inferredMode] = createWaitingSession();
+        session = sessionLanes[inferredMode]!;
+      } else {
+        throw new Error(`Multiplayer round in progress (${fmtRemaining(remaining)} remaining)`);
+      }
     }
   }
 
@@ -198,7 +217,13 @@ export const joinActiveSession = (
     } else if (session.status === 'lobby') {
       nextStatus = 'lobby';
     } else {
-      throw new Error('Cannot start multiplayer lobby in current session state');
+      // Force-reset for paid player — never reject
+      sessionLanes[inferredMode] = createWaitingSession();
+      session = sessionLanes[inferredMode]!;
+      nextStatus = 'lobby';
+      nextLobbyUntil = now + lobbySec * 1000;
+      nextStartTime = now;
+      nextPrizePool = session.entry_fee;
     }
   } else if (inferredMode === 'paid_solo' && isPaidPlayer) {
     if (isSoloPaidReplay) {

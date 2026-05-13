@@ -7,9 +7,7 @@ import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
-// OnchainKit Name component removed - using Base Account instead
-import { base } from 'viem/chains';
-import { Name } from '@coinbase/onchainkit/identity';
+import { BaseName } from '@/components/identity/BaseName';
 import { Confetti } from '@neoconfetti/react';
 
 interface HighScoreDisplayProps {
@@ -125,9 +123,8 @@ export default function HighScoreDisplay({
     
     if (walletAddress) {
       return (
-        <Name 
+        <BaseName
           address={walletAddress as `0x${string}`}
-          chain={base}
         />
       );
     }

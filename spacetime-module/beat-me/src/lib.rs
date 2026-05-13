@@ -848,7 +848,6 @@ pub fn join_multiplayer_pool(
 ) -> Result<(), String> {
     reconcile_lobbies_to_active(ctx);
     let now = ctx.timestamp;
-    let game_duration = TimeDuration::from_duration(Duration::from_secs(300));
     let lobby_sec = lobby_duration_sec.clamp(1, 600);
 
     let mut session_opt = ctx
@@ -895,35 +894,25 @@ pub fn join_multiplayer_pool(
         ctx.db.pool_players().player_id().delete(&player_id);
     }
 
-    loop {
-        if session.status == SessionStatus::Active && session.paid_player_count > 0 {
-            let expired = now
-                .time_duration_since(session.start_time)
-                .map(|elapsed| elapsed >= game_duration)
-                .unwrap_or(false);
-            if !expired {
-                return Err(
-                    "Round in progress — join the next lobby when it opens".to_string(),
-                );
-            }
-            delete_pool_players_for_session(ctx, &session.session_id);
-            session.player_count = 0;
-            session.paid_player_count = 0;
-            session.trial_player_count = 0;
-            session.prize_pool = 0.0;
-            session.status = SessionStatus::Waiting;
-            session.lobby_until = None;
-            session.start_time = now;
-            ctx.db.active_game_sessions().id().update(session.clone());
-            session = ctx
-                .db
-                .active_game_sessions()
-                .id()
-                .find(&session.id)
-                .ok_or_else(|| "Session disappeared".to_string())?;
-            continue;
-        }
-        break;
+    // If the session is active, force-reset it.
+    // Paid players are never rejected — the blockchain payment is
+    // irreversible, so if they paid, they play.
+    if session.status == SessionStatus::Active {
+        delete_pool_players_for_session(ctx, &session.session_id);
+        session.player_count = 0;
+        session.paid_player_count = 0;
+        session.trial_player_count = 0;
+        session.prize_pool = 0.0;
+        session.status = SessionStatus::Waiting;
+        session.lobby_until = None;
+        session.start_time = now;
+        ctx.db.active_game_sessions().id().update(session.clone());
+        session = ctx
+            .db
+            .active_game_sessions()
+            .id()
+            .find(&session.id)
+            .ok_or_else(|| "Session disappeared".to_string())?;
     }
 
     if !matches!(
