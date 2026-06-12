@@ -10,13 +10,13 @@ import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
-import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
+import { generateFundingUrl, generateAssetFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
 import BaseAccountTransaction, {
@@ -63,13 +63,16 @@ export default function GameEntry({
   const [error, setError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
+  const [ethFundingUrl, setEthFundingUrl] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [awaitingWalletOpen, setAwaitingWalletOpen] = useState(false);
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [paymentFlowId, setPaymentFlowId] = useState(0);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+  const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
 
   // Local countdown timer that ticks every second from the server-provided value
   const [localCountdown, setLocalCountdown] = useState(sessionTimeRemaining);
@@ -87,45 +90,37 @@ export default function GameEntry({
   const countdownSecs = localCountdown % 60;
   const countdownText = `${countdownMins}:${countdownSecs.toString().padStart(2, '0')}`;
 
-  useEffect(() => {
-    if (!isProcessingPayment) return;
-    const t = window.setTimeout(() => {
-      paidTxRef.current?.submit();
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [isProcessingPayment, paymentFlowId]);
 
-  // Reset funding URL when wallet address changes to prevent funding the wrong account
+  // Reset funding URLs when wallet address changes
   useEffect(() => {
     setFundingUrl(null);
+    setEthFundingUrl(null);
   }, [address]);
 
-  // Auto-generate funding URL with CDP session token when address is available
+  // Auto-generate USDC + ETH onramp URLs when address is available
   useEffect(() => {
-    const generateInitialFundingUrl = async () => {
-      if (!address || fundingUrl || isFundingUrlGenerating) return;
-      
+    const generateOnrampUrls = async () => {
+      if (!address || (fundingUrl && ethFundingUrl) || isFundingUrlGenerating) return;
+
       try {
         setIsFundingUrlGenerating(true);
-        console.log('🔄 Auto-generating CDP funding URL with session token for:', address);
-        
-        // Clear browser cache for fresh token
         await clearBrowserCache();
-        
-        // Generate fresh session token
         const sessionToken = await getSessionToken(address);
 
-        // Generate funding URL with session token
-        const url = generateFundingUrl({
-          walletAddress: address,
-          sessionToken: sessionToken
-        });
-        
-        console.log('✅ CDP funding URL ready for onramp');
-        setFundingUrl(url);
+        setFundingUrl(
+          generateFundingUrl({ walletAddress: address, sessionToken })
+        );
+        setEthFundingUrl(
+          generateAssetFundingUrl({
+            walletAddress: address,
+            sessionToken,
+            asset: 'ETH',
+            presetFiatAmount: '5',
+          })
+        );
         setError(null);
       } catch (err) {
-        console.error('❌ Failed to generate CDP funding URL:', err);
+        console.error('Failed to generate onramp URLs:', err);
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         setError(`Failed to initialize onramp: ${errorMessage}`);
       } finally {
@@ -133,8 +128,8 @@ export default function GameEntry({
       }
     };
 
-    generateInitialFundingUrl();
-  }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
+    generateOnrampUrls();
+  }, [address, fundingUrl, ethFundingUrl, isFundingUrlGenerating, getSessionToken]);
 
   // Handle transaction status updates
   const handleTransactionStatus = useCallback((
@@ -147,6 +142,7 @@ export default function GameEntry({
     if (status === 'success') {
       console.log('Paid game transaction successful!');
       setIsProcessingPayment(false);
+      setAwaitingWalletOpen(false);
       setIsStartingGame(false);
       setTransactionError(null);
       setError(null);
@@ -158,6 +154,7 @@ export default function GameEntry({
       });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
+      setAwaitingWalletOpen(true);
       setIsStartingGame(false);
       
       // Check if user cancelled/rejected the transaction
@@ -213,6 +210,26 @@ export default function GameEntry({
           },
           { message: safeMessage }
         );
+        return;
+      }
+
+      const isInsufficientGas =
+        safeMessage.toLowerCase().includes('insufficient') &&
+        (safeMessage.toLowerCase().includes('eth') ||
+          safeMessage.toLowerCase().includes('gas') ||
+          safeMessage.toLowerCase().includes('fee'));
+
+      if (isInsufficientGas) {
+        const gasError: TransactionError = {
+          code: 'INSUFFICIENT_ETH_FOR_GAS',
+          message: 'Insufficient ETH for gas fees',
+          userMessage:
+            'You need a small amount of ETH in your wallet for network fees (~$0.02). Add ETH using the button on your wallet card, then open the wallet again.',
+          recoverable: true,
+          retryable: true,
+        };
+        setTransactionError(gasError);
+        setError(gasError.userMessage);
         return;
       }
 
@@ -343,18 +360,22 @@ export default function GameEntry({
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
     setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
+    setAwaitingWalletOpen(true);
+    setIsStartingGame(false);
     setError(null);
+  };
 
-    try {
-      console.log('Paid entry: approve USDC then joinBattle (opens session on-chain if needed).');
-      
-      // The actual game start will be handled by the transaction success callback
-      console.log('Proceeding with paid game entry...');
-      
-    } catch (error) {
-      console.error('Error in paid game entry:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start game session');
-      setIsProcessingPayment(false);
+  /** Must run synchronously from a user click so the wallet window is not blocked. */
+  const handleOpenWallet = () => {
+    setAwaitingWalletOpen(false);
+    setTransactionError(null);
+    setError(null);
+    paidTxRef.current?.submit();
+  };
+
+  const handleFundEth = () => {
+    if (ethFundingUrl) {
+      window.open(ethFundingUrl, '_blank', 'noopener,noreferrer');
     }
   };
 
@@ -376,15 +397,16 @@ export default function GameEntry({
   const handleRetryTransaction = () => {
     setTransactionError(null);
     setError(null);
-    setIsStartingGame(true);
     setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
+    setAwaitingWalletOpen(true);
   };
 
   const handleDismissError = () => {
     setTransactionError(null);
     setError(null);
     setIsProcessingPayment(false);
+    setAwaitingWalletOpen(false);
     setIsStartingGame(false);
   };
 
@@ -403,20 +425,21 @@ export default function GameEntry({
       
       // Clear existing URL and cache
       setFundingUrl(null);
+      setEthFundingUrl(null);
       setError(null);
       await clearBrowserCache();
       
-      // Generate fresh session token
       const sessionToken = await getSessionToken(address);
 
-      // Generate new funding URL
-      const url = generateFundingUrl({
-        walletAddress: address,
-        sessionToken: sessionToken
-      });
-      
-      console.log('✅ New CDP funding URL generated');
-      setFundingUrl(url);
+      setFundingUrl(generateFundingUrl({ walletAddress: address, sessionToken }));
+      setEthFundingUrl(
+        generateAssetFundingUrl({
+          walletAddress: address,
+          sessionToken,
+          asset: 'ETH',
+          presetFiatAmount: '5',
+        })
+      );
       setFundingSuccess(true);
       setTimeout(() => setFundingSuccess(false), 2000);
     } catch (err) {
@@ -546,7 +569,11 @@ export default function GameEntry({
               {/* Base Account Display */}
               <div className="mb-4">
                 {isConnected ? (
-                  <SubAccountDisplay showActions={true} />
+                  <SubAccountDisplay
+                    showActions={true}
+                    onFundEth={handleFundEth}
+                    paymasterConfigured={paymasterConfigured}
+                  />
                 ) : (
                   <div className="text-center">
                     <SignInWithBaseButton colorScheme="light" onClick={connect} />
@@ -590,8 +617,13 @@ export default function GameEntry({
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                <GaslessBadge isGasless={true} />
+                <GaslessBadge isGasless={paymasterConfigured} />
               </div>
+              {paymasterConfigured && (
+                <p className="text-[10px] text-gray-500 text-center -mt-2 mb-2">
+                  *Gasless for eligible Coinbase One members; others need a small ETH balance
+                </p>
+              )}
 
               {!isConnected || !address ? (
                 <div className="text-center">
@@ -691,18 +723,6 @@ export default function GameEntry({
 
                   {isProcessingPayment ? (
                     <div className="space-y-4">
-                      <div
-                        className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <p className="text-sm font-medium text-amber-200">Processing entry</p>
-                        <p className="mt-2 text-sm text-zinc-200">
-                          {playerModeChoice === 'paid_multiplayer'
-                            ? 'Approve USDC in your wallet, then confirm join. When both transactions confirm, you’ll enter the multiplayer lobby automatically.'
-                            : 'Approve USDC in your wallet, then confirm join. When both transactions confirm, your paid game will start automatically.'}
-                        </p>
-                      </div>
                       <BaseAccountTransaction
                         ref={paidTxRef}
                         calls={paidGameCalls}
@@ -711,9 +731,44 @@ export default function GameEntry({
                         showSubmitButton={false}
                         connectedAddress={address}
                       />
+                      {awaitingWalletOpen ? (
+                        <div
+                          className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-5 text-center space-y-4"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <p className="text-sm font-medium text-blue-200">Ready to sign</p>
+                          <p className="text-sm text-zinc-200">
+                            Tap below to open your Base wallet and approve USDC, then confirm join.
+                          </p>
+                          <Button
+                            type="button"
+                            onClick={handleOpenWallet}
+                            className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
+                          >
+                            <Wallet className="h-4 w-4 mr-2" />
+                            Open wallet
+                          </Button>
+                        </div>
+                      ) : (
+                        <div
+                          className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
+                          role="status"
+                          aria-live="polite"
+                        >
+                          <p className="text-sm font-medium text-amber-200">Processing entry</p>
+                          <p className="mt-2 text-sm text-zinc-200">
+                            Confirm in your wallet, then wait for on-chain confirmation…
+                          </p>
+                        </div>
+                      )}
                       <Button
                         type="button"
-                        onClick={() => { setIsProcessingPayment(false); setIsStartingGame(false); }}
+                        onClick={() => {
+                          setIsProcessingPayment(false);
+                          setAwaitingWalletOpen(false);
+                          setIsStartingGame(false);
+                        }}
                         variant="outline"
                         className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
                       >

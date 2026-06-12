@@ -27,21 +27,40 @@ export function generateFundingUrl({
   appId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || '5b09d242-5390-4db3-866f-bfc2ce575821',
   chains = ['base']
 }: FundingUrlParams): string {
-  // Use the correct One-Click-Buy URL path
-  const baseUrl = 'https://pay.coinbase.com/buy';
-  
-  // Build query parameters according to Coinbase One-Click-Buy requirements
-  // Note: addresses are already in the session token (from server-side API call)
-  // They should NOT be passed in the URL query parameters
-  const params = new URLSearchParams({
-    sessionToken: sessionToken,
-    defaultAsset: 'USDC',              // Required: specific asset to buy
-    fiatCurrency: 'USD',               // Required when using presetFiatAmount
-    presetFiatAmount: '2',            // Amount in USD (includes fees)
-    defaultPaymentMethod: 'CARD',      // CARD auto-upgrades to Apple Pay when available
-    defaultNetwork: 'base'             // Ensure it uses Base network
+  return generateAssetFundingUrl({
+    walletAddress,
+    sessionToken,
+    appId,
+    chains,
+    asset: 'USDC',
+    presetFiatAmount: '2',
   });
-  
+}
+
+export interface AssetFundingUrlParams extends FundingUrlParams {
+  asset: 'USDC' | 'ETH';
+  presetFiatAmount?: string;
+}
+
+/**
+ * Generates a Coinbase Pay One-Click-Buy URL for a specific asset (USDC or ETH).
+ */
+export function generateAssetFundingUrl({
+  sessionToken,
+  asset,
+  presetFiatAmount = asset === 'ETH' ? '5' : '2',
+}: AssetFundingUrlParams): string {
+  const baseUrl = 'https://pay.coinbase.com/buy';
+
+  const params = new URLSearchParams({
+    sessionToken,
+    defaultAsset: asset,
+    fiatCurrency: 'USD',
+    presetFiatAmount,
+    defaultPaymentMethod: 'CARD',
+    defaultNetwork: 'base',
+  });
+
   return `${baseUrl}?${params.toString()}`;
 }
 
