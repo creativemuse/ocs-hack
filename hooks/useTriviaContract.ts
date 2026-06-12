@@ -388,35 +388,29 @@ export function useTriviaContract(useGasless: boolean = true) {
     setIsPending(false);
   }, []);
 
-  // Submit score
+  // Submit score — saves off-chain only. On-chain score submission is done
+  // server-side via /api/submit-onchain-scores (owner-only, before distribution).
   const submitScore = useCallback(async (score: number) => {
-    if (!address || !isConnected || !provider) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
+    if (!address) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
       return;
     }
 
     setState(prev => ({ ...prev, isSubmitting: true, error: null }));
-    setIsPending(true);
 
     try {
-      const data = encodeFunctionData({
-        abi: TRIVIA_ABI,
-        functionName: 'submitScores',
-        args: [[address as `0x${string}`], [BigInt(score)]],
+      const response = await fetch('/api/save-paid-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address, finalScore: score }),
       });
-      
-      const txHash = await provider.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: address,
-          to: TRIVIA_CONTRACT_ADDRESS,
-          data,
-        }]
-      });
-      
-      setHash(txHash as string);
-      setIsPending(false);
-      setIsConfirming(true);
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save score');
+      }
+
+      setState(prev => ({ ...prev, isSubmitting: false }));
     } catch (error) {
       console.error('Error submitting score:', error);
       setState(prev => ({
@@ -424,10 +418,8 @@ export function useTriviaContract(useGasless: boolean = true) {
         isSubmitting: false,
         error: error instanceof Error ? error.message : 'Failed to submit score',
       }));
-      setIsPending(false);
-      setWriteError(error as Error);
     }
-    }, [address, isConnected, provider]);
+  }, [address]);
 
   const submitTrialScore = useCallback(async (_sessionId: string, _score: number) => {
     setState(prev => ({

@@ -85,7 +85,9 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     }
 
     function _onlyOwnerOrChainlink() internal view {
-        if (msg.sender != owner() && msg.sender != chainlinkOracle) {
+        // Allow owner, Chainlink oracle, and self-calls (from onReport → distributePrizes flow)
+        // Self-call is safe because onReport() already verifies msg.sender == chainlinkOracle
+        if (msg.sender != owner() && msg.sender != chainlinkOracle && msg.sender != address(this)) {
             revert TriviaBattle__Unauthorized();
         }
     }

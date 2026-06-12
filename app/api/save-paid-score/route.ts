@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { submitScoresOnChainAsync } from '@/lib/blockchain/submitScoresOnChain';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 
 /** Paid games only. Trial / practice scores must not call this route (TOP EARNERS / Spacetime bestScore). */
@@ -52,7 +53,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await spacetimeClient.initialize();
+    await spacetimeClient.ensurePlayerDataReady();
 
     if (!spacetimeClient.isConfigured()) {
       return NextResponse.json(
@@ -79,6 +80,12 @@ export async function POST(req: NextRequest) {
       gamesPlayed,
       bestScore,
       totalEarnings
+    );
+
+    // Fire-and-forget on-chain sync for CRE prize distribution.
+    submitScoresOnChainAsync(
+      [walletAddress as `0x${string}`],
+      [BigInt(bestScore)]
     );
 
     return NextResponse.json({ success: true });

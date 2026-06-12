@@ -10,7 +10,8 @@ import { tables } from './index';
 /** Same object shape `subscriptionBuilder().subscribe(fn)` passes at runtime; SDK types it loosely. */
 export type AppSubscriptionTables = typeof tables;
 
-export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
+/** All player rows via three disjoint predicates (safe for server-side profile lookups). */
+export const buildPlayerLookupSubscriptionQueries = (t: AppSubscriptionTables) => [
   t.players.where((row) => row.totalEarnings.gt(0)),
   t.players.where((row) =>
     row.totalEarnings.eq(0).and(row.gamesPlayed.gt(0))
@@ -18,6 +19,10 @@ export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
   t.players.where((row) =>
     row.totalEarnings.eq(0).and(row.gamesPlayed.eq(0))
   ),
+];
+
+export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
+  ...buildPlayerLookupSubscriptionQueries(t),
   t.game_sessions,
   t.player_stats,
   t.active_game_sessions,
