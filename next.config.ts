@@ -60,9 +60,17 @@ export default withSentryConfig(nextConfig, {
   // For all available options, see:
   // https://www.npmjs.com/package/@sentry/webpack-plugin#options
 
+  // Use Sentry slugs directly — Vercel integration env vars (SENTRY_ORG/SENTRY_PROJECT)
+  // may point at the Vercel resource name, not the Sentry project slug.
   org: "g2entgroup",
 
   project: "g2entgroup",
+
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+
+  sourcemaps: {
+    disable: !process.env.SENTRY_AUTH_TOKEN,
+  },
 
   // Only print logs for uploading source maps in CI
   silent: !process.env.CI,
