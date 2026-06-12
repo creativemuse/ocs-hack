@@ -66,7 +66,7 @@ export default withSentryConfig(nextConfig, {
 
   project: "g2entgroup",
 
-  authToken: process.env.SENTRY_AUTH_TOKEN,
+  authToken: process.env.SENTRY_AUTH_TOKEN || undefined,
 
   sourcemaps: {
     disable: !process.env.SENTRY_AUTH_TOKEN,
