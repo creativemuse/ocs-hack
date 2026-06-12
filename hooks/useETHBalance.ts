@@ -8,6 +8,15 @@ import { base } from 'viem/chains';
 /** Minimum ETH needed to cover gas when paymaster sponsorship is unavailable (~$0.05 buffer). */
 const MIN_ETH_FOR_GAS = 0.00005;
 
+const initialState = {
+  balance: 0,
+  balanceWei: BigInt(0),
+  isLoading: false,
+  error: null as string | null,
+  hasEnoughForGas: false,
+  minRequired: MIN_ETH_FOR_GAS,
+};
+
 const publicClient = createPublicClient({
   chain: base,
   transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org'),
@@ -26,16 +35,11 @@ export function useETHBalance() {
   const { address, subAccountAddress, isConnected } = useBaseAccount();
   const checkAddress = subAccountAddress || address;
 
-  const [state, setState] = useState<ETHBalanceState>({
-    balance: 0,
-    balanceWei: BigInt(0),
-    isLoading: false,
-    error: null,
-    hasEnoughForGas: false,
-    minRequired: MIN_ETH_FOR_GAS,
-  });
+  const [state, setState] = useState<ETHBalanceState>(initialState);
 
   const hasFetchedOnce = useRef(false);
+  const checkAddressRef = useRef(checkAddress);
+  checkAddressRef.current = checkAddress;
 
   const fetchETHBalance = useCallback(async () => {
     if (!checkAddress || !isConnected) {
@@ -58,6 +62,9 @@ export function useETHBalance() {
       const balanceWei = await publicClient.getBalance({
         address: checkAddress as `0x${string}`,
       });
+
+      if (checkAddress !== checkAddressRef.current) return;
+
       const balance = Number(formatEther(balanceWei));
       const hasEnough = balance >= MIN_ETH_FOR_GAS;
 
@@ -72,6 +79,8 @@ export function useETHBalance() {
         error: null,
       }));
     } catch (error) {
+      if (checkAddress !== checkAddressRef.current) return;
+
       console.error('Error fetching ETH balance:', error);
       hasFetchedOnce.current = true;
       setState((prev) => ({
@@ -88,7 +97,11 @@ export function useETHBalance() {
   }, [checkAddress, isConnected]);
 
   useEffect(() => {
-    if (!isConnected || !checkAddress) return;
+    if (!isConnected || !checkAddress) {
+      setState(initialState);
+      hasFetchedOnce.current = false;
+      return;
+    }
 
     fetchETHBalance();
     const interval = setInterval(fetchETHBalance, 30_000);

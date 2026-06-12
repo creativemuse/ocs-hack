@@ -99,6 +99,8 @@ export default function GameEntry({
 
   // Auto-generate USDC + ETH onramp URLs when address is available
   useEffect(() => {
+    let active = true;
+
     const generateOnrampUrls = async () => {
       if (!address || (fundingUrl && ethFundingUrl) || isFundingUrlGenerating) return;
 
@@ -106,6 +108,8 @@ export default function GameEntry({
         setIsFundingUrlGenerating(true);
         await clearBrowserCache();
         const sessionToken = await getSessionToken(address);
+
+        if (!active) return;
 
         setFundingUrl(
           generateFundingUrl({ walletAddress: address, sessionToken })
@@ -120,15 +124,22 @@ export default function GameEntry({
         );
         setError(null);
       } catch (err) {
+        if (!active) return;
         console.error('Failed to generate onramp URLs:', err);
         const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
         setError(`Failed to initialize onramp: ${errorMessage}`);
       } finally {
-        setIsFundingUrlGenerating(false);
+        if (active) {
+          setIsFundingUrlGenerating(false);
+        }
       }
     };
 
     generateOnrampUrls();
+
+    return () => {
+      active = false;
+    };
   }, [address, fundingUrl, ethFundingUrl, isFundingUrlGenerating, getSessionToken]);
 
   // Handle transaction status updates
