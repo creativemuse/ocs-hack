@@ -1,17 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
-import { base } from 'viem/chains';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { submitScoresOnChainAsync } from '@/lib/blockchain/submitScoresOnChain';
 import { verifyEntryToken } from '@/lib/utils/jwt';
-import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 /** Paid games only. Trial / practice scores must not call this route (TOP EARNERS / Spacetime bestScore). */
 
 // Max possible score: 30 questions × 100 points each
 const MAX_GAME_SCORE = 3000;
-
-const BASE_RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 
 export async function POST(req: NextRequest) {
   try {
@@ -58,7 +53,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    await spacetimeClient.initialize();
+    await spacetimeClient.ensurePlayerDataReady();
 
     if (!spacetimeClient.isConfigured()) {
       return NextResponse.json(
@@ -87,40 +82,13 @@ export async function POST(req: NextRequest) {
       totalEarnings
     );
 
-    // Submit score on-chain so CRE distribution sees real scores.
-    // This is fire-and-forget — SpacetimeDB is the source of truth for
-    // the leaderboard; on-chain scores are only needed for prize distribution.
-    let onChainTxHash: string | null = null;
-    const ownerKey = process.env.CONTRACT_OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY;
-    if (ownerKey) {
-      try {
-        const publicClient = createPublicClient({ chain: base, transport: http(BASE_RPC) });
+    // Fire-and-forget on-chain sync for CRE prize distribution.
+    submitScoresOnChainAsync(
+      [walletAddress as `0x${string}`],
+      [BigInt(bestScore)]
+    );
 
-        // Only submit if the session is active on-chain (scores can only be set during active sessions)
-        const isActive = await publicClient.readContract({
-          address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-          abi: TRIVIA_ABI,
-          functionName: 'isSessionActive',
-        });
-
-        if (isActive) {
-          const account = privateKeyToAccount(ownerKey as `0x${string}`);
-          const walletClient = createWalletClient({ account, chain: base, transport: http(BASE_RPC) });
-
-          onChainTxHash = await walletClient.writeContract({
-            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-            abi: TRIVIA_ABI,
-            functionName: 'submitScores',
-            args: [[walletAddress as `0x${string}`], [BigInt(bestScore)]],
-          });
-        }
-      } catch (onChainError) {
-        // Log but don't fail — SpacetimeDB save already succeeded
-        console.error('Warning: on-chain score submission failed (non-fatal):', onChainError);
-      }
-    }
-
-    return NextResponse.json({ success: true, onChainTxHash });
+    return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error saving paid score:', error);
     return NextResponse.json(
