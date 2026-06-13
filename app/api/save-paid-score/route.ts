@@ -37,22 +37,25 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Verify entry token if provided — ensures the player actually joined a paid game
-    if (entryToken) {
-      const payload = verifyEntryToken(entryToken);
-      if (!payload || payload.playerType !== 'paid') {
-        return NextResponse.json(
-          { error: 'Invalid or non-paid entry token' },
-          { status: 401 }
-        );
-      }
-      // Verify the wallet address matches the token identity
-      if (payload.identity.walletAddress?.toLowerCase() !== normalizedWallet) {
-        return NextResponse.json(
-          { error: 'Wallet address does not match entry token' },
-          { status: 403 }
-        );
-      }
+    if (!entryToken || typeof entryToken !== 'string' || entryToken.trim() === '') {
+      return NextResponse.json(
+        { error: 'entryToken is required' },
+        { status: 400 }
+      );
+    }
+
+    const payload = verifyEntryToken(entryToken);
+    if (!payload || payload.playerType !== 'paid') {
+      return NextResponse.json(
+        { error: 'Invalid or non-paid entry token' },
+        { status: 401 }
+      );
+    }
+    if (payload.identity.walletAddress?.toLowerCase() !== normalizedWallet) {
+      return NextResponse.json(
+        { error: 'Wallet address does not match entry token' },
+        { status: 403 }
+      );
     }
 
     await spacetimeClient.ensurePlayerDataReady();

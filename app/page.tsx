@@ -125,7 +125,7 @@ function HomePage() {
 
   // Persist paid run to Spacetime (TOP EARNERS / bestScore). Trial scores never call this.
   useEffect(() => {
-    if (!gameCompleted || !lastGameWasPaidRef.current || !address) return;
+    if (!gameCompleted || !lastGameWasPaidRef.current || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
     const finalScore = totalScore;
@@ -138,7 +138,7 @@ function HomePage() {
           body: JSON.stringify({
             walletAddress: wallet,
             finalScore,
-            entryToken: entryToken ?? undefined,
+            entryToken,
             username: playerDisplayName ?? undefined,
           }),
         });

@@ -39,6 +39,7 @@ export default function HighScoreDisplay({
   const { address, isConnected } = useBaseAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [backendRank, setBackendRank] = useState<number | null>(null);
   const [submissionResult, setSubmissionResult] = useState<{
     isNewHighScore: boolean;
     rank: number;
@@ -95,9 +96,10 @@ export default function HighScoreDisplay({
     return idx >= 0 ? idx + 1 : null;
   }, [isTrialGame, currentScore, leaderboardEntries, normalizedWallet]);
 
-  const isOnLeaderboard = playerRank !== null && playerRank <= LEADERBOARD_LIMIT;
+  const isOnLeaderboard =
+    !leaderboardLoading && playerRank !== null && playerRank <= LEADERBOARD_LIMIT;
   const currentHighScore = leaderboardEntries[0]?.bestScore ?? 0;
-  const isHighestScore = !isTrialGame && playerRank === 1;
+  const isHighestScore = !isTrialGame && !leaderboardLoading && playerRank === 1;
 
   const handleClaimSuccess = () => {
     markAsClaimed();
@@ -122,16 +124,8 @@ export default function HighScoreDisplay({
         walletAddress
       );
       if (result) {
+        setBackendRank(result.rank);
         setHasSubmitted(true);
-        setSubmissionResult({
-          isNewHighScore: isHighestScore,
-          rank: playerRank ?? result.rank,
-        });
-
-        if (isHighestScore) {
-          setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 4000);
-        }
       }
     };
     submitCurrentScore();
@@ -144,8 +138,31 @@ export default function HighScoreDisplay({
     isTrialGame,
     hasSubmitted,
     submitScore,
+  ]);
+
+  useEffect(() => {
+    if (!isTrialGame && hasSubmitted && !leaderboardLoading && !submissionResult) {
+      const finalIsHigh = isHighestScore;
+      const finalRank = playerRank ?? backendRank ?? 11;
+      setSubmissionResult({
+        isNewHighScore: finalIsHigh,
+        rank: finalRank,
+      });
+
+      if (finalIsHigh) {
+        setShowConfetti(true);
+        const timer = setTimeout(() => setShowConfetti(false), 4000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [
+    isTrialGame,
+    hasSubmitted,
+    leaderboardLoading,
     isHighestScore,
     playerRank,
+    backendRank,
+    submissionResult,
   ]);
 
   const getRankIcon = (rank: number) => {
