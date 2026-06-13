@@ -4,6 +4,7 @@
  */
 
 import type { OneClickBuyOptions, OneClickBuyResult } from '@/types/onramp';
+import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 
 export interface FundingUrlParams {
   walletAddress: string;
@@ -62,6 +63,61 @@ export function generateAssetFundingUrl({
   });
 
   return `${baseUrl}?${params.toString()}`;
+}
+
+/** Buy-quote API path — preferred for ETH (fresh quote per tap, works in mobile wallets). */
+export async function generateEthBuyQuoteUrl(
+  walletAddress: string,
+  paymentAmount = '5.00'
+): Promise<OneClickBuyResult> {
+  return generateOneClickBuyUrl(walletAddress, {
+    paymentAmount,
+    paymentCurrency: 'USD',
+    purchaseCurrency: 'ETH',
+    purchaseNetwork: 'base',
+    paymentMethod: 'CARD',
+    country: 'US',
+  });
+}
+
+/** Open ETH onramp: buy-quote first, then session-token URL fallback. */
+export async function openEthGasFunding(options: {
+  walletAddress: string;
+  getSessionToken: (address: string) => Promise<string>;
+  cachedUrl?: string | null;
+}): Promise<{ opened: boolean; error?: string }> {
+  const { walletAddress, getSessionToken, cachedUrl } = options;
+
+  if (cachedUrl && openFundingUrl(cachedUrl)) {
+    return { opened: true };
+  }
+
+  try {
+    const quote = await generateEthBuyQuoteUrl(walletAddress);
+    if (quote.url && openFundingUrl(quote.url)) {
+      return { opened: true };
+    }
+  } catch (quoteErr) {
+    console.warn('ETH buy-quote failed, trying session token:', quoteErr);
+  }
+
+  try {
+    await clearBrowserCache();
+    const sessionToken = await getSessionToken(walletAddress);
+    const url = generateAssetFundingUrl({
+      walletAddress,
+      sessionToken,
+      asset: 'ETH',
+      presetFiatAmount: '5',
+    });
+    if (openFundingUrl(url)) {
+      return { opened: true };
+    }
+    return { opened: false, error: 'Could not open the funding page. Try the Base Account link below.' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to start ETH purchase';
+    return { opened: false, error: message };
+  }
 }
 
 /**
