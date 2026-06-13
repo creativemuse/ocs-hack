@@ -14,6 +14,7 @@ import AudioPlayer from '@/components/game/AudioPlayer';
 import ActivePlayers from '@/components/game/ActivePlayers';
 import type { TriviaQuestion, PlayerModeChoice, GameStartOptions } from '@/types/game';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { useBasename } from '@/hooks/useBasename';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
@@ -77,6 +78,8 @@ function HomePage() {
   const paidScoreSavedRef = useRef(false);
   // Add trial status hook
   const { address } = useBaseAccount();
+  const { data: basename } = useBasename(address ?? undefined);
+  const playerDisplayName = basename ?? (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player');
   const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
@@ -126,7 +129,7 @@ function HomePage() {
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
     const finalScore = totalScore;
-    const wallet = address;
+    const wallet = address.toLowerCase();
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -136,6 +139,7 @@ function HomePage() {
             walletAddress: wallet,
             finalScore,
             entryToken: entryToken ?? undefined,
+            username: playerDisplayName ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -149,7 +153,7 @@ function HomePage() {
         console.error('save-paid-score error', e);
       }
     })();
-  }, [gameCompleted, address, totalScore, refreshContractUsdcBalance]);
+  }, [gameCompleted, address, totalScore, refreshContractUsdcBalance, entryToken, playerDisplayName]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -523,7 +527,7 @@ function HomePage() {
         onLeaveLobby={async () => {
           await leaveGame();
           setInMultiplayerLobby(false);
-          setShowGameEntry(true);
+          setShowGameEntry(false);
         }}
       />
     );
@@ -534,6 +538,14 @@ function HomePage() {
     return (
       <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
+          <button
+            type="button"
+            onClick={() => setShowGameEntry(false)}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+            aria-label="Back to home"
+          >
+            ← Back to Home
+          </button>
           {/* Player mode: Trial | Solo (paid) | Multiplayer (paid) */}
           <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
             <CardContent className="p-6">
@@ -700,7 +712,7 @@ function HomePage() {
               <div className="mb-6">
                 <HighScoreDisplay
                   currentScore={totalScore}
-                  playerName={isGuestMode ? guestName : 'Player'}
+                  playerName={isGuestMode ? guestName : playerDisplayName}
                   isGuest={isGuestMode}
                   isTrialGame={completedAsTrial}
                   walletAddress={!completedAsTrial && address ? address : undefined}
@@ -869,21 +881,24 @@ function HomePage() {
                   isAnswered
                     ? isVerifying
                       ? selectedAnswer === index
-                        ? 'bg-purple-600 text-white animate-pulse'  // Pulsing while verifying
+                        ? 'bg-purple-600 text-white animate-pulse'
                         : 'bg-gray-700 text-gray-400'
                       : selectedAnswer === index
                         ? verifiedCorrectAnswer === index
-                          ? 'bg-green-600 text-white'  // Green if selected AND correct
-                          : 'bg-red-600 text-white'    // Red if selected AND wrong
-                        : verifiedCorrectAnswer === index
-                          ? 'bg-green-600/50 text-white'  // Dim green to reveal correct answer
-                          : 'bg-gray-700 text-gray-400'  // Gray for unselected options
+                          ? 'bg-green-600 text-white'
+                          : 'bg-red-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
                     : gameTimeRemaining <= 0
                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     : 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
                 }`}
               >
-                {option}
+                <span>{option}</span>
+                {isAnswered && !isVerifying && selectedAnswer === index && verifiedCorrectAnswer !== null && (
+                  <span className="block mt-1 text-xs font-semibold">
+                    {verifiedCorrectAnswer === index ? '✓ Correct' : '✗ Incorrect'}
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -1109,7 +1124,7 @@ function HomePage() {
               Paid games only — practice / trial scores are not listed
             </p>
             <div className="w-full max-w-[328px]">
-              <TopEarners limit={10} />
+              <TopEarners limit={10} currentWalletAddress={address ?? undefined} />
             </div>
           </div>
           

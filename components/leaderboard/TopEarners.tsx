@@ -10,9 +10,15 @@ interface TopEarnersProps {
   limit?: number;
   className?: string;
   viewType?: LeaderboardViewType;
+  currentWalletAddress?: string;
 }
 
-export default function TopEarners({ limit = 10, className = '', viewType = 'scores' }: TopEarnersProps) {
+export default function TopEarners({
+  limit = 10,
+  className = '',
+  viewType = 'scores',
+  currentWalletAddress,
+}: TopEarnersProps) {
   const { topEarners, isLoading, error } = useTopEarners(limit, { viewType });
 
   const formatScore = (score: number) => {
@@ -29,7 +35,7 @@ export default function TopEarners({ limit = 10, className = '', viewType = 'sco
   // 3. Shortened wallet address
   const PlayerDisplayName = ({ walletAddress, username }: { walletAddress: string; username?: string }) => {
     if (username) {
-      return <span className="text-[#ffffff] text-[12px]">{username.toUpperCase()}</span>;
+      return <span className="text-[#ffffff] text-[12px]">{username}</span>;
     }
     
     return (
@@ -72,10 +78,16 @@ export default function TopEarners({ limit = 10, className = '', viewType = 'sco
 
   return (
     <div className={`w-full ${className}`}>
-      {topEarners.map((earner, index) => (
+      {topEarners.map((earner, index) => {
+        const isCurrentPlayer =
+          currentWalletAddress &&
+          earner.walletAddress.toLowerCase() === currentWalletAddress.toLowerCase();
+        return (
         <div 
           key={earner.walletAddress}
-          className="content-stretch flex items-center justify-between relative shrink-0 w-full mb-3"
+          className={`content-stretch flex items-center justify-between relative shrink-0 w-full mb-3 ${
+            isCurrentPlayer ? 'rounded-lg bg-white/10 px-2 py-1 -mx-2' : ''
+          }`}
         >
           <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
             <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
@@ -97,6 +109,9 @@ export default function TopEarners({ limit = 10, className = '', viewType = 'sco
                     walletAddress={earner.walletAddress} 
                     username={earner.username} 
                   />
+                  {isCurrentPlayer && (
+                    <span className="text-[10px] text-purple-300 ml-1">(You)</span>
+                  )}
                 </p>
               </div>
             </div>
@@ -110,7 +125,8 @@ export default function TopEarners({ limit = 10, className = '', viewType = 'sco
             </p>
           </div>
         </div>
-      ))}
+        );
+      })}
       {topEarners.length === 0 && (
         <div className="text-gray-400 text-sm text-center p-4">
           No winners yet. Be the first!

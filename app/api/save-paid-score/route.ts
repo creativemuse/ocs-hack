@@ -20,6 +20,8 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const normalizedWallet = walletAddress.trim().toLowerCase();
+
     if (typeof finalScore !== 'number' || finalScore < 0 || !Number.isFinite(finalScore)) {
       return NextResponse.json(
         { error: 'finalScore must be a non-negative number' },
@@ -45,7 +47,7 @@ export async function POST(req: NextRequest) {
         );
       }
       // Verify the wallet address matches the token identity
-      if (payload.identity.walletAddress?.toLowerCase() !== walletAddress.toLowerCase()) {
+      if (payload.identity.walletAddress?.toLowerCase() !== normalizedWallet) {
         return NextResponse.json(
           { error: 'Wallet address does not match entry token' },
           { status: 403 }
@@ -62,20 +64,20 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const current = spacetimeClient.getPlayerProfile(walletAddress);
+    const current = spacetimeClient.getPlayerProfile(normalizedWallet);
 
     if (!current) {
-      await spacetimeClient.createPlayer(walletAddress, username);
+      await spacetimeClient.createPlayer(normalizedWallet, username);
     }
 
-    const existing = spacetimeClient.getPlayerProfile(walletAddress);
+    const existing = spacetimeClient.getPlayerProfile(normalizedWallet);
     const totalScore = (existing?.totalScore ?? 0) + finalScore;
     const gamesPlayed = (existing?.gamesPlayed ?? 0) + 1;
     const bestScore = Math.max(existing?.bestScore ?? 0, finalScore);
     const totalEarnings = existing?.totalEarnings ?? 0;
 
     await spacetimeClient.updatePlayerStats(
-      walletAddress,
+      normalizedWallet,
       totalScore,
       gamesPlayed,
       bestScore,
@@ -84,7 +86,7 @@ export async function POST(req: NextRequest) {
 
     // Fire-and-forget on-chain sync for CRE prize distribution.
     submitScoresOnChainAsync(
-      [walletAddress as `0x${string}`],
+      [normalizedWallet as `0x${string}`],
       [BigInt(bestScore)]
     );
 

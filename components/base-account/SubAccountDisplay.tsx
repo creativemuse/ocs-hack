@@ -203,13 +203,6 @@ export default function SubAccountDisplay({
                     </button>
                     <button
                       type="button"
-                      onClick={() => openFundingUrl('https://bridge.base.org')}
-                      className="text-xs text-amber-300/90 underline text-left hover:text-amber-200"
-                    >
-                      Bridge ETH from another network
-                    </button>
-                    <button
-                      type="button"
                       onClick={() => copyToClipboard(subAccountAddress, 'sub')}
                       className="text-xs text-zinc-400 underline text-left hover:text-zinc-300"
                     >

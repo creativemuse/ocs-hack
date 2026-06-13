@@ -687,8 +687,8 @@ export default function GameEntry({
                       {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
                     </div>
 
-                    {/* CDP Onramp - Buy USDC button when balance is insufficient */}
-                    {!hasEnoughForEntry && !balanceLoading && (
+                    {/* USDC onramp — always available so players can add more funds */}
+                    {!balanceLoading && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
                         <Button
                           onClick={handleBuyUsdc}
@@ -704,12 +704,12 @@ export default function GameEntry({
                           ) : (
                             <>
                               <Coins className="h-3 w-3 mr-2" />
-                              {fundingUrl ? 'Buy USDC with Card' : 'Retry Onramp Setup'}
+                              {hasEnoughForEntry ? 'Add More USDC' : fundingUrl ? 'Buy USDC with Card' : 'Retry Onramp Setup'}
                             </>
                           )}
                         </Button>
                         <p className="text-[10px] text-gray-400 text-center mt-1.5">
-                          Powered by Coinbase Onramp &middot; Card or Apple Pay
+                          USDC entry fee &middot; Powered by Coinbase Onramp
                         </p>
                       </div>
                     )}
