@@ -75,6 +75,7 @@ export default function GameEntry({
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+  const onrampGeneratingRef = useRef(false);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
 
   // Local countdown timer that ticks every second from the server-provided value
@@ -100,50 +101,44 @@ export default function GameEntry({
     setEthFundingUrl(null);
   }, [address]);
 
+  const generateOnrampUrls = useCallback(async (): Promise<string | null> => {
+    if (!address || onrampGeneratingRef.current) return null;
+
+    onrampGeneratingRef.current = true;
+    setIsFundingUrlGenerating(true);
+
+    try {
+      await clearBrowserCache();
+      const sessionToken = await getSessionToken(address);
+
+      const usdcUrl = generateFundingUrl({ walletAddress: address, sessionToken });
+      setFundingUrl(usdcUrl);
+      setEthFundingUrl(
+        generateAssetFundingUrl({
+          walletAddress: address,
+          sessionToken,
+          asset: 'ETH',
+          presetFiatAmount: '5',
+        })
+      );
+      setError(null);
+      return usdcUrl;
+    } catch (err) {
+      console.error('Failed to generate onramp URLs:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to initialize onramp: ${errorMessage}`);
+      return null;
+    } finally {
+      onrampGeneratingRef.current = false;
+      setIsFundingUrlGenerating(false);
+    }
+  }, [address, getSessionToken]);
+
   // Auto-generate USDC + ETH onramp URLs when address is available
   useEffect(() => {
-    let active = true;
-
-    const generateOnrampUrls = async () => {
-      if (!address || (fundingUrl && ethFundingUrl) || isFundingUrlGenerating) return;
-
-      try {
-        setIsFundingUrlGenerating(true);
-        await clearBrowserCache();
-        const sessionToken = await getSessionToken(address);
-
-        if (!active) return;
-
-        setFundingUrl(
-          generateFundingUrl({ walletAddress: address, sessionToken })
-        );
-        setEthFundingUrl(
-          generateAssetFundingUrl({
-            walletAddress: address,
-            sessionToken,
-            asset: 'ETH',
-            presetFiatAmount: '5',
-          })
-        );
-        setError(null);
-      } catch (err) {
-        if (!active) return;
-        console.error('Failed to generate onramp URLs:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-        setError(`Failed to initialize onramp: ${errorMessage}`);
-      } finally {
-        if (active) {
-          setIsFundingUrlGenerating(false);
-        }
-      }
-    };
-
-    generateOnrampUrls();
-
-    return () => {
-      active = false;
-    };
-  }, [address, fundingUrl, ethFundingUrl, isFundingUrlGenerating, getSessionToken]);
+    if (!address || fundingUrl) return;
+    void generateOnrampUrls();
+  }, [address, fundingUrl, generateOnrampUrls]);
 
   // Handle transaction status updates
   const handleTransactionStatus = useCallback((
@@ -445,39 +440,27 @@ export default function GameEntry({
     setError(null);
   };
 
-  // Manual refresh of funding URL (if needed)
   const handleRefreshFundingUrl = async () => {
     if (!address) return;
-    
-    try {
-      setIsFundingUrlGenerating(true);
-      console.log('🔄 Manually refreshing CDP funding URL...');
-      
-      // Clear existing URL and cache
-      setFundingUrl(null);
-      setEthFundingUrl(null);
-      setError(null);
-      await clearBrowserCache();
-      
-      const sessionToken = await getSessionToken(address);
 
-      setFundingUrl(generateFundingUrl({ walletAddress: address, sessionToken }));
-      setEthFundingUrl(
-        generateAssetFundingUrl({
-          walletAddress: address,
-          sessionToken,
-          asset: 'ETH',
-          presetFiatAmount: '5',
-        })
-      );
+    setFundingUrl(null);
+    setEthFundingUrl(null);
+    setError(null);
+    const url = await generateOnrampUrls();
+    if (url) {
       setFundingSuccess(true);
       setTimeout(() => setFundingSuccess(false), 2000);
-    } catch (err) {
-      console.error('❌ Failed to refresh funding URL:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(`Failed to refresh onramp URL: ${errorMessage}`);
-    } finally {
-      setIsFundingUrlGenerating(false);
+    }
+  };
+
+  const handleBuyUsdc = async () => {
+    if (fundingUrl) {
+      openFundingUrl(fundingUrl);
+      return;
+    }
+    const url = await generateOnrampUrls();
+    if (url) {
+      openFundingUrl(url);
     }
   };
 
@@ -701,12 +684,8 @@ export default function GameEntry({
                     {!hasEnoughForEntry && !balanceLoading && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
                         <Button
-                          onClick={() => {
-                            if (fundingUrl) {
-                              openFundingUrl(fundingUrl);
-                            }
-                          }}
-                          disabled={!fundingUrl || isFundingUrlGenerating}
+                          onClick={handleBuyUsdc}
+                          disabled={isFundingUrlGenerating}
                           className="w-full !bg-gradient-to-r !from-blue-500 !to-indigo-500 hover:!from-blue-400 hover:!to-indigo-400 text-white text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           size="sm"
                         >
@@ -718,7 +697,7 @@ export default function GameEntry({
                           ) : (
                             <>
                               <Coins className="h-3 w-3 mr-2" />
-                              Buy USDC with Card
+                              {fundingUrl ? 'Buy USDC with Card' : 'Retry Onramp Setup'}
                             </>
                           )}
                         </Button>
