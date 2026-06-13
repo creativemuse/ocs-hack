@@ -1,111 +1,110 @@
 # Base Account Integration
 
-This document describes the Base Account integration alongside CDP Embedded Wallets.
+This document describes how BEAT ME integrates the Base Account SDK on Base mainnet.
 
 ## Overview
 
-The app now supports both wallet types:
+Players connect via the official Base Account UI (`SignInWithBaseButton` from `@base-org/account-ui/react`). The app uses a **singleton SDK instance** shared across hooks and transaction helpers.
 
-1. **Base Account**: Users can connect with their existing Base Account
-2. **Embedded Wallets**: Users can create/use CDP Embedded Wallets via OnchainKit
+Key features:
 
-Both wallet types are supported through wagmi connectors and work seamlessly with account abstraction features.
+1. **Sign in with Base** — wallet connect via `hooks/useBaseAccount.ts`
+2. **Sub-accounts** — `creation: 'on-connect'`, `defaultAccount: 'sub'` for frictionless game transactions
+3. **Base Pay** — `BasePayButton` + `pay()` helper for USDC funding
+4. **Gasless transactions** — paymaster via `NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT`
+5. **Basenames** — ENSIP-19 resolution via `lib/base-account/basename.ts`
+6. **Treasury spend permissions** (optional) — `@base-org/account/spend-permission` when `NEXT_PUBLIC_SPEND_PERMISSION_SPENDER` is set
 
-## Implementation Details
+## Architecture
 
-### Wagmi Configuration
+```
+app/rootProvider.tsx
+  └── BaseAccountProvider (components/providers/BaseAccountProvider.tsx)
+        └── getBaseAccountSDK() singleton (lib/base-account/sdk.ts)
+              ├── useBaseAccount hook
+              ├── pay() / batch transactions
+              └── spend-permission APIs
+```
 
-The wagmi config in `app/rootProvider.tsx` includes both connectors:
+### SDK configuration
+
+Defined in `lib/base-account/sdk.ts` and `lib/base-account/config.ts`:
 
 ```typescript
-const wagmiConfig = createConfig({
-  chains: [base],
-  connectors: [
-    // Base Account connector for existing Base users
-    baseAccount({
-      appName: process.env.NEXT_PUBLIC_APP_NAME || 'BEAT ME',
-    }),
-    // Coinbase Wallet connector (includes embedded wallets via OnchainKit)
-    coinbaseWallet({
-      appName: 'BEAT ME',
-      preference: 'smartWalletOnly',
-    }),
-  ],
-  // ...
+createBaseAccountSDK({
+  appName: process.env.NEXT_PUBLIC_BASE_ACCOUNT_APP_NAME || 'BEAT ME',
+  appLogoUrl: process.env.NEXT_PUBLIC_BASE_ACCOUNT_LOGO_URL,
+  appChainIds: [base.id], // Base mainnet
+  subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
+  paymasterUrls: [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT],
 });
 ```
 
-### useBundlerClient Hook
+### Sub-accounts
 
-The `useBundlerClient` hook works with both wallet types:
+On connect, the SDK creates a sub-account automatically. Each session re-activates it via `wallet_addSubAccount` in `lib/base-account/subAccount.ts`.
 
-- **Base Account**: Uses the account from the Base Account connector
-- **Embedded Wallets**: Uses the account from OnchainKit's embedded wallet
+**Auto Spend (SDK default):** On the first sub-account transaction, Base Account prompts the user to fund from their universal account. Manual auto-spend configuration (`lib/base-account/autoSpend.ts`) is deprecated.
 
-Both wallet types are converted to Coinbase Smart Accounts for account abstraction operations.
+### Base Pay
 
-### How It Works
+`@base-org/account-ui` v1.0.1 exposes `BasePayButton` with `onClick` only (no `paymentOptions` prop). Payment flow uses `lib/base-account/pay.ts` (`executeBasePay`) via `hooks/useBasePay.ts`.
 
-1. User connects with either wallet type via wagmi
-2. `useBundlerClient` detects the connected wallet through `useWalletClient()`
-3. The wallet's account is used to create a Coinbase Smart Account via `toCoinbaseSmartAccount()`
-4. The smart account is used to create a bundler client for account abstraction operations
+Amounts are centralized in `lib/base-account/config.ts` (`BASE_PAY_AMOUNTS`).
 
-### Error Handling
+### Treasury spend permissions
 
-The hook includes enhanced error logging that shows:
-- Connected wallet address
-- Connector name (Base Account vs Coinbase Wallet)
-- Account availability status
-- Detailed error messages
+Separate from sub-account auto-spend. Allows a **server/treasury wallet** to spend user USDC with prior approval.
+
+Requires `NEXT_PUBLIC_SPEND_PERMISSION_SPENDER` (CDP API key wallet address recommended). Optional for v1 — game entry uses user-signed transactions.
+
+Implemented in `lib/base-account/spendPermissions.ts` using `@base-org/account/spend-permission`.
+
+### Basenames
+
+`components/identity/BaseName.tsx` uses `hooks/useBasename.ts`, which resolves `.base.eth` names via viem ENSIP-19 (`coinType` for Base) on Ethereum mainnet.
 
 ## Environment Variables
 
-Ensure these are set in your `.env.local`:
+See `docs/ENV_VARIABLES_TEMPLATE.md`. Required for Base Account:
 
 ```bash
-NEXT_PUBLIC_APP_NAME="BEAT ME"  # Used for Base Account connector
-NEXT_PUBLIC_CDP_API_KEY=your_api_key
-NEXT_PUBLIC_CDP_PROJECT_ID=your_project_id
-NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT=your_paymaster_endpoint
+NEXT_PUBLIC_BASE_ACCOUNT_APP_NAME=BEAT ME
+NEXT_PUBLIC_BASE_ACCOUNT_LOGO_URL=https://your-domain.com/logo.png
+NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT=https://api.developer.coinbase.com/rpc/v1/base/...
+NEXT_PUBLIC_USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
+NEXT_PUBLIC_ALCHEMY_API_KEY=your_key  # optional, improves basename resolution
+NEXT_PUBLIC_SPEND_PERMISSION_SPENDER=0x...  # optional treasury wallet
 ```
 
 ## Dependencies
 
-- `@base-org/account`: Already installed as a transitive dependency via `@wagmi/connectors`
-- `wagmi`: Already configured with both connectors
-- `@coinbase/onchainkit`: Handles embedded wallet UI and management
+- `@base-org/account` ^2.5.6 — SDK, pay(), spend-permission
+- `@base-org/account-ui` ^1.0.1 — SignInWithBaseButton, BasePayButton
+- `viem` — basename resolution, auth verification
+
+## UI components
+
+| Component | Purpose |
+|-----------|---------|
+| `components/base-account/BaseAccountButton.tsx` | Reusable connect/disconnect |
+| `components/wallet/WalletWithBalance.tsx` | Balance + Base Pay |
+| `components/game/GamePayment.tsx` | In-game funding |
+| `components/base-account/SubAccountDisplay.tsx` | Universal + sub addresses |
+| `components/game/SpendPermissionManager.tsx` | Treasury spend permissions |
 
 ## Testing
 
-1. **Base Account**: Connect using the Base Account option in the wallet modal
-2. **Embedded Wallet**: Connect using the Coinbase Wallet option (creates embedded wallet if needed)
-3. Both should work with `useBundlerClient` for account abstraction operations
+Use `components/base-account/BaseAccountTestSuite.tsx` to verify:
 
-## Troubleshooting
+1. SDK initialization and connection
+2. Sub-account addresses
+3. USDC balance
+4. Spend permission status (when spender configured)
 
-### Base Account Not Appearing
+Run `npm run build` to catch type errors after SDK updates.
 
-- Verify `@base-org/account` is available (it's a transitive dependency)
-- Check that the Base Account connector is in the wagmi config
-- Ensure you're on Base network
+## Out of scope
 
-### useBundlerClient Not Working
-
-- Check that `walletClient.account` is available
-- Verify the wallet is connected via wagmi
-- Check console for detailed error messages including connector name
-
-## Differences from CDPHooksProvider Approach
-
-This implementation uses **OnchainKit** instead of the lower-level `CDPHooksProvider` approach:
-
-- **OnchainKit**: Higher-level abstraction, includes UI components, handles wallet management
-- **CDPHooksProvider**: Lower-level, requires manual implementation of wallet UI and state management
-
-For this app, OnchainKit is the better choice as it provides:
-- Built-in wallet UI components
-- Automatic embedded wallet management
-- Integration with existing Coinbase Wallet infrastructure
-- Support for both Base Account and embedded wallets through wagmi connectors
-
+- **Full SIWB backend** — JWT sessions in `lib/base-account/auth.ts` are stubs; wallet identity is used onchain only
+- **OnchainKit wallet connector** — app uses direct Base Account SDK, not wagmi `baseAccount` connector

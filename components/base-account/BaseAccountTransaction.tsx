@@ -3,7 +3,8 @@
 import { useState, useCallback, useImperativeHandle, forwardRef, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
-import { createBaseAccountSDK } from '@base-org/account';
+import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
 import { base } from 'viem/chains';
 import { createPublicClient, http, numberToHex, type Hex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
@@ -47,6 +48,7 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
     ref
   ) {
   const { isConnected: hookConnected, address: hookAddress } = useBaseAccount();
+  const { provider: contextProvider } = useBaseAccountContext();
   // Prefer parent-provided address to avoid race condition where hook hasn't resolved yet
   const address = connectedAddress || hookAddress;
   const isConnected = Boolean(address) || hookConnected;
@@ -68,19 +70,7 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
     onStatus?.('pending', 'Transaction pending...');
 
     try {
-      // Initialize Base Account SDK
-      const sdk = createBaseAccountSDK({
-        appName: 'BEAT ME',
-        appLogoUrl: 'https://base.org/logo.png',
-        appChainIds: [base.id],
-        subAccounts: {
-          creation: 'on-connect',
-          defaultAccount: 'sub',
-        },
-        paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-      });
-
-      const provider = sdk.getProvider();
+      const provider = contextProvider ?? getBaseAccountProvider();
 
       // Smart accounts (4337): each user op bumps the account nonce on-chain only after
       // inclusion. Sending approve + joinBattle back-to-back causes AA25 invalid account nonce

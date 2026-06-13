@@ -36,7 +36,7 @@ interface TestResult {
 }
 
 export default function BaseAccountTestSuite() {
-  const { address, universalAddress, subAccountAddress, isConnected, isConnecting, error } = useBaseAccount();
+  const { address, universalAddress, subAccountAddress, isConnected, isConnecting, connect, error } = useBaseAccount();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading } = useUSDCBalance();
   const [testResults, setTestResults] = useState<TestResult[]>([]);
   const [isRunningTests, setIsRunningTests] = useState(false);
@@ -243,7 +243,12 @@ export default function BaseAccountTestSuite() {
               <div className="text-gray-400 text-sm">
                 {isConnecting ? 'Connecting...' : 'Not connected to Base Account'}
               </div>
-              <SignInWithBaseButton colorScheme="light" />
+              <SignInWithBaseButton
+                align="center"
+                variant="solid"
+                colorScheme="light"
+                onClick={isConnecting ? undefined : connect}
+              />
             </div>
           )}
         </CardContent>

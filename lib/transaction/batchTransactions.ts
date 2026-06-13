@@ -1,6 +1,5 @@
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
 import { Interface } from 'ethers';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
 
 export interface BatchCall {
@@ -27,14 +26,7 @@ export interface BatchTransactionResult {
  * @returns Promise with transaction result
  */
 export async function sendBatchCalls(options: BatchTransactionOptions): Promise<BatchTransactionResult> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
+  const provider = getBaseAccountProvider();
   const { calls, atomicRequired = true, gasless = true } = options;
 
   if (!calls || calls.length === 0) {
@@ -49,9 +41,6 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
       value: call.value || '0'
     })));
 
-    const provider = sdk.getProvider();
-    
-    // Use wallet_sendCalls for batch transactions
     const result = (await provider.request({
       method: 'wallet_sendCalls',
       params: {
