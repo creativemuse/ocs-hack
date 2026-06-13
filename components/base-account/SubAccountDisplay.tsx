@@ -5,14 +5,17 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useETHBalance } from '@/hooks/useETHBalance';
-import { Copy, CheckCircle, Shield, ExternalLink, AlertCircle, Fuel } from 'lucide-react';
+import { Copy, CheckCircle, Shield, ExternalLink, AlertCircle, Fuel, Loader2 } from 'lucide-react';
+import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 import { useState } from 'react';
 
 interface SubAccountDisplayProps {
   className?: string;
   showActions?: boolean;
   /** Called when user taps "Add ETH for gas" */
-  onFundEth?: () => void;
+  onFundEth?: () => void | Promise<void>;
+  ethFundingLoading?: boolean;
+  ethFundingError?: string | null;
   /** Whether paymaster is configured (gas may still be sponsored for eligible users). */
   paymasterConfigured?: boolean;
 }
@@ -24,6 +27,8 @@ export default function SubAccountDisplay({
   className = '',
   showActions = true,
   onFundEth,
+  ethFundingLoading = false,
+  ethFundingError = null,
   paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT),
 }: SubAccountDisplayProps) {
   const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
@@ -166,14 +171,52 @@ export default function SubAccountDisplay({
                   : 'Add a small amount of ETH to your wallet to cover network fees (~$0.02 per transaction).'}
               </p>
               {onFundEth && (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={onFundEth}
-                  className="w-full bg-amber-600 hover:bg-amber-500 text-white text-xs"
-                >
-                  Add ETH for gas
-                </Button>
+                <>
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={() => void onFundEth()}
+                    disabled={ethFundingLoading}
+                    className="w-full bg-amber-600 hover:bg-amber-500 text-white text-xs disabled:opacity-60"
+                  >
+                    {ethFundingLoading ? (
+                      <>
+                        <Loader2 className="h-3 w-3 mr-2 animate-spin inline" />
+                        Opening Coinbase…
+                      </>
+                    ) : (
+                      'Buy ETH for gas (card)'
+                    )}
+                  </Button>
+                  {ethFundingError ? (
+                    <p className="text-xs text-red-300" role="alert">
+                      {ethFundingError}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-1.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => openFundingUrl('https://keys.coinbase.com')}
+                      className="text-xs text-amber-300/90 underline text-left hover:text-amber-200"
+                    >
+                      Fund wallet in Base Account app
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openFundingUrl('https://bridge.base.org')}
+                      className="text-xs text-amber-300/90 underline text-left hover:text-amber-200"
+                    >
+                      Bridge ETH from another network
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(subAccountAddress, 'sub')}
+                      className="text-xs text-zinc-400 underline text-left hover:text-zinc-300"
+                    >
+                      Copy address to receive ETH from another wallet
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}

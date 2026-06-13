@@ -10,7 +10,8 @@ import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
-import { generateFundingUrl, generateAssetFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
+import { generateFundingUrl, generateAssetFundingUrl, clearBrowserCache, openEthGasFunding } from '@/lib/utils/funding';
+import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
@@ -64,6 +65,8 @@ export default function GameEntry({
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
   const [ethFundingUrl, setEthFundingUrl] = useState<string | null>(null);
+  const [ethFundingLoading, setEthFundingLoading] = useState(false);
+  const [ethFundingError, setEthFundingError] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [awaitingWalletOpen, setAwaitingWalletOpen] = useState(false);
@@ -384,9 +387,25 @@ export default function GameEntry({
     paidTxRef.current?.submit();
   };
 
-  const handleFundEth = () => {
-    if (ethFundingUrl) {
-      window.open(ethFundingUrl, '_blank', 'noopener,noreferrer');
+  const handleFundEth = async () => {
+    if (!address || ethFundingLoading) return;
+
+    setEthFundingLoading(true);
+    setEthFundingError(null);
+
+    const result = await openEthGasFunding({
+      walletAddress: address,
+      getSessionToken,
+      cachedUrl: ethFundingUrl,
+    });
+
+    setEthFundingLoading(false);
+
+    if (!result.opened) {
+      setEthFundingError(
+        result.error ??
+          'Could not open Coinbase Pay. Try “Fund wallet in Base Account app” below.'
+      );
     }
   };
 
@@ -583,6 +602,8 @@ export default function GameEntry({
                   <SubAccountDisplay
                     showActions={true}
                     onFundEth={handleFundEth}
+                    ethFundingLoading={ethFundingLoading}
+                    ethFundingError={ethFundingError}
                     paymasterConfigured={paymasterConfigured}
                   />
                 ) : (
@@ -677,7 +698,7 @@ export default function GameEntry({
                         <Button
                           onClick={() => {
                             if (fundingUrl) {
-                              window.open(fundingUrl, '_blank', 'noopener,noreferrer');
+                              openFundingUrl(fundingUrl);
                             }
                           }}
                           disabled={!fundingUrl || isFundingUrlGenerating}
