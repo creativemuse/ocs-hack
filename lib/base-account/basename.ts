@@ -1,6 +1,8 @@
 import { createPublicClient, http, toCoinType } from 'viem';
 import { mainnet, base } from 'viem/chains';
 
+// ENSIP-19 reverse resolution for Base names uses the L1 Universal Resolver with
+// coinType for Base — see https://docs.base.org/base-account/framework-integrations/wagmi/basenames
 const mainnetRpc = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
   ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
   : 'https://eth.llamarpc.com';

@@ -39,7 +39,7 @@ export const resolveSubAccountAddresses = async (
     return null;
   }
 
-  const universalAddress = accounts.length > 1 ? accounts[0] : accounts[0];
+  const universalAddress = accounts[0];
 
   try {
     await provider.request({
