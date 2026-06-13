@@ -103,6 +103,12 @@ export function useETHBalance() {
       return;
     }
 
+    setState((prev) => ({
+      ...initialState,
+      isLoading: !hasFetchedOnce.current,
+    }));
+    hasFetchedOnce.current = false;
+
     fetchETHBalance();
     const interval = setInterval(fetchETHBalance, 30_000);
     return () => clearInterval(interval);

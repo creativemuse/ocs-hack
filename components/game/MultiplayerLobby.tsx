@@ -129,6 +129,23 @@ export default function MultiplayerLobby({
     return () => clearInterval(id);
   }, [session?.status, audioDrivesCountdown]);
 
+  // Sync playhead to elapsed lobby time when music starts (late join / tap-to-play)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (
+      isPlaying &&
+      el &&
+      Number.isFinite(el.duration) &&
+      el.duration > 0 &&
+      lobbyTimeRemaining > 0
+    ) {
+      const elapsed = el.duration - lobbyTimeRemaining;
+      if (elapsed > 1 && elapsed < el.duration && Math.abs(el.currentTime - elapsed) > 2) {
+        el.currentTime = elapsed;
+      }
+    }
+  }, [isPlaying, lobbyTimeRemaining]);
+
   // Setup Web Audio API analyser + frequency visualizer
   const initAudioContext = useCallback(() => {
     const el = audioRef.current;
@@ -451,7 +468,13 @@ export default function MultiplayerLobby({
               {(autoplayBlocked || audioLoadFailed) && (
                 <button
                   type="button"
-                  onClick={handleTapToPlay}
+                  onClick={async () => {
+                    if (audioLoadFailed) {
+                      setAudioLoadFailed(false);
+                      audioRef.current?.load();
+                    }
+                    await handleTapToPlay();
+                  }}
                   className="w-full py-2 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-sm font-medium transition-colors"
                 >
                   {audioLoadFailed ? 'Retry lobby music' : 'Tap to start lobby music'}
