@@ -75,7 +75,7 @@ export default function GameEntry({
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
-  const onrampGeneratingRef = useRef(false);
+  const generatingAddressRef = useRef<string | null>(null);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
 
   // Local countdown timer that ticks every second from the server-provided value
@@ -102,14 +102,18 @@ export default function GameEntry({
   }, [address]);
 
   const generateOnrampUrls = useCallback(async (): Promise<string | null> => {
-    if (!address || onrampGeneratingRef.current) return null;
+    if (!address || generatingAddressRef.current === address) return null;
 
-    onrampGeneratingRef.current = true;
+    generatingAddressRef.current = address;
     setIsFundingUrlGenerating(true);
 
     try {
       await clearBrowserCache();
       const sessionToken = await getSessionToken(address);
+
+      if (generatingAddressRef.current !== address) {
+        return null;
+      }
 
       const usdcUrl = generateFundingUrl({ walletAddress: address, sessionToken });
       setFundingUrl(usdcUrl);
@@ -124,13 +128,16 @@ export default function GameEntry({
       setError(null);
       return usdcUrl;
     } catch (err) {
+      if (generatingAddressRef.current !== address) return null;
       console.error('Failed to generate onramp URLs:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(`Failed to initialize onramp: ${errorMessage}`);
       return null;
     } finally {
-      onrampGeneratingRef.current = false;
-      setIsFundingUrlGenerating(false);
+      if (generatingAddressRef.current === address) {
+        generatingAddressRef.current = null;
+        setIsFundingUrlGenerating(false);
+      }
     }
   }, [address, getSessionToken]);
 
