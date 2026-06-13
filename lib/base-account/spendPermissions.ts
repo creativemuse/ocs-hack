@@ -1,204 +1,237 @@
+'use client';
+
 /**
  * Spend Permissions utilities for Base Account
- * 
- * Handles requesting, checking, and using spend permissions for gasless transactions
  */
 
-// Note: Spend permission functions are not available in the current version of @base-org/account
-// This is a placeholder implementation until the spend permission API is available
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import {
+  requestSpendPermission,
+  requestRevoke,
+  fetchPermissions,
+  getPermissionStatus,
+} from '@base-org/account/spend-permission/browser';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
+import {
+  BASE_CHAIN_ID,
+  SPEND_PERMISSION_SPENDER,
+  USDC_ADDRESS_BASE,
+} from '@/lib/base-account/config';
 
-// Game-specific spend permission configuration
-const GAME_SPEND_CONFIG = {
-  token: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913', // USDC on Base
-  chainId: base.id,
-  allowance: BigInt('100000000'), // 100 USDC (6 decimals)
-  periodInDays: 30,
-  spender: process.env.NEXT_PUBLIC_SPEND_PERMISSION_SPENDER || '0xYourTreasuryAddress',
+const GAME_SPEND_ALLOWANCE = BigInt(100_000_000); // 100 USDC (6 decimals)
+const GAME_SPEND_PERIOD_DAYS = 30;
+
+const PERMISSION_STORAGE_KEY = 'beat_me_spend_permission';
+
+type StoredSpendPermission = Awaited<ReturnType<typeof requestSpendPermission>>;
+
+export interface SpendPermissionDetails {
+  account: string;
+  spender: string;
+  token: string;
+  allowance: string;
+  periodInDays: number;
+  daysRemaining: number;
+  isExpired: boolean;
+  isActive: boolean;
+  remainingSpend?: string;
+}
+
+const isSpendPermissionsConfigured = (): boolean => {
+  return (
+    !!SPEND_PERMISSION_SPENDER &&
+    SPEND_PERMISSION_SPENDER !== '0xYourTreasuryAddress'
+  );
 };
 
-// Get Base Account SDK instance (client-side only)
-let sdkInstance: any = null;
-
-function getSDK() {
-  if (typeof window === "undefined") {
-    throw new Error('Base Account SDK can only be used on the client side');
+const storePermission = (permission: StoredSpendPermission): void => {
+  if (typeof window === 'undefined') {
+    return;
   }
-  
-  if (!sdkInstance) {
-    sdkInstance = createBaseAccountSDK({
-      appName: 'BEAT ME',
-      appLogoUrl: 'https://base.org/logo.png',
-      appChainIds: [base.id],
-      subAccounts: {
-        creation: 'on-connect',
-        defaultAccount: 'sub',
-      },
-    });
-  }
-  
-  return sdkInstance;
-}
+  localStorage.setItem(PERMISSION_STORAGE_KEY, JSON.stringify(permission));
+};
 
-/**
- * Request spend permission for game entry fees
- * Note: This is a placeholder implementation until spend permission API is available
- */
-export async function requestGameSpendPermission(account: string): Promise<boolean> {
-  try {
-    console.log('🔐 Requesting spend permission for game entry...');
-    console.warn('⚠️ Spend permission API not available in current Base Account SDK version');
-    
-    // For now, simulate a successful permission request
-    // In a real implementation, this would use the Base Account spend permission API
-    const mockPermission = {
-      account,
-      spender: GAME_SPEND_CONFIG.spender,
-      token: GAME_SPEND_CONFIG.token,
-      allowance: GAME_SPEND_CONFIG.allowance.toString(),
-      periodInDays: GAME_SPEND_CONFIG.periodInDays,
-      timestamp: Date.now(),
-    };
-
-    // Store permission in localStorage for quick checks
-    localStorage.setItem('game_spend_permission', JSON.stringify(mockPermission));
-    
-    console.log('✅ Spend permission granted (mock)');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to request spend permission:', error);
-    return false;
-  }
-}
-
-/**
- * Check if valid spend permission exists
- */
-export function checkSpendPermission(account: string): boolean {
-  try {
-    const stored = localStorage.getItem('game_spend_permission');
-    if (!stored) return false;
-    
-    const permission = JSON.parse(stored);
-    
-    // Check if permission is for the same account and spender
-    if (permission.account !== account || permission.spender !== GAME_SPEND_CONFIG.spender) {
-      return false;
-    }
-    
-    // Check if permission is still valid (within 30 days)
-    const daysSinceGranted = (Date.now() - permission.timestamp) / (1000 * 60 * 60 * 24);
-    if (daysSinceGranted > GAME_SPEND_CONFIG.periodInDays) {
-      // Clear expired permission
-      localStorage.removeItem('game_spend_permission');
-      return false;
-    }
-    
-    return true;
-  } catch (error) {
-    console.error('❌ Error checking spend permission:', error);
-    return false;
-  }
-}
-
-/**
- * Use spend permission to execute a transaction
- * Note: This is a placeholder implementation until spend permission API is available
- */
-export async function useSpendPermission(
-  account: string,
-  to: string,
-  amount: string,
-  data?: string
-): Promise<string> {
-  try {
-    console.log('💸 Using spend permission for transaction...');
-    console.warn('⚠️ Spend permission API not available in current Base Account SDK version');
-    
-    // For now, simulate a transaction using regular wallet calls
-    // In a real implementation, this would use the Base Account spend permission API
-    const result = await getSDK().getProvider().request({
-      method: 'wallet_sendCalls',
-      params: [{
-        version: '1.0',
-        chainId: `0x${GAME_SPEND_CONFIG.chainId.toString(16)}`,
-        from: account,
-        calls: [{
-          to: to,
-          data: data || '0x',
-          value: '0x0',
-        }],
-        capabilities: {
-          paymasterService: {
-            url: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT,
-          },
-        },
-      }],
-    });
-
-    console.log('✅ Transaction sent (without spend permission):', result);
-    return result;
-  } catch (error) {
-    console.error('❌ Failed to use spend permission:', error);
-    throw error;
-  }
-}
-
-/**
- * Revoke spend permission
- * Note: This is a placeholder implementation until spend permission API is available
- */
-export async function revokeSpendPermission(account: string): Promise<boolean> {
-  try {
-    console.log('🔒 Revoking spend permission...');
-    console.warn('⚠️ Spend permission API not available in current Base Account SDK version');
-    
-    // For now, just clear the stored permission
-    // In a real implementation, this would use the Base Account spend permission API
-    localStorage.removeItem('game_spend_permission');
-    
-    console.log('✅ Spend permission revoked (mock)');
-    return true;
-  } catch (error) {
-    console.error('❌ Failed to revoke spend permission:', error);
-    return false;
-  }
-}
-
-/**
- * Get spend permission details
- */
-export function getSpendPermissionDetails(account: string) {
-  try {
-    const stored = localStorage.getItem('game_spend_permission');
-    if (!stored) return null;
-    
-    const permission = JSON.parse(stored);
-    
-    if (permission.account !== account) return null;
-    
-    const daysSinceGranted = (Date.now() - permission.timestamp) / (1000 * 60 * 60 * 24);
-    const daysRemaining = GAME_SPEND_CONFIG.periodInDays - daysSinceGranted;
-    
-    return {
-      ...permission,
-      daysRemaining: Math.max(0, daysRemaining),
-      isExpired: daysRemaining <= 0,
-    };
-  } catch (error) {
-    console.error('❌ Error getting spend permission details:', error);
+const loadStoredPermission = (): StoredSpendPermission | null => {
+  if (typeof window === 'undefined') {
     return null;
   }
-}
 
-/**
- * Auto-request spend permission if needed
- */
-export async function ensureSpendPermission(account: string): Promise<boolean> {
-  if (checkSpendPermission(account)) {
+  try {
+    const stored = localStorage.getItem(PERMISSION_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+    return JSON.parse(stored) as StoredSpendPermission;
+  } catch {
+    return null;
+  }
+};
+
+const clearStoredPermission = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  localStorage.removeItem(PERMISSION_STORAGE_KEY);
+};
+
+export const isGameSpendPermissionsEnabled = (): boolean => {
+  return isSpendPermissionsConfigured();
+};
+
+export const requestGameSpendPermission = async (
+  account: string
+): Promise<boolean> => {
+  if (!isSpendPermissionsConfigured()) {
+    console.warn(
+      'Spend permissions not configured. Set NEXT_PUBLIC_SPEND_PERMISSION_SPENDER.'
+    );
+    return false;
+  }
+
+  try {
+    const provider = getBaseAccountProvider();
+    const permission = await requestSpendPermission({
+      account,
+      spender: SPEND_PERMISSION_SPENDER,
+      token: USDC_ADDRESS_BASE,
+      chainId: BASE_CHAIN_ID,
+      allowance: GAME_SPEND_ALLOWANCE,
+      periodInDays: GAME_SPEND_PERIOD_DAYS,
+      provider,
+    });
+
+    storePermission(permission);
+    return true;
+  } catch (error) {
+    console.error('Failed to request spend permission:', error);
+    return false;
+  }
+};
+
+export const checkSpendPermission = async (
+  account: string
+): Promise<boolean> => {
+  if (!isSpendPermissionsConfigured()) {
+    return false;
+  }
+
+  try {
+    const provider = getBaseAccountProvider();
+    const permissions = await fetchPermissions({
+      account,
+      spender: SPEND_PERMISSION_SPENDER,
+      chainId: BASE_CHAIN_ID,
+      provider,
+    });
+
+    if (permissions.length > 0) {
+      storePermission(permissions[0]);
+      const status = await getPermissionStatus(permissions[0]);
+      return status.isActive && !status.isRevoked && !status.isExpired;
+    }
+
+    const stored = loadStoredPermission();
+    if (!stored) {
+      return false;
+    }
+
+    const status = await getPermissionStatus(stored);
+    return status.isActive && !status.isRevoked && !status.isExpired;
+  } catch (error) {
+    console.error('Error checking spend permission:', error);
+    return false;
+  }
+};
+
+export const revokeSpendPermission = async (
+  account: string
+): Promise<boolean> => {
+  if (!isSpendPermissionsConfigured()) {
+    return false;
+  }
+
+  try {
+    const provider = getBaseAccountProvider();
+    let permission = loadStoredPermission();
+
+    if (!permission) {
+      const permissions = await fetchPermissions({
+        account,
+        spender: SPEND_PERMISSION_SPENDER,
+        chainId: BASE_CHAIN_ID,
+        provider,
+      });
+      permission = permissions[0] ?? null;
+    }
+
+    if (!permission) {
+      return false;
+    }
+
+    await requestRevoke({ provider, permission });
+    clearStoredPermission();
+    return true;
+  } catch (error) {
+    console.error('Failed to revoke spend permission:', error);
+    return false;
+  }
+};
+
+export const getSpendPermissionDetails = async (
+  account: string
+): Promise<SpendPermissionDetails | null> => {
+  if (!isSpendPermissionsConfigured()) {
+    return null;
+  }
+
+  try {
+    const provider = getBaseAccountProvider();
+    let permission = loadStoredPermission();
+
+    if (!permission) {
+      const permissions = await fetchPermissions({
+        account,
+        spender: SPEND_PERMISSION_SPENDER,
+        chainId: BASE_CHAIN_ID,
+        provider,
+      });
+      permission = permissions[0] ?? null;
+    }
+
+    if (!permission) {
+      return null;
+    }
+
+    const status = await getPermissionStatus(permission);
+    const periodEnd = status.currentPeriod.end;
+    const periodStart = status.currentPeriod.start;
+    const daysRemaining = Math.max(
+      0,
+      (periodEnd - Math.floor(Date.now() / 1000)) / (60 * 60 * 24)
+    );
+
+    return {
+      account,
+      spender: SPEND_PERMISSION_SPENDER,
+      token: USDC_ADDRESS_BASE,
+      allowance: GAME_SPEND_ALLOWANCE.toString(),
+      periodInDays: GAME_SPEND_PERIOD_DAYS,
+      daysRemaining,
+      isExpired: status.isExpired,
+      isActive: status.isActive,
+      remainingSpend: status.remainingSpend.toString(),
+    };
+  } catch (error) {
+    console.error('Error getting spend permission details:', error);
+    return null;
+  }
+};
+
+export const ensureSpendPermission = async (
+  account: string
+): Promise<boolean> => {
+  const hasPermission = await checkSpendPermission(account);
+  if (hasPermission) {
     return true;
   }
-  
-  return await requestGameSpendPermission(account);
-}
+  return requestGameSpendPermission(account);
+};

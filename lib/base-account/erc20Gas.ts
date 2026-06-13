@@ -1,5 +1,4 @@
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
 import { Contract, parseUnits, formatUnits, JsonRpcProvider } from 'ethers';
 
 const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS as string;
@@ -66,21 +65,13 @@ export async function estimateGasCostInUSDC(
   gasPrice: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
+  const provider = getBaseAccountProvider();
 
   if (!isERC20GasEnabled()) {
     return { gasCost: '0', gasLimit: '0', gasPrice: '0', error: 'ERC20 gas payments not enabled' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    
     // Estimate gas limit via EIP-1193
     const gasLimitHex = (await provider.request({
       method: 'eth_estimateGas',
@@ -138,21 +129,13 @@ export async function sendTransactionWithERC20Gas(
   transactionHash?: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
+  const provider = getBaseAccountProvider();
 
   if (!isERC20GasEnabled()) {
     return { success: false, error: 'ERC20 gas payments not enabled' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    
     // Prepare the transaction with ERC20 gas payment
     const txRequest = {
       to: transaction.to,
@@ -204,21 +187,13 @@ export async function sendBatchTransactionsWithERC20Gas(
   transactionHash?: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
+  const provider = getBaseAccountProvider();
 
   if (!isERC20GasEnabled()) {
     return { success: false, error: 'ERC20 gas payments not enabled' };
   }
 
   try {
-    const provider = sdk.getProvider();
-    
     // Prepare batch calls with ERC20 gas payment
     const batchCalls = calls.map(call => ({
       to: call.to,
@@ -266,13 +241,7 @@ export async function checkUSDCBalanceForGas(
   requiredBalance: string;
   error?: string;
 }> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
+  const provider = getBaseAccountProvider();
 
   if (!USDC_ADDRESS) {
     return {
@@ -284,8 +253,6 @@ export async function checkUSDCBalanceForGas(
   }
 
   try {
-    const provider = sdk.getProvider();
-    
     // Get USDC contract
     const usdcContract = new Contract(
       USDC_ADDRESS,

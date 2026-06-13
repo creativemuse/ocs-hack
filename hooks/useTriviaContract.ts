@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useBaseAccount } from './useBaseAccount';
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
 import { parseUnits, encodeFunctionData } from 'viem';
 import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
@@ -22,6 +21,7 @@ export interface ContractState {
 
 export function useTriviaContract(useGasless: boolean = true) {
   const { address, isConnected } = useBaseAccount();
+  const { provider } = useBaseAccountContext();
   const [state, setState] = useState<ContractState>({
     isApproving: false,
     isJoining: false,
@@ -42,29 +42,6 @@ export function useTriviaContract(useGasless: boolean = true) {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [hash, setHash] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<Error | null>(null);
-
-  // Initialize Base Account SDK client-side only
-  const [provider, setProvider] = useState<any>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const sdk = createBaseAccountSDK({
-          appName: 'BEAT ME',
-          appLogoUrl: 'https://base.org/logo.png',
-          appChainIds: [base.id],
-          subAccounts: {
-            creation: 'on-connect',
-            defaultAccount: 'sub',
-          },
-          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-        });
-        setProvider(sdk.getProvider());
-      } catch (error) {
-        console.error('Failed to initialize Base Account SDK:', error);
-      }
-    }
-  }, []);
 
   // Fetch session info using Base Account SDK
   const fetchSessionInfo = useCallback(async () => {
@@ -101,13 +78,13 @@ export function useTriviaContract(useGasless: boolean = true) {
         args: [],
       });
       
-      const result = await provider.request({
+      const result = (await provider.request({
         method: 'eth_call',
         params: [{
           to: TRIVIA_CONTRACT_ADDRESS,
           data,
         }, 'latest']
-      });
+      })) as string;
       
       // Parse the result - owner() returns an address (20 bytes padded to 32 bytes)
       if (result && result !== '0x') {

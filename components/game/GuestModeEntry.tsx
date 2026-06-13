@@ -19,7 +19,7 @@ interface GuestModeEntryProps {
 export default function GuestModeEntry({ onGuestStart, onWalletConnect, className = '' }: GuestModeEntryProps) {
   const [guestName, setGuestName] = useState('');
   const [showGuestForm, setShowGuestForm] = useState(false);
-  const { isConnected, connect } = useBaseAccount();
+  const { isConnected, connect, isConnecting } = useBaseAccount();
 
   const handleGuestSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -178,7 +178,12 @@ export default function GuestModeEntry({ onGuestStart, onWalletConnect, classNam
             </Button>
           ) : (
             <div className="space-y-3">
-              <SignInWithBaseButton colorScheme="light" onClick={connect} />
+              <SignInWithBaseButton
+                align="center"
+                variant="solid"
+                colorScheme="light"
+                onClick={isConnecting ? undefined : connect}
+              />
               <Button
                 onClick={onWalletConnect}
                 variant="outline"

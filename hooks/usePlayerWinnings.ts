@@ -2,8 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useBaseAccount } from './useBaseAccount';
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
 export interface PlayerWinnings {
@@ -19,6 +18,7 @@ export interface PlayerWinnings {
 
 export function usePlayerWinnings() {
   const { address, isConnected } = useBaseAccount();
+  const { provider } = useBaseAccountContext();
   const [winnings, setWinnings] = useState<PlayerWinnings>({
     hasWinnings: false,
     winningAmount: '0',
@@ -32,29 +32,6 @@ export function usePlayerWinnings() {
   const [error, setError] = useState<string | null>(null);
   const [sessionInfo, setSessionInfo] = useState<any>(null);
   const [playerScore, setPlayerScore] = useState<any>(null);
-
-  // Initialize Base Account SDK client-side only
-  const [provider, setProvider] = useState<any>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const sdk = createBaseAccountSDK({
-          appName: 'BEAT ME',
-          appLogoUrl: 'https://base.org/logo.png',
-          appChainIds: [base.id],
-          subAccounts: {
-            creation: 'on-connect',
-            defaultAccount: 'sub',
-          },
-          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-        });
-        setProvider(sdk.getProvider());
-      } catch (error) {
-        console.error('Failed to initialize Base Account SDK:', error);
-      }
-    }
-  }, []);
 
   // Fetch session info using Base Account SDK
   const fetchSessionInfo = useCallback(async () => {
