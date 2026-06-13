@@ -1,14 +1,18 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
+import { useTopEarners } from '@/hooks/useTopEarners';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
 import { BaseName } from '@/components/identity/BaseName';
+import ComposeCastButton from '@/components/social/ComposeCastButton';
 import { Confetti } from '@neoconfetti/react';
+
+const LEADERBOARD_LIMIT = 10;
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -30,19 +34,72 @@ export default function HighScoreDisplay({
   walletAddress,
   className = '' 
 }: HighScoreDisplayProps) {
-  const { highScores, getCurrentHighScore, getPlayerRank, submitScore } = useHighScores();
+  const { submitScore } = useHighScores();
+  const { topEarners, isLoading: leaderboardLoading } = useTopEarners(LEADERBOARD_LIMIT, { viewType: 'scores' });
   const { address, isConnected } = useBaseAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [backendRank, setBackendRank] = useState<number | null>(null);
   const [submissionResult, setSubmissionResult] = useState<{
     isNewHighScore: boolean;
     rank: number;
   } | null>(null);
   const [showConfetti, setShowConfetti] = useState(false);
 
-  const currentHighScore = getCurrentHighScore();
-  const playerRank = getPlayerRank(currentScore);
-  const isHighestScore = currentScore >= currentHighScore;
+  const normalizedWallet = walletAddress?.toLowerCase();
+
+  const leaderboardEntries = useMemo(() => {
+    if (isTrialGame) return [];
+
+    const entries = [...topEarners];
+    if (!normalizedWallet || currentScore <= 0) {
+      return entries.slice(0, LEADERBOARD_LIMIT);
+    }
+
+    const existingIdx = entries.findIndex(
+      (e) => e.walletAddress.toLowerCase() === normalizedWallet
+    );
+
+    if (existingIdx >= 0) {
+      const updated = [...entries];
+      updated[existingIdx] = {
+        ...updated[existingIdx],
+        bestScore: Math.max(updated[existingIdx].bestScore, currentScore),
+        username: playerName || updated[existingIdx].username,
+      };
+      return updated
+        .sort((a, b) => b.bestScore - a.bestScore)
+        .slice(0, LEADERBOARD_LIMIT);
+    }
+
+    const merged = [
+      ...entries,
+      {
+        walletAddress: normalizedWallet,
+        username: playerName,
+        bestScore: currentScore,
+        totalEarnings: 0,
+        gamesPlayed: 1,
+      },
+    ]
+      .sort((a, b) => b.bestScore - a.bestScore)
+      .slice(0, LEADERBOARD_LIMIT);
+
+    return merged;
+  }, [isTrialGame, topEarners, normalizedWallet, currentScore, playerName]);
+
+  const playerRank = useMemo(() => {
+    if (isTrialGame || currentScore <= 0) return null;
+    const idx = leaderboardEntries.findIndex(
+      (e) => e.walletAddress.toLowerCase() === normalizedWallet
+    );
+    return idx >= 0 ? idx + 1 : null;
+  }, [isTrialGame, currentScore, leaderboardEntries, normalizedWallet]);
+
+  const isOnLeaderboard =
+    !leaderboardLoading && playerRank !== null && playerRank <= LEADERBOARD_LIMIT;
+  const currentHighScore = leaderboardEntries[0]?.bestScore ?? 0;
+  const isHighestScore = !isTrialGame && !leaderboardLoading && playerRank === 1;
 
   const handleClaimSuccess = () => {
     markAsClaimed();
@@ -67,16 +124,8 @@ export default function HighScoreDisplay({
         walletAddress
       );
       if (result) {
+        setBackendRank(result.rank);
         setHasSubmitted(true);
-        setSubmissionResult({
-          isNewHighScore: result.isNewHighScore,
-          rank: result.rank,
-        });
-
-        if (result.isNewHighScore) {
-          setShowConfetti(true);
-          setTimeout(() => setShowConfetti(false), 4000);
-        }
       }
     };
     submitCurrentScore();
@@ -89,6 +138,31 @@ export default function HighScoreDisplay({
     isTrialGame,
     hasSubmitted,
     submitScore,
+  ]);
+
+  useEffect(() => {
+    if (!isTrialGame && hasSubmitted && !leaderboardLoading && !submissionResult) {
+      const finalIsHigh = isHighestScore;
+      const finalRank = playerRank ?? backendRank ?? 11;
+      setSubmissionResult({
+        isNewHighScore: finalIsHigh,
+        rank: finalRank,
+      });
+
+      if (finalIsHigh) {
+        setShowConfetti(true);
+        const timer = setTimeout(() => setShowConfetti(false), 4000);
+        return () => clearTimeout(timer);
+      }
+    }
+  }, [
+    isTrialGame,
+    hasSubmitted,
+    leaderboardLoading,
+    isHighestScore,
+    playerRank,
+    backendRank,
+    submissionResult,
   ]);
 
   const getRankIcon = (rank: number) => {
@@ -120,7 +194,6 @@ export default function HighScoreDisplay({
     if (username) {
       return <span>{username}</span>;
     }
-    
     if (walletAddress) {
       return (
         <BaseName
@@ -177,7 +250,13 @@ export default function HighScoreDisplay({
                 </div>
               )}
               <p className="text-sm text-blue-600">
-                {isTrialGame ? 'Rank: — (practice)' : `Rank: #${playerRank}`}
+                {isTrialGame
+                  ? 'Rank: — (practice)'
+                  : playerRank
+                    ? `Rank: #${playerRank}${isOnLeaderboard ? ' · Top 10' : ''}`
+                    : leaderboardLoading
+                      ? 'Rank: updating...'
+                      : 'Rank: —'}
               </p>
             </div>
           </div>
@@ -276,6 +355,16 @@ export default function HighScoreDisplay({
           </div>
         )}
 
+        {isOnLeaderboard && !isTrialGame && (
+          <div className="mb-3 flex justify-center">
+            <ComposeCastButton
+              achievementType={playerRank === 1 ? 'high-score' : 'game-complete'}
+              score={currentScore}
+              className="w-full"
+            />
+          </div>
+        )}
+
         {/* Current High Score */}
         {currentHighScore > 0 && (
           <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-3">
@@ -294,33 +383,43 @@ export default function HighScoreDisplay({
 
       {/* Top Scores List */}
       <div>
-        <h4 className="text-sm font-semibold text-gray-700 mb-2">Top Scores</h4>
+        <h4 className="text-sm font-semibold text-gray-700 mb-2">Top {LEADERBOARD_LIMIT} (Paid)</h4>
         <div className="space-y-2">
-          {highScores.slice(0, 5).map((score, index) => (
-            <div 
-              key={score.id}
-              className={`flex items-center justify-between p-2 rounded ${
-                score.playerName === playerName && score.score === currentScore
-                  ? 'bg-blue-100 border border-blue-300'
-                  : 'bg-gray-50'
-              }`}
-            >
-              <div className="flex items-center">
-                {getRankIcon(index + 1)}
-                <span className="ml-2 text-sm font-medium text-gray-700">
-                  <PlayerDisplayName 
-                    walletAddress={score.walletAddress}
-                    username={score.playerName}
-                    isGuest={score.isGuest}
-                  />
-                  {score.isGuest && <span className="text-xs text-gray-500 ml-1">(Guest)</span>}
-                </span>
-              </div>
-              <span className="text-sm font-bold text-gray-900">
-                {formatScore(score.score)}
-              </span>
-            </div>
-          ))}
+          {leaderboardLoading && leaderboardEntries.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-2">Loading leaderboard...</p>
+          ) : leaderboardEntries.length === 0 ? (
+            <p className="text-sm text-gray-500 text-center py-2">No scores yet — be the first!</p>
+          ) : (
+            leaderboardEntries.map((entry, index) => {
+              const isCurrentPlayer =
+                normalizedWallet &&
+                entry.walletAddress.toLowerCase() === normalizedWallet;
+              return (
+                <div
+                  key={`${entry.walletAddress}-${index}`}
+                  className={`flex items-center justify-between p-2 rounded ${
+                    isCurrentPlayer ? 'bg-blue-100 border border-blue-300' : 'bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center">
+                    {getRankIcon(index + 1)}
+                    <span className="ml-2 text-sm font-medium text-gray-700">
+                      <PlayerDisplayName
+                        walletAddress={entry.walletAddress}
+                        username={entry.username}
+                      />
+                      {isCurrentPlayer && (
+                        <span className="text-xs text-blue-600 ml-1">(You)</span>
+                      )}
+                    </span>
+                  </div>
+                  <span className="text-sm font-bold text-gray-900">
+                    {formatScore(entry.bestScore)}
+                  </span>
+                </div>
+              );
+            })
+          )}
         </div>
       </div>
     </div>

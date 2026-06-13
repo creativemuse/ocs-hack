@@ -17,6 +17,7 @@ interface GameScoreCardProps {
   isTrialGame: boolean;
   /** Paid games: wallet for leaderboard persistence (Spacetime via /api/save-paid-score). */
   walletAddress?: string;
+  entryToken?: string;
   onPlayAgain?: () => void;
   onBackToEntry: () => void;
   className?: string;
@@ -32,6 +33,7 @@ export default function GameScoreCard({
   guestId,
   isTrialGame,
   walletAddress,
+  entryToken,
   onPlayAgain,
   onBackToEntry,
   className = '',
@@ -40,7 +42,7 @@ export default function GameScoreCard({
   const paidScoreSavedRef = useRef(false);
 
   useEffect(() => {
-    if (isTrialGame || !walletAddress || !Number.isFinite(finalScore) || finalScore < 0) return;
+    if (isTrialGame || !walletAddress || !entryToken || !Number.isFinite(finalScore) || finalScore < 0) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
     void (async () => {
@@ -48,14 +50,14 @@ export default function GameScoreCard({
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress, finalScore }),
+          body: JSON.stringify({ walletAddress, finalScore, entryToken }),
         });
         if (!res.ok) paidScoreSavedRef.current = false;
       } catch {
         paidScoreSavedRef.current = false;
       }
     })();
-  }, [isTrialGame, walletAddress, finalScore]);
+  }, [isTrialGame, walletAddress, entryToken, finalScore]);
 
   // Show confetti when component mounts
   useEffect(() => {

@@ -25,7 +25,7 @@ import { useBaseAccount } from '@/hooks/useBaseAccount';
 
 export default function Game() {
   const router = useRouter();
-  const { leaveGame, joinGame, canJoin, timeRemaining: sessionTimeLeft } = useGameSession();
+  const { leaveGame, joinGame, canJoin, timeRemaining: sessionTimeLeft, entryToken } = useGameSession();
   const { shareGameAchievement } = useSocialShare();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -368,7 +368,7 @@ export default function Game() {
   }, [gameCompleted, isGuestMode, pendingGuestSync, totalScore, currentRound, questionsPerRound]);
 
   useEffect(() => {
-    if (!gameCompleted || isGuestMode || sessionIsTrial || !address) return;
+    if (!gameCompleted || isGuestMode || sessionIsTrial || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
     const wallet = address;
@@ -378,14 +378,14 @@ export default function Game() {
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress: wallet, finalScore }),
+          body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken }),
         });
         if (!res.ok) paidScoreSavedRef.current = false;
       } catch {
         paidScoreSavedRef.current = false;
       }
     })();
-  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore]);
+  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken]);
 
   // Show guest mode entry screen first
   if (showGuestMode) {

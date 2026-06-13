@@ -502,8 +502,9 @@ class SpacetimeDBClient {
   getPlayerProfile(walletAddress: string): Player | null {
     if (!this.connection) return null;
 
+    const normalized = walletAddress.toLowerCase();
     const players = (Array.from(this.connection.db.players.iter()) as Player[]).filter(
-      (p: Player) => p.walletAddress === walletAddress
+      (p: Player) => p.walletAddress.toLowerCase() === normalized
     );
 
     return players.length > 0 ? players[0] : null;

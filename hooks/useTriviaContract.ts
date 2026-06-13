@@ -367,9 +367,14 @@ export function useTriviaContract(useGasless: boolean = true) {
 
   // Submit score — saves off-chain only. On-chain score submission is done
   // server-side via /api/submit-onchain-scores (owner-only, before distribution).
-  const submitScore = useCallback(async (score: number) => {
+  const submitScore = useCallback(async (score: number, entryToken?: string) => {
     if (!address) {
       setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+      return;
+    }
+
+    if (!entryToken) {
+      setState(prev => ({ ...prev, error: 'Missing entry token — join a paid game first' }));
       return;
     }
 
@@ -379,7 +384,7 @@ export function useTriviaContract(useGasless: boolean = true) {
       const response = await fetch('/api/save-paid-score', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ walletAddress: address, finalScore: score }),
+        body: JSON.stringify({ walletAddress: address, finalScore: score, entryToken }),
       });
 
       if (!response.ok) {
