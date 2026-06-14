@@ -187,8 +187,9 @@ function HomePage() {
       });
 
       const endpoints = [
+        '/api/grove-questions',
         '/api/lighthouse-questions',
-        '/api/spacetime-questions'
+        '/api/spacetime-questions',
       ];
       let lastError: Error | null = null;
       let data: { questions: TriviaQuestion[] } | null = null;
