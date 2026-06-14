@@ -1,12 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyQuestionToken } from '@/lib/utils/questionToken';
+import { verifyEntryToken } from '@/lib/utils/jwt';
+import { addVerifiedAnswerScore } from '@/lib/game/paidScoreLedger';
 import { ScoringSystem } from '@/lib/game/scoring';
 import type { DifficultyLevel } from '@/types/game';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { questionToken, selectedAnswer } = body;
+    const { questionToken, selectedAnswer, entryToken } = body;
 
     if (typeof questionToken !== 'string' || typeof selectedAnswer !== 'number') {
       return NextResponse.json(
@@ -32,24 +34,50 @@ export async function POST(req: NextRequest) {
 
     const isCorrect = selectedAnswer === question.correctAnswer;
     const timeSpentMs = Date.now() - question.issuedAt;
-    const timeSpent = Math.round(timeSpentMs / 100) / 10; // seconds, 0.1 precision
+    const timeSpent = Math.round(timeSpentMs / 100) / 10;
 
     const pointsEarned = ScoringSystem.calculateQuestionScore(
       isCorrect,
       timeSpent,
       question.timeLimit,
       question.difficulty as DifficultyLevel,
-      // Streak is not tracked server-side per-request (would require session state).
-      // The streak bonus is small (max +10 points) and the max-score cap on
-      // save-paid-score prevents abuse. Client tracks streak for UI display only.
       0,
     );
+
+    let serverTotalScore: number | undefined;
+
+    if (entryToken && typeof entryToken === 'string') {
+      const payload = verifyEntryToken(entryToken);
+      if (!payload || payload.playerType !== 'paid') {
+        return NextResponse.json(
+          { error: 'Invalid or non-paid entry token' },
+          { status: 401 },
+        );
+      }
+      const wallet = payload.identity.walletAddress;
+      if (!wallet) {
+        return NextResponse.json(
+          { error: 'Paid entry token missing wallet address' },
+          { status: 401 },
+        );
+      }
+      const ledgerResult = addVerifiedAnswerScore(
+        payload.entryId,
+        wallet,
+        isCorrect ? pointsEarned : 0,
+      );
+      if (!ledgerResult.ok) {
+        return NextResponse.json({ error: ledgerResult.error }, { status: 400 });
+      }
+      serverTotalScore = ledgerResult.totalScore;
+    }
 
     return NextResponse.json({
       isCorrect,
       correctAnswer: question.correctAnswer,
       pointsEarned,
       timeSpent,
+      serverTotalScore,
     });
   } catch (error) {
     console.error('verify-answer error:', error);

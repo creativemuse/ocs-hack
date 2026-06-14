@@ -81,8 +81,9 @@ export default function Game() {
       });
 
       const endpoints = [
+        '/api/grove-questions',
         '/api/lighthouse-questions',
-        '/api/spacetime-questions'
+        '/api/spacetime-questions',
       ];
       let lastError: Error | null = null;
       let data: { questions: TriviaQuestion[] } | null = null;

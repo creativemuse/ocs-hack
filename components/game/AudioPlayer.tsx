@@ -106,14 +106,20 @@ export default function AudioPlayer({
     setHasEnded(false);
     lastUpdateTimeRef.current = 0;
 
-    // Try local fallback first for faster loading
-    const localUrl = getLocalFallbackUrl(audioUrl);
-    if (localUrl && localUrl !== audioUrl) {
-      if (process.env.NODE_ENV === 'development') console.log('🔊 Using local file for faster loading:', localUrl);
-      audio.src = localUrl;
-      setUseLocalFallback(true);
-    } else {
+    const isGroveUrl = audioUrl.includes('api.grove.storage');
+
+    // Grove URLs must stream directly; local /music fallback breaks storage-key paths.
+    if (isGroveUrl) {
       audio.src = audioUrl;
+    } else {
+      const localUrl = getLocalFallbackUrl(audioUrl);
+      if (localUrl && localUrl !== audioUrl) {
+        if (process.env.NODE_ENV === 'development') console.log('🔊 Using local file for faster loading:', localUrl);
+        audio.src = localUrl;
+        setUseLocalFallback(true);
+      } else {
+        audio.src = audioUrl;
+      }
     }
 
     // Ensure appropriate preload for quickest start

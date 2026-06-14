@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { useGameSession } from '@/hooks/useGameSession';
-import { formatTimeRemainingText } from '@/lib/utils/timeUtils';
 import GameEntry from '@/components/game/GameEntry';
 import MultiplayerLobby from '@/components/game/MultiplayerLobby';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
@@ -25,6 +24,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { isLobbySessionStatus } from '@/lib/utils/gameSessionStatus';
 import { ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
+import { useSessionCountdown } from '@/hooks/useSessionCountdown';
 
 function HomePage() {
   const {
@@ -97,6 +97,11 @@ function HomePage() {
     sessionInterval: onChainSessionInterval,
   } = useContractUSDCBalance();
 
+  const settlementCountdown = useSessionCountdown(
+    onChainLastSessionTime > 0 ? BigInt(onChainLastSessionTime) : undefined,
+    onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
+  );
+
   // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
     if (trialStatus.gamesRemaining === 0 && !trialStatus.isTrialActive && playerModeChoice === 'trial') {
@@ -144,8 +149,13 @@ function HomePage() {
         });
         if (!res.ok) {
           paidScoreSavedRef.current = false;
-          console.error('save-paid-score failed', await res.text());
+          const errText = await res.text();
+          console.error('save-paid-score failed', errText);
           return;
+        }
+        const data = await res.json();
+        if (data.authoritativeScore != null) {
+          console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
         refreshContractUsdcBalance();
       } catch (e) {
@@ -153,7 +163,7 @@ function HomePage() {
         console.error('save-paid-score error', e);
       }
     })();
-  }, [gameCompleted, address, totalScore, refreshContractUsdcBalance, entryToken, playerDisplayName]);
+  }, [gameCompleted, address, totalScore, entryToken, playerDisplayName, refreshContractUsdcBalance]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -177,8 +187,9 @@ function HomePage() {
       });
 
       const endpoints = [
+        '/api/grove-questions',
         '/api/lighthouse-questions',
-        '/api/spacetime-questions'
+        '/api/spacetime-questions',
       ];
       let lastError: Error | null = null;
       let data: { questions: TriviaQuestion[] } | null = null;
@@ -328,6 +339,7 @@ function HomePage() {
         body: JSON.stringify({
           questionToken: currentQuestion.questionToken,
           selectedAnswer: answerIndex,
+          entryToken: !isTrialGame ? entryToken ?? undefined : undefined,
         }),
       });
 
@@ -443,15 +455,39 @@ function HomePage() {
     };
   }, [session, playerId, leaveGame]);
 
-  // Determine what to display in the timer area
-  const getTimerDisplay = () => {
-    if (isLoading) return 'Loading...';
-    
-    if (waitingForPaidPlayer) {
-      return 'WAITING FOR PAID PLAYER';
+  const handlePlayAgain = () => {
+    paidScoreSavedRef.current = false;
+    setGameCompleted(false);
+    setGameStarted(false);
+    setShowGameEntry(true);
+    setScore(0);
+    setTotalScore(0);
+    setCurrentRound(1);
+    setQuestionNumberInRound(1);
+    if (playerModeChoice === 'trial') {
+      setPlayerModeChoice('paid_solo');
     }
-    
-    return formatTimeRemainingText(timeRemaining);
+  };
+
+  const formatSettlementCountdown = (): string => {
+    if (!settlementCountdown || settlementCountdown.isExpired) {
+      return 'SETTLEMENT SOON';
+    }
+    const { days, hours, minutes, seconds } = settlementCountdown;
+    if (days > 0) {
+      return `${days}d ${hours}h TO PAYOUT`;
+    }
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} TO PAYOUT`;
+  };
+
+  // Determine what to display in the timer area (weekly on-chain settlement)
+  const getTimerDisplay = () => {
+    if (contractBalanceLoading) return 'Loading...';
+    if (onChainSessionActive && settlementCountdown && !settlementCountdown.isExpired) {
+      return formatSettlementCountdown();
+    }
+    if (onChainSessionActive) return 'WEEKLY PAYOUT PENDING';
+    return 'NEXT SESSION OPENS SOON';
   };
 
   // Determine what to display in the player count area
@@ -724,12 +760,24 @@ function HomePage() {
               {!completedAsTrial && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
                   <div className="text-green-300 text-sm">
-                    <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
+                    <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
                     <p className="text-green-200/80">
-                      Your score is saved for the paid leaderboard and prize pool eligibility.
+                      Your latest score is on-chain for this week. Play Again adds another{' '}
+                      {ENTRY_FEE_USDC} USDC to the pool — your most recent run is what ranks you.
                     </p>
                   </div>
                 </div>
+              )}
+
+              {!completedAsTrial && (
+                <button
+                  type="button"
+                  onClick={handlePlayAgain}
+                  className="w-full mb-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg text-lg font-semibold"
+                  aria-label="Play again for one USDC"
+                >
+                  Play Again (1 USDC)
+                </button>
               )}
             </div>
             <button
@@ -1088,7 +1136,8 @@ function HomePage() {
                     </p>
                   </div>
                   <p className="font-['Audiowide:Regular',_sans-serif] text-[#000000] text-[9px] leading-snug max-w-full">
-                    Current session prize pool. Grows by {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC per paid entry.
+                    Each play costs {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC and grows this week&apos;s pool.
+                    Latest score counts. Top 3 paid weekly.
                   </p>
                   {/* Prize distribution breakdown */}
                   {!contractBalanceLoading && sessionPrizePool > 0 && (

@@ -15,9 +15,8 @@ interface GameScoreCardProps {
   isGuest?: boolean;
   guestId?: string;
   isTrialGame: boolean;
-  /** Paid games: wallet for leaderboard persistence (Spacetime via /api/save-paid-score). */
   walletAddress?: string;
-  entryToken?: string;
+  entryToken?: string | null;
   onPlayAgain?: () => void;
   onBackToEntry: () => void;
   className?: string;
@@ -57,7 +56,7 @@ export default function GameScoreCard({
         paidScoreSavedRef.current = false;
       }
     })();
-  }, [isTrialGame, walletAddress, entryToken, finalScore]);
+  }, [isTrialGame, walletAddress, finalScore, entryToken]);
 
   // Show confetti when component mounts
   useEffect(() => {
@@ -129,9 +128,9 @@ export default function GameScoreCard({
         {!isTrialGame && (
           <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
             <div className="text-green-300 text-sm">
-              <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
+              <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
               <p className="text-green-200/80">
-                Your score is saved for the paid leaderboard and prize pool eligibility.
+                Latest score saved on-chain for this week. Play Again adds another 1 USDC — your most recent run ranks you.
               </p>
             </div>
           </div>
@@ -159,7 +158,7 @@ export default function GameScoreCard({
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg text-lg font-semibold"
               size="lg"
             >
-              Play Again
+              Play Again (1 USDC)
             </Button>
           )}
 
