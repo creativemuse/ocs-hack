@@ -357,9 +357,8 @@ export default function MultiplayerLobby({
               Multiplayer lobby
             </CardTitle>
             <p className="text-sm text-zinc-400">
-              Strangers in the pool can join you. Share the link with a friend. When the lobby music ends,
-              everyone in the lobby starts together.
-              {soloLabel && paidPlayers.length === 1 ? ' One player counts as solo for this round.' : ''}
+              Same weekly USDC pool as solo — lobby only syncs start time. Each paid entry adds 1 USDC;
+              latest score per wallet counts for the weekly top 3.
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -441,6 +440,7 @@ export default function MultiplayerLobby({
             <audio
               ref={audioRef}
               src={LOBBY_MUSIC.src}
+              crossOrigin={LOBBY_MUSIC.src.startsWith('http') ? 'anonymous' : undefined}
               preload="auto"
               aria-label="Lobby music"
             />

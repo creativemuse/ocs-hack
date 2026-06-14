@@ -171,7 +171,28 @@ export const useGameSession = (): UseGameSessionReturn => {
         throw new Error(msg);
       }
 
-      const { entryId, token } = await entryResp.json();
+      const { entryId, token, onChainSessionId } = await entryResp.json();
+
+      if (!isPaidPlayer) {
+        // Trial: no Spacetime paid session needed
+      } else if (onChainSessionId && address) {
+        try {
+          await fetch('/api/start-spacetime-session', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              sessionId: entryId,
+              gameId: String(onChainSessionId),
+              playerType: 'paid',
+              walletAddress: address,
+              difficulty: 'medium',
+              gameMode: 'battle',
+            }),
+          });
+        } catch (spacetimeStartErr) {
+          console.warn('Spacetime start session failed (non-fatal):', spacetimeStartErr);
+        }
+      }
 
       const response = await fetch('/api/game-session', {
         method: 'POST',

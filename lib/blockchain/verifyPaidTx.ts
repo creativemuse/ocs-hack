@@ -61,11 +61,11 @@ function receiptHasUsableBlockAnchor(receipt: {
   return !!bh && bh !== ZERO_BLOCK_HASH;
 }
 
-function decodePlayerJoinedPlayerFromLog(log: {
+function decodePlayerJoinedFromLog(log: {
   address: string;
   data: `0x${string}`;
   topics: readonly `0x${string}`[];
-}): string | null {
+}): { player: string; sessionId: string } | null {
   try {
     const decoded = decodeEventLog({
       abi: TRIVIA_ABI,
@@ -73,12 +73,33 @@ function decodePlayerJoinedPlayerFromLog(log: {
       topics: [...log.topics] as [signature: `0x${string}`, ...args: `0x${string}`[]],
     });
     if (decoded.eventName === 'PlayerJoined' && decoded.args?.player) {
-      return normalizeAddress(decoded.args.player as string);
+      const sessionId = decoded.args.sessionId;
+      return {
+        player: normalizeAddress(decoded.args.player as string),
+        sessionId:
+          typeof sessionId === 'bigint' ? sessionId.toString() : String(sessionId ?? ''),
+      };
+    }
+    if (decoded.eventName === 'PlayerRejoined' && decoded.args?.player) {
+      const sessionId = decoded.args.sessionId;
+      return {
+        player: normalizeAddress(decoded.args.player as string),
+        sessionId:
+          typeof sessionId === 'bigint' ? sessionId.toString() : String(sessionId ?? ''),
+      };
     }
   } catch {
     /* not our event */
   }
   return null;
+}
+
+function decodePlayerJoinedPlayerFromLog(log: {
+  address: string;
+  data: `0x${string}`;
+  topics: readonly `0x${string}`[];
+}): string | null {
+  return decodePlayerJoinedFromLog(log)?.player ?? null;
 }
 
 async function getReceiptAndTransaction(hash: Hash) {
@@ -161,15 +182,113 @@ function uniqueCandidates(primary: string, alternate?: string): string[] {
   return out;
 }
 
+export type VerifyPaidTxOptions = {
+  /** Base Account universal address when `walletAddress` is the sub-account smart wallet. */
+  alternateWalletAddress?: string;
+};
+
+async function readSessionCounterAtBlock(blockNumber: bigint): Promise<string | null> {
+  const urls = getPaidVerificationRpcUrls();
+  const trivia = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
+
+  for (const url of urls) {
+    try {
+      const client = createPublicClient({
+        chain: base,
+        transport: http(url, { timeout: 25_000 }),
+      });
+      const counter = await client.readContract({
+        address: trivia,
+        abi: TRIVIA_ABI,
+        functionName: 'sessionCounter',
+        blockNumber,
+      });
+      return (counter as bigint).toString();
+    } catch {
+      // try next
+    }
+  }
+  return null;
+}
+
 function candidateSetHas(candidates: Set<string>, addr: string): boolean {
   const n = normalizeAddress(addr);
   return n.length > 0 && candidates.has(n);
 }
 
-export type VerifyPaidTxOptions = {
-  /** Base Account universal address when `walletAddress` is the sub-account smart wallet. */
-  alternateWalletAddress?: string;
+async function findPlayerJoinedViaGetLogs(
+  hash: Hash,
+  blockNumber: bigint,
+  candidateSet: Set<string>
+): Promise<{ player: string; sessionId: string } | null> {
+  const urls = getPaidVerificationRpcUrls();
+  const trivia = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
+  const hashLower = hash.toLowerCase();
+
+  for (const url of urls) {
+    try {
+      const client = createPublicClient({
+        chain: base,
+        transport: http(url, { timeout: 25_000 }),
+      });
+      const logs = await client.getLogs({
+        address: trivia,
+        fromBlock: blockNumber,
+        toBlock: blockNumber,
+      });
+      for (const log of logs) {
+        if (log.transactionHash?.toLowerCase() !== hashLower) continue;
+        const parsed = decodePlayerJoinedFromLog(log);
+        if (parsed && candidateSetHas(candidateSet, parsed.player)) {
+          return parsed;
+        }
+      }
+    } catch {
+      // try next URL
+    }
+  }
+  return null;
+}
+
+function extractSessionIdFromReceipt(
+  receipt: { logs: readonly { address: string; data: `0x${string}`; topics: readonly `0x${string}`[] }[] },
+  candidateSet: Set<string>,
+  triviaAddress: string
+): string | null {
+  for (const log of receipt.logs) {
+    if (normalizeAddress(log.address) !== triviaAddress) continue;
+    const parsed = decodePlayerJoinedFromLog(log);
+    if (parsed && candidateSetHas(candidateSet, parsed.player) && parsed.sessionId) {
+      return parsed.sessionId;
+    }
+  }
+  return null;
+}
+
+async function resolveOnChainSessionId(
+  receipt: { logs: readonly { address: string; data: `0x${string}`; topics: readonly `0x${string}`[] }[]; blockNumber?: bigint | null },
+  hash: Hash,
+  candidateSet: Set<string>,
+  triviaAddress: string
+): Promise<string | null> {
+  const fromReceipt = extractSessionIdFromReceipt(receipt, candidateSet, triviaAddress);
+  if (fromReceipt) return fromReceipt;
+
+  if (receipt.blockNumber != null && receipt.blockNumber > BigInt(0)) {
+    const fromLogs = await findPlayerJoinedViaGetLogs(hash, receipt.blockNumber, candidateSet);
+    if (fromLogs?.sessionId) return fromLogs.sessionId;
+    const atBlock = await readSessionCounterAtBlock(receipt.blockNumber);
+    if (atBlock) return atBlock;
+  }
+  return null;
+}
+
+export type VerifyPaidTxSuccess = {
+  ok: true;
+  onChainSessionId: string;
 };
+
+export type VerifyPaidTxResult = VerifyPaidTxSuccess | { ok: false; error: string };
 
 /**
  * Verify that paidTxHash is a successful on-chain transaction that registered the player
@@ -181,7 +300,7 @@ export async function verifyPaidTxHash(
   paidTxHash: string,
   walletAddress: string,
   options?: VerifyPaidTxOptions
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<VerifyPaidTxResult> {
   const txHash = paidTxHash?.trim();
   const candidates = uniqueCandidates(walletAddress, options?.alternateWalletAddress);
   const candidateSet = new Set(candidates);
@@ -228,43 +347,66 @@ export async function verifyPaidTxHash(
     const triviaAddress = normalizeAddress(TRIVIA_CONTRACT_ADDRESS);
     const txFrom = normalizeAddress(transaction.from);
 
-    // Case 1: PlayerJoined from Trivia — strongest signal for AA / batched flows
+    let verified = false;
+
+    // Case 1: PlayerJoined / PlayerRejoined from Trivia — strongest signal for AA / batched flows
     for (const log of receipt.logs) {
       if (normalizeAddress(log.address) !== triviaAddress) continue;
       const eventPlayer = decodePlayerJoinedPlayerFromLog(log);
       if (eventPlayer && candidateSetHas(candidateSet, eventPlayer)) {
-        return { ok: true };
+        verified = true;
+        break;
       }
     }
 
     // Case 2: Direct call to Trivia joinBattle from a known player address
     if (
+      !verified &&
       transaction.to &&
       normalizeAddress(transaction.to) === triviaAddress &&
       transaction.input &&
       transaction.input.toLowerCase().startsWith(JOIN_BATTLE_SELECTOR)
     ) {
       if (candidateSetHas(candidateSet, txFrom)) {
-        return { ok: true };
+        verified = true;
+      } else {
+        return {
+          ok: false,
+          error:
+            'Transaction called joinBattle but sender does not match your connected wallet (try reconnecting)',
+        };
       }
-      return {
-        ok: false,
-        error:
-          'Transaction called joinBattle but sender does not match your connected wallet (try reconnecting)',
-      };
     }
 
     // Case 3: Receipt.logs truncated for bundled txs — same block + tx hash via eth_getLogs
-    if (receipt.blockNumber != null && receipt.blockNumber > BigInt(0)) {
+    if (
+      !verified &&
+      receipt.blockNumber != null &&
+      receipt.blockNumber > BigInt(0)
+    ) {
       const okViaLogs = await findPlayerJoinedPlayerViaGetLogs(
         hash,
         receipt.blockNumber,
         candidateSet
       );
-      if (okViaLogs) return { ok: true };
+      if (okViaLogs) verified = true;
     }
 
-    return { ok: false, error: 'Transaction did not call joinBattle or emit PlayerJoined for this wallet' };
+    if (!verified) {
+      return { ok: false, error: 'Transaction did not call joinBattle or emit PlayerJoined for this wallet' };
+    }
+
+    const onChainSessionId = await resolveOnChainSessionId(
+      receipt,
+      hash,
+      candidateSet,
+      triviaAddress
+    );
+    if (!onChainSessionId) {
+      return { ok: false, error: 'Could not determine on-chain session id from payment transaction' };
+    }
+
+    return { ok: true, onChainSessionId };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { ok: false, error: `Verification failed: ${message}` };

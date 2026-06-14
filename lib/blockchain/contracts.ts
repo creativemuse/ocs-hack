@@ -777,6 +777,25 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "event",
+    "name": "PlayerRejoined",
+    "inputs": [
+      {
+        "name": "player",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "sessionId",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
     "name": "PlayerJoined",
     "inputs": [
       {
