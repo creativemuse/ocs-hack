@@ -41,7 +41,7 @@ export default function GameScoreCard({
   const paidScoreSavedRef = useRef(false);
 
   useEffect(() => {
-    if (isTrialGame || !walletAddress || !Number.isFinite(finalScore) || finalScore < 0) return;
+    if (isTrialGame || !walletAddress || !entryToken || !Number.isFinite(finalScore) || finalScore < 0) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
     void (async () => {
@@ -49,7 +49,7 @@ export default function GameScoreCard({
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress, finalScore, entryToken: entryToken ?? undefined }),
+          body: JSON.stringify({ walletAddress, finalScore, entryToken }),
         });
         if (!res.ok) paidScoreSavedRef.current = false;
       } catch {

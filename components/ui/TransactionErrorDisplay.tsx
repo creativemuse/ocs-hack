@@ -126,7 +126,7 @@ export default function TransactionErrorDisplay({
               ) : (
                 <>
                   <RefreshCw className="h-3 w-3 mr-1" />
-                  Try Again
+                  {error.code === 'INSUFFICIENT_ETH_FOR_GAS' ? 'Open wallet' : 'Try again'}
                 </>
               )}
             </Button>

@@ -30,15 +30,15 @@ export default function ComposeCastButton({
     
     switch (achievementType) {
       case 'high-score':
-        return `${baseText} 🏆 Scored ${score} USDC and set a new high score! Can you beat me?`;
+        return `${baseText} 🏆 Scored ${score} points and set a new high score! Can you beat me?`;
       case 'game-complete':
-        return `${baseText} 🎉 Completed all ${totalRounds} rounds with ${score} USDC total! Ready for the challenge?`;
+        return `${baseText} 🎉 Completed all ${totalRounds} rounds with ${score} points! Ready for the challenge?`;
       case 'round-win':
-        return `${baseText} 🥇 Won Round ${round} with ${score} USDC! Think you can do better?`;
+        return `${baseText} 🥇 Won Round ${round} with ${score} points! Think you can do better?`;
       case 'perfect-round':
-        return `${baseText} ⭐ Perfect Round ${round}! Got every question right for ${score} USDC!`;
+        return `${baseText} ⭐ Perfect Round ${round}! Got every question right for ${score} points!`;
       default:
-        return `${baseText} Scored ${score} USDC! Can you beat my score?`;
+        return `${baseText} Scored ${score} points! Can you beat my score?`;
     }
   };
 

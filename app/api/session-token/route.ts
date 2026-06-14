@@ -333,7 +333,7 @@ export async function POST(req: NextRequest) {
           blockchains: ['base']
         }
       ],
-      assets: ['USDC'],
+      assets: ['USDC', 'ETH'],
       clientIp: clientIp,
       // Add unique request identifier to ensure each request is unique
       requestId: requestId || `api_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,

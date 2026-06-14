@@ -53,9 +53,11 @@ export default function MultiplayerLobby({
   const [isMuted, setIsMuted] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [autoplayBlocked, setAutoplayBlocked] = useState(false);
+  const [audioLoadFailed, setAudioLoadFailed] = useState(false);
   const syncedDurationRef = useRef(false);
   const lobbyEndRequestedRef = useRef(false);
   const endingRoundInFlightRef = useRef(false);
+  const hadPositiveLobbyTimeRef = useRef(false);
   const [isEndingRound, setIsEndingRound] = useState(false);
 
   const requestEndLobby = useCallback(async () => {
@@ -109,8 +111,40 @@ export default function MultiplayerLobby({
 
   // Sync display timer from backend
   useEffect(() => {
-    setDisplaySec(lobbyTimeRemaining);
+    if (lobbyTimeRemaining > 0) {
+      hadPositiveLobbyTimeRef.current = true;
+      setDisplaySec(lobbyTimeRemaining);
+    }
   }, [lobbyTimeRemaining]);
+
+  // Server-driven countdown when lobby music is unavailable or autoplay blocked
+  const audioDrivesCountdown = isPlaying && !audioLoadFailed;
+  useEffect(() => {
+    if (session?.status !== 'lobby' || audioDrivesCountdown) return;
+
+    const id = setInterval(() => {
+      setDisplaySec((prev) => Math.max(0, prev - 1));
+    }, 1000);
+
+    return () => clearInterval(id);
+  }, [session?.status, audioDrivesCountdown]);
+
+  // Sync playhead to elapsed lobby time when music starts (late join / tap-to-play)
+  useEffect(() => {
+    const el = audioRef.current;
+    if (
+      isPlaying &&
+      el &&
+      Number.isFinite(el.duration) &&
+      el.duration > 0 &&
+      lobbyTimeRemaining > 0
+    ) {
+      const elapsed = el.duration - lobbyTimeRemaining;
+      if (elapsed > 1 && elapsed < el.duration && Math.abs(el.currentTime - elapsed) > 2) {
+        el.currentTime = elapsed;
+      }
+    }
+  }, [isPlaying, lobbyTimeRemaining]);
 
   // Setup Web Audio API analyser + frequency visualizer
   const initAudioContext = useCallback(() => {
@@ -227,6 +261,9 @@ export default function MultiplayerLobby({
   useEffect(() => {
     if (session?.status !== 'lobby') return;
     if (lobbyEndRequestedRef.current) return;
+    // Avoid ending before the server has reported a real lobby duration
+    if (!hadPositiveLobbyTimeRef.current) return;
+
     const serverAtZero = lobbyTimeRemaining <= 0;
     const displayAtZero = displaySec <= 0;
     if (!serverAtZero && !displayAtZero) return;
@@ -359,6 +396,9 @@ export default function MultiplayerLobby({
             <p className="text-sm text-zinc-400">
               Same weekly USDC pool as solo — lobby only syncs start time. Each paid entry adds 1 USDC;
               latest score per wallet counts for the weekly top 3.
+              {soloLabel && paidPlayers.length === 1
+                ? ' You are the only player — use Start round now whenever you are ready.'
+                : ''}
             </p>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -371,7 +411,15 @@ export default function MultiplayerLobby({
               <div className="text-4xl font-mono tabular-nums text-amber-200 tracking-wider">
                 {fmtTimer(displaySec)}
               </div>
-              <div className="text-xs text-zinc-500 mt-1">Countdown synced to lobby track</div>
+              <div className="text-xs text-zinc-500 mt-1">
+                {audioDrivesCountdown
+                  ? 'Countdown synced to lobby track'
+                  : audioLoadFailed
+                    ? 'Countdown from server (music unavailable)'
+                    : autoplayBlocked
+                      ? 'Tap below to start music, or wait for server countdown'
+                      : 'Lobby countdown'}
+              </div>
             </div>
 
             {/* Music visualizer + track info */}
@@ -417,13 +465,26 @@ export default function MultiplayerLobby({
                 </div>
               )}
 
-              {autoplayBlocked && (
+              {(autoplayBlocked || audioLoadFailed) && (
                 <button
-                  onClick={handleTapToPlay}
+                  type="button"
+                  onClick={async () => {
+                    if (audioLoadFailed) {
+                      setAudioLoadFailed(false);
+                      audioRef.current?.load();
+                    }
+                    await handleTapToPlay();
+                  }}
                   className="w-full py-2 rounded-md bg-amber-500/20 hover:bg-amber-500/30 text-amber-200 text-sm font-medium transition-colors"
                 >
-                  Tap to start lobby music
+                  {audioLoadFailed ? 'Retry lobby music' : 'Tap to start lobby music'}
                 </button>
+              )}
+
+              {audioLoadFailed && (
+                <p className="text-xs text-amber-300/80 text-center">
+                  Music file could not load. The countdown still runs — you can start the round manually.
+                </p>
               )}
 
               <a
@@ -443,6 +504,11 @@ export default function MultiplayerLobby({
               crossOrigin={LOBBY_MUSIC.src.startsWith('http') ? 'anonymous' : undefined}
               preload="auto"
               aria-label="Lobby music"
+              onError={() => {
+                setAudioLoadFailed(true);
+                setIsPlaying(false);
+                setAutoplayBlocked(true);
+              }}
             />
 
             <div className="space-y-2">
@@ -502,7 +568,11 @@ export default function MultiplayerLobby({
               disabled={isEndingRound}
               aria-label="Start the round now for everyone in this lobby"
             >
-              {isEndingRound ? 'Starting round…' : 'Start round now'}
+              {isEndingRound
+                ? 'Starting round…'
+                : soloLabel
+                  ? 'Start round now (solo)'
+                  : 'Start round now'}
             </Button>
 
             <Button

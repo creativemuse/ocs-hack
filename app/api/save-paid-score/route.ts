@@ -33,7 +33,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (payload.identity.walletAddress?.toLowerCase() !== walletAddress.toLowerCase()) {
+    const normalizedWallet = walletAddress.trim().toLowerCase();
+
+    if (payload.identity.walletAddress?.toLowerCase() !== normalizedWallet) {
       return NextResponse.json(
         { error: 'Wallet address does not match entry token' },
         { status: 403 },
@@ -56,7 +58,7 @@ export async function POST(req: NextRequest) {
 
     const finalized = finalizePaidScoreLedger(
       payload.entryId,
-      walletAddress,
+      normalizedWallet,
       finalScore,
     );
     if (!finalized.ok) {
@@ -65,22 +67,22 @@ export async function POST(req: NextRequest) {
 
     const authoritativeScore = finalized.authoritativeScore;
 
-    await spacetimeClient.initialize();
+    await spacetimeClient.ensurePlayerDataReady();
 
     if (spacetimeClient.isConfigured()) {
-      const current = spacetimeClient.getPlayerProfile(walletAddress);
+      const current = spacetimeClient.getPlayerProfile(normalizedWallet);
       if (!current) {
-        await spacetimeClient.createPlayer(walletAddress, username);
+        await spacetimeClient.createPlayer(normalizedWallet, username);
       }
 
-      const existing = spacetimeClient.getPlayerProfile(walletAddress);
+      const existing = spacetimeClient.getPlayerProfile(normalizedWallet);
       const totalScore = (existing?.totalScore ?? 0) + authoritativeScore;
       const gamesPlayed = (existing?.gamesPlayed ?? 0) + 1;
       const bestScore = Math.max(existing?.bestScore ?? 0, authoritativeScore);
       const totalEarnings = existing?.totalEarnings ?? 0;
 
       await spacetimeClient.updatePlayerStats(
-        walletAddress,
+        normalizedWallet,
         totalScore,
         gamesPlayed,
         bestScore,
@@ -95,7 +97,7 @@ export async function POST(req: NextRequest) {
     }
 
     const onChainResult = await submitOnChainScore(
-      walletAddress,
+      normalizedWallet,
       authoritativeScore,
       finalized.onChainSessionId,
     );

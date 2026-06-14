@@ -9,6 +9,7 @@ import { Identity } from 'spacetimedb';
 import {
   buildAppSubscriptionQueries,
   buildGameSessionOnlySubscriptionQueries,
+  buildPlayerLookupSubscriptionQueries,
   type AppSubscriptionTables,
 } from '../spacetime/appSubscriptionQueries';
 
@@ -60,6 +61,11 @@ const SPACETIME_CONFIG = {
   module: process.env.SPACETIME_MODULE || 'beat-me',
 };
 
+export interface SpacetimeInitOptions {
+  /** Subscribe to player rows on the server before reading profiles. */
+  syncPlayers?: boolean;
+}
+
 /**
  * SpacetimeDB Client - Singleton wrapper around DbConnection
  */
@@ -67,21 +73,130 @@ class SpacetimeDBClient {
   private connection: DbConnection | null = null;
   private isConnected = false;
   private connectionPromise: Promise<void> | null = null;
+  private initOptions: SpacetimeInitOptions = {};
+  private playersSubscribed = false;
+  private subscriptionSynced = false;
+  private syncPromise: Promise<void> | null = null;
+  private syncResolve: (() => void) | null = null;
+
+  private resetSyncState(): void {
+    this.subscriptionSynced = false;
+    this.syncPromise = null;
+    this.syncResolve = null;
+  }
+
+  private beginSyncWait(): void {
+    if (this.syncPromise) {
+      return;
+    }
+
+    this.syncPromise = new Promise<void>((resolve) => {
+      if (this.subscriptionSynced) {
+        resolve();
+        return;
+      }
+      this.syncResolve = resolve;
+    });
+  }
+
+  private markSubscriptionApplied(): void {
+    console.log('✅ SpacetimeDB subscription applied');
+    this.subscriptionSynced = true;
+    this.syncResolve?.();
+    this.syncResolve = null;
+  }
+
+  /**
+   * Wait until the initial subscription snapshot is applied to the local cache.
+   */
+  async waitForSync(timeoutMs = 15000): Promise<void> {
+    if (this.subscriptionSynced) {
+      return;
+    }
+
+    this.beginSyncWait();
+
+    const timeout = new Promise<void>((_, reject) => {
+      setTimeout(() => reject(new Error('SpacetimeDB subscription sync timeout')), timeoutMs);
+    });
+
+    await Promise.race([this.syncPromise!, timeout]);
+  }
+
+  /**
+   * Connect (if needed), subscribe to players on the server, and wait for cache sync.
+   */
+  async ensurePlayerDataReady(): Promise<void> {
+    await this.initialize({ syncPlayers: true });
+    await this.waitForSync();
+  }
+
+  private async subscribeToPlayers(): Promise<void> {
+    if (!this.connection || this.playersSubscribed) {
+      return;
+    }
+
+    this.resetSyncState();
+    this.beginSyncWait();
+
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('SpacetimeDB player subscription timeout'));
+      }, 15000);
+
+      this.connection!.subscriptionBuilder()
+        .onApplied(() => {
+          clearTimeout(timeout);
+          this.playersSubscribed = true;
+          this.markSubscriptionApplied();
+          resolve();
+        })
+        .onError((errorContext) => {
+          clearTimeout(timeout);
+          const message =
+            typeof errorContext === 'string'
+              ? errorContext
+              : errorContext instanceof Error
+                ? errorContext.message
+                : 'SpacetimeDB player subscription failed';
+          reject(new Error(message));
+        })
+        .subscribe((t) => {
+          const tbl = t as unknown as AppSubscriptionTables;
+          return buildPlayerLookupSubscriptionQueries(tbl);
+        });
+    });
+  }
 
   /**
    * Initialize the SpacetimeDB connection
    */
-  async initialize(): Promise<void> {
+  async initialize(options?: SpacetimeInitOptions): Promise<void> {
+    if (options?.syncPlayers) {
+      this.initOptions.syncPlayers = true;
+    }
+
     if (this.connectionPromise) {
-      return this.connectionPromise;
+      await this.connectionPromise;
+      if (options?.syncPlayers && !this.playersSubscribed) {
+        await this.subscribeToPlayers();
+      }
+      return;
     }
 
     if (this.isConnected && this.connection) {
-      return Promise.resolve();
+      if (options?.syncPlayers && !this.playersSubscribed) {
+        await this.subscribeToPlayers();
+      }
+      return;
     }
 
     this.connectionPromise = this._doInitialize();
-    return this.connectionPromise;
+    await this.connectionPromise;
+
+    if (options?.syncPlayers && !this.playersSubscribed) {
+      await this.subscribeToPlayers();
+    }
   }
 
   private async _doInitialize(): Promise<void> {
@@ -119,24 +234,29 @@ class SpacetimeDBClient {
             console.log(`   Token: ${token ? '***' + token.slice(-8) : 'None'}`);
             this.connection = conn;
             this.isConnected = true;
-            
+            this.beginSyncWait();
+
             conn.subscriptionBuilder()
               .onApplied(() => {
-                console.log('✅ SpacetimeDB subscription applied');
+                this.markSubscriptionApplied();
               })
               .subscribe((t) => {
                 const tbl = t as unknown as AppSubscriptionTables;
-                return typeof window === 'undefined'
-                  ? buildGameSessionOnlySubscriptionQueries(tbl)
-                  : buildAppSubscriptionQueries(tbl);
+                if (typeof window !== 'undefined') {
+                  this.playersSubscribed = true;
+                  return buildAppSubscriptionQueries(tbl);
+                }
+                return buildGameSessionOnlySubscriptionQueries(tbl);
               });
-            
+
             resolve();
           })
           .onDisconnect(() => {
             console.log('🔌 Disconnected from SpacetimeDB');
             this.isConnected = false;
             this.connection = null;
+            this.playersSubscribed = false;
+            this.resetSyncState();
           })
           .onConnectError((error) => {
             if (connectionResolved) return;
@@ -382,8 +502,9 @@ class SpacetimeDBClient {
   getPlayerProfile(walletAddress: string): Player | null {
     if (!this.connection) return null;
 
+    const normalized = walletAddress.toLowerCase();
     const players = (Array.from(this.connection.db.players.iter()) as Player[]).filter(
-      (p: Player) => p.walletAddress === walletAddress
+      (p: Player) => p.walletAddress.toLowerCase() === normalized
     );
 
     return players.length > 0 ? players[0] : null;
