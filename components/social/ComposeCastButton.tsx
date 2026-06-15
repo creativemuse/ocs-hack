@@ -3,13 +3,15 @@
 import { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Share2, Trophy, Music, Users } from 'lucide-react';
+import { buildShareUrl, type ShareAchievementType } from '@/lib/social/buildShareUrl';
 
 interface ComposeCastButtonProps {
-  achievementType: 'high-score' | 'game-complete' | 'round-win' | 'perfect-round';
+  achievementType: ShareAchievementType;
   score?: number;
   round?: number;
   totalRounds?: number;
   playerCount?: number;
+  rank?: number;
   className?: string;
   onShare?: () => void;
 }
@@ -20,17 +22,18 @@ export default function ComposeCastButton({
   round = 1,
   totalRounds = 3,
   playerCount = 0,
+  rank,
   className = '',
-  onShare
+  onShare,
 }: ComposeCastButtonProps) {
   const [isSharing, setIsSharing] = useState(false);
 
   const getShareText = () => {
     const baseText = '🎵 Just played BEAT ME - the ultimate music trivia game!';
-    
+
     switch (achievementType) {
       case 'high-score':
-        return `${baseText} 🏆 Scored ${score} points and set a new high score! Can you beat me?`;
+        return `${baseText} 🏆 Scored ${score} points and hit #1 on the weekly board! Can you beat me?`;
       case 'game-complete':
         return `${baseText} 🎉 Completed all ${totalRounds} rounds with ${score} points! Ready for the challenge?`;
       case 'round-win':
@@ -60,22 +63,24 @@ export default function ComposeCastButton({
   const handleCompose = async () => {
     try {
       setIsSharing(true);
-      
-      // For now, we'll use the Web Share API as a fallback
-      // In a real implementation, you'd integrate with MiniKit's useComposeCast
+
+      const shareUrl = buildShareUrl({
+        score,
+        type: achievementType,
+        rank,
+      });
+      const shareText = getShareText();
+
       if (navigator.share) {
         await navigator.share({
           title: 'BEAT ME - Music Trivia Game',
-          text: getShareText(),
-          url: window.location.origin
+          text: shareText,
+          url: shareUrl,
         });
       } else {
-        // Fallback: copy to clipboard
-        await navigator.clipboard.writeText(getShareText());
-        // You could show a toast notification here
-        console.log('Share text copied to clipboard:', getShareText());
+        await navigator.clipboard.writeText(`${shareText}\n\n${shareUrl}`);
       }
-      
+
       onShare?.();
     } catch (error) {
       console.error('Error sharing:', error);
@@ -89,7 +94,7 @@ export default function ComposeCastButton({
       case 'high-score':
         return 'Share High Score';
       case 'game-complete':
-        return 'Share Victory';
+        return 'Share Score';
       case 'round-win':
         return 'Share Round Win';
       case 'perfect-round':

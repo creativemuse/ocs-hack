@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { Trophy, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Confetti } from '@neoconfetti/react';
 import HighScoreDisplay from './HighScoreDisplay';
 
 interface GameScoreCardProps {
@@ -37,7 +36,6 @@ export default function GameScoreCard({
   onBackToEntry,
   className = '',
 }: GameScoreCardProps) {
-  const [showConfetti, setShowConfetti] = useState(false);
   const paidScoreSavedRef = useRef(false);
 
   useEffect(() => {
@@ -58,31 +56,8 @@ export default function GameScoreCard({
     })();
   }, [isTrialGame, walletAddress, finalScore, entryToken]);
 
-  // Show confetti when component mounts
-  useEffect(() => {
-    setShowConfetti(true);
-    // Auto-hide confetti after animation completes
-    const confettiTimer = setTimeout(() => setShowConfetti(false), 4000);
-    return () => clearTimeout(confettiTimer);
-  }, []);
-
   return (
     <div className={`bg-[#000000] min-h-screen w-full flex items-center justify-center px-4 py-4 relative ${className}`}>
-      {/* Confetti Effect */}
-      {showConfetti && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-          <Confetti
-            particleCount={200}
-            force={0.6}
-            duration={3500}
-            colors={['#FFC700', '#FFD700', '#FF0000', '#2E3191', '#41BBC7', '#10B981']}
-            particleShape="mix"
-            stageHeight={600}
-            stageWidth={800}
-          />
-        </div>
-      )}
-
       <div className="w-full max-w-[390px] md:max-w-[428px] text-center relative z-10">
         {/* Header Section */}
         <div className="text-white mb-8">
