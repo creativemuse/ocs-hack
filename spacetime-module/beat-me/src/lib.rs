@@ -219,6 +219,10 @@ pub struct Player {
     pub trial_games_remaining: u32,
     pub trial_completed: bool,
     pub wallet_connected: bool,
+    /// On-chain TriviaBattle sessionCounter for the current weekly period.
+    pub weekly_session_id: u64,
+    /// Best score for the current weekly session (resets when sessionCounter changes).
+    pub weekly_best_score: u32,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -1147,6 +1151,8 @@ pub fn create_player(ctx: &ReducerContext, wallet_address: String, username: Opt
             trial_games_remaining: 1,
             trial_completed: false,
             wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
             created_at: ctx.timestamp,
             updated_at: ctx.timestamp,
         });
@@ -1247,18 +1253,32 @@ fn apply_username_if_available(
         return;
     }
     let name_owned = trimmed.to_string();
-    if let Some(existing) = ctx.db.players().username().find(&name_owned) {
-        if existing.wallet_address != wallet_address {
-            log::warn!(
-                "Username '{}' already taken by {}, skipping for {}",
-                name_owned,
-                existing.wallet_address,
-                wallet_address
-            );
-            return;
-        }
+    let username_taken = ctx
+        .db
+        .players()
+        .iter()
+        .any(|p| p.username.as_deref() == Some(trimmed) && p.wallet_address != wallet_address);
+    if username_taken {
+        log::warn!(
+            "Username '{}' already taken, skipping for {}",
+            name_owned,
+            wallet_address
+        );
+        return;
     }
     player.username = Some(name_owned);
+}
+
+fn apply_weekly_score(player: &mut Player, on_chain_session_id: u64, game_score: u32) {
+    if on_chain_session_id == 0 {
+        return;
+    }
+    if player.weekly_session_id == on_chain_session_id {
+        player.weekly_best_score = std::cmp::max(player.weekly_best_score, game_score);
+    } else {
+        player.weekly_session_id = on_chain_session_id;
+        player.weekly_best_score = game_score;
+    }
 }
 
 /// Atomically record a completed paid game score (server-side accumulation).
@@ -1267,6 +1287,7 @@ pub fn record_paid_game_score(
     ctx: &ReducerContext,
     wallet_address: String,
     game_score: u32,
+    on_chain_session_id: u64,
     username: Option<String>,
 ) {
     log::info!(
@@ -1279,6 +1300,7 @@ pub fn record_paid_game_score(
         player.total_score = player.total_score.saturating_add(game_score);
         player.games_played = player.games_played.saturating_add(1);
         player.best_score = std::cmp::max(player.best_score, game_score);
+        apply_weekly_score(&mut player, on_chain_session_id, game_score);
         apply_username_if_available(ctx, &wallet_address, &mut player, username);
         player.updated_at = ctx.timestamp;
         ctx.db.players().wallet_address().update(player);
@@ -1295,6 +1317,16 @@ pub fn record_paid_game_score(
             trial_games_remaining: 0,
             trial_completed: true,
             wallet_connected: true,
+            weekly_session_id: if on_chain_session_id > 0 {
+                on_chain_session_id
+            } else {
+                0
+            },
+            weekly_best_score: if on_chain_session_id > 0 {
+                game_score
+            } else {
+                0
+            },
             created_at: ctx.timestamp,
             updated_at: ctx.timestamp,
         };
@@ -1344,6 +1376,8 @@ pub fn update_player_stats(
             trial_games_remaining: 0,
             trial_completed: true,
             wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
             created_at: ctx.timestamp,
             updated_at: ctx.timestamp,
         };

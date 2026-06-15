@@ -11,6 +11,7 @@ import PlayerCount from '@/components/game/PlayerCount';
 import GameEntry from '@/components/game/GameEntry';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import { PlayerActivityMonitor } from '@/components/game/CDPEventMonitor';
 import type { TriviaQuestion, GameStartOptions } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
@@ -49,7 +50,11 @@ export default function Game() {
   const [showGuestMode, setShowGuestMode] = useState(true);
   const [pendingGuestSync, setPendingGuestSync] = useState<{score: number, gameData: any} | null>(null);
   const timerTriggeredRef = useRef(false);
-  const [highScores, setHighScores] = useState<Array<{score: number}>>([]);
+  const { entries: weeklyLeaderboardEntries } = useWeeklyLeaderboard(10);
+  const weeklyHighScore =
+    weeklyLeaderboardEntries.length > 0
+      ? Math.max(...weeklyLeaderboardEntries.map((e) => e.bestScore))
+      : 0;
   const [selectedPlayer, setSelectedPlayer] = useState<ActivePlayer | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [sessionIsTrial, setSessionIsTrial] = useState(false);
@@ -310,24 +315,11 @@ export default function Game() {
       setSessionIsTrial(isTrial);
       paidScoreSavedRef.current = false;
       setGameStarted(true);
-      fetchHighScores();
       loadRandomQuestion();
     } catch (err) {
       console.error('Error joining game:', err);
     }
   };
-
-  const fetchHighScores = useCallback(async () => {
-    try {
-      const response = await fetch('/api/high-scores?limit=10');
-      if (response.ok) {
-        const data = await response.json();
-        setHighScores(data.highScores || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch high scores:', error);
-    }
-  }, []);
 
   const handleGuestStart = async (name: string) => {
     setGuestName(name);
@@ -337,7 +329,6 @@ export default function Game() {
     await GuestSessionManager.createGuestPlayer(name);
     setShowGuestMode(false);
     setGameStarted(true);
-    fetchHighScores(); // Fetch high scores when game starts
     loadRandomQuestion();
   };
 
@@ -487,7 +478,7 @@ export default function Game() {
                 onShare={() => console.log('Game completion shared!')}
               />
               
-              {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && (
+              {weeklyHighScore > 0 && totalScore >= weeklyHighScore && (
                 <ComposeCastButton
                   achievementType="high-score"
                   score={totalScore}
@@ -570,16 +561,16 @@ export default function Game() {
           </div>
 
           {/* High Score Indicator */}
-          {highScores.length > 0 && (
+          {weeklyHighScore > 0 && (
             <div className="absolute left-1/2 -translate-x-1/2 top-[110px]">
               <div className="bg-yellow-500 text-black text-[10px] px-3 py-1 rounded-full border border-yellow-300 font-bold animate-pulse">
-                🏆 HIGH SCORE: {Math.max(...highScores.map(s => s.score))} USDC
+                🏆 HIGH SCORE: {weeklyHighScore.toLocaleString()} pts
               </div>
             </div>
           )}
 
           {/* You're in the Lead Indicator */}
-          {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && totalScore > 0 && (
+          {weeklyHighScore > 0 && totalScore >= weeklyHighScore && totalScore > 0 && (
             <div className="absolute left-1/2 -translate-x-1/2 top-[140px]">
               <div className="bg-green-500 text-white text-[10px] px-3 py-1 rounded-full border border-green-300 font-bold animate-bounce">
                 👑 YOU WIN!

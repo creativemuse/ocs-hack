@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spacetimeClient } from '@/lib/apis/spacetime';
+import { getWeeklyLeaderboardEntries } from '@/lib/game/weeklyLeaderboardServer';
+import { computeRankForScore } from '@/lib/game/weeklyLeaderboard';
 
 interface HighScore {
   id: string;
@@ -13,32 +14,38 @@ interface HighScore {
   username?: string;
 }
 
-// In-memory storage for high scores (in production, this would be in SpaceTimeDB)
-let highScores: HighScore[] = [];
+const toHighScoreRow = (entry: {
+  walletAddress: string;
+  username?: string;
+  bestScore: number;
+}): HighScore => ({
+  id: `weekly_${entry.walletAddress}`,
+  playerName: entry.username ?? entry.walletAddress,
+  walletAddress: entry.walletAddress,
+  score: entry.bestScore,
+  timestamp: Date.now(),
+  isGuest: false,
+  playerType: 'paid',
+  username: entry.username,
+});
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '10');
-    
-    // Initialize SpacetimeDB connection
-    await spacetimeClient.initialize();
-    
-    // Filter for paid players only, sort by score (highest to lowest), limit to top 10
-    const paidScoresOnly = highScores.filter(score => score.playerType === 'paid');
-    const topScores = paidScoresOnly
-      .sort((a, b) => b.score - a.score)
-      .slice(0, Math.min(limit, 10)); // Ensure max 10 entries
-    
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+
+    const { entries } = await getWeeklyLeaderboardEntries(Math.min(limit, 10));
+    const highScores = entries.map(toHighScoreRow);
+
     return NextResponse.json({
-      highScores: topScores,
-      totalScores: highScores.length
+      highScores,
+      totalScores: highScores.length,
     });
   } catch (error) {
     console.error('Error fetching high scores:', error);
     return NextResponse.json(
       { error: 'Failed to fetch high scores' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -46,57 +53,60 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { playerName, score, isGuest = false, guestId, playerType = 'paid', walletAddress } = body;
+    const {
+      playerName,
+      score,
+      isGuest = false,
+      guestId,
+      walletAddress,
+    } = body;
 
-    if (!playerName || typeof score !== 'number') {
+    if (isGuest) {
       return NextResponse.json(
-        { error: 'Player name and score are required' },
-        { status: 400 }
+        { error: 'Trial scores are not stored on the paid weekly leaderboard' },
+        { status: 400 },
       );
     }
 
-    // Initialize SpacetimeDB connection
-    await spacetimeClient.initialize();
-
-    const newScore: HighScore = {
-      id: `score_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      playerName,
-      walletAddress: walletAddress || undefined,
-      score,
-      timestamp: Date.now(),
-      isGuest,
-      guestId,
-      playerType: isGuest ? 'trial' : 'paid',
-      username: playerName // Store username if provided
-    };
-
-    // Add to high scores (in-memory for now)
-    highScores.push(newScore);
-    
-    // Keep only top 100 scores to prevent memory issues
-    if (highScores.length > 100) {
-      highScores = highScores
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 100);
+    if (!walletAddress || typeof score !== 'number') {
+      return NextResponse.json(
+        { error: 'walletAddress and score are required for rank lookup' },
+        { status: 400 },
+      );
     }
 
-    // Check if this is a new high score
-    const sortedScores = [...highScores].sort((a, b) => b.score - a.score);
-    const isNewHighScore = sortedScores[0]?.id === newScore.id;
-    const rank = sortedScores.findIndex(s => s.id === newScore.id) + 1;
+    const { entries } = await getWeeklyLeaderboardEntries(100);
+    const rank = computeRankForScore(entries, walletAddress, score);
+    const matched = entries.find(
+      (e) => e.walletAddress.toLowerCase() === walletAddress.toLowerCase(),
+    );
+
+    const row: HighScore = {
+      id: `weekly_${walletAddress.toLowerCase()}`,
+      playerName: playerName || matched?.username || walletAddress,
+      walletAddress: walletAddress.toLowerCase(),
+      score: matched?.bestScore ?? score,
+      timestamp: Date.now(),
+      isGuest: false,
+      playerType: 'paid',
+      username: playerName || matched?.username,
+    };
+
+    const isNewHighScore = rank === 1;
 
     return NextResponse.json({
       success: true,
-      score: newScore,
+      score: row,
       isNewHighScore,
       rank,
-      totalScores: highScores.length
+      totalScores: entries.length,
+      note: 'Paid scores persist via /api/save-paid-score; this endpoint returns weekly rank only.',
     });
   } catch (error) {
-    console.error('Error adding high score:', error);
+    console.error('Error resolving high score rank:', error);
     return NextResponse.json(
-      { error: 'Failed to add high score' },
-      { status: 500 }
+      { error: 'Failed to resolve score rank' },
+      { status: 500 },
     );
   }
 }

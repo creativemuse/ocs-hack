@@ -3,7 +3,7 @@ import { spacetimeClient } from '@/lib/apis/spacetime';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
-import { submitOnChainScore } from '@/lib/blockchain/submitOnChainScore';
+import { submitOnChainScoreWithRetry } from '@/lib/blockchain/submitOnChainScore';
 
 const MAX_GAME_SCORE = 3000;
 
@@ -104,9 +104,13 @@ export async function POST(req: NextRequest) {
     await spacetimeClient.ensurePlayerDataReady();
 
     if (spacetimeClient.isConfigured()) {
+      const sessionIdNumeric = onChainSessionId
+        ? Number(onChainSessionId)
+        : 0;
       await spacetimeClient.recordPaidGameScore(
         normalizedWallet,
         authoritativeScore,
+        sessionIdNumeric,
         displayUsername,
       );
       spacetimeUpdated = true;
@@ -118,14 +122,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    const onChainResult = await submitOnChainScore(
+    const onChainResult = await submitOnChainScoreWithRetry(
       normalizedWallet,
       authoritativeScore,
       onChainSessionId,
     );
 
     if (!onChainResult.ok) {
-      console.warn('On-chain score submission failed:', onChainResult.error);
+      console.warn('On-chain score submission failed:', {
+        wallet: normalizedWallet,
+        score: authoritativeScore,
+        sessionId: onChainSessionId,
+        error: onChainResult.error,
+      });
       return NextResponse.json(
         {
           success: true,
