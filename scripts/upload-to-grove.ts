@@ -26,15 +26,24 @@ const buildManifestFromDisk = (): Record<string, GroveFileEntry> => {
     .sort();
 
   for (const name of fileNames) {
-    if (!manifest[name]) {
-      const { artistName, songTitle } = parseArtistAndTitle(name);
+    const { artistName, songTitle } = parseArtistAndTitle(name);
+    const existing = manifest[name];
+
+    if (!existing) {
       manifest[name] = {
         name,
         path: `Global_Top_100/${name}`,
         artistName,
         songTitle,
       };
+      continue;
     }
+
+    manifest[name] = {
+      ...existing,
+      artistName,
+      songTitle,
+    };
   }
 
   return manifest;

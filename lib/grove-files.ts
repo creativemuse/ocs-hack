@@ -171,8 +171,8 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
   'Justin Beiber-DAISIES.mp3': {
     name: 'Justin Beiber-DAISIES.mp3',
     path: 'Global_Top_100/Justin Beiber-DAISIES.mp3',
-    artistName: 'Justin Beiber',
-    songTitle: 'DAISIES',
+    artistName: 'Unknown',
+    songTitle: 'Justin Beiber-DAISIES',
     storageKey: 'f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
     gatewayUrl: 'https://api.grove.storage/f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
     uri: 'lens://f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
@@ -180,8 +180,8 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
   'Justin Beiber-YUKON.mp3': {
     name: 'Justin Beiber-YUKON.mp3',
     path: 'Global_Top_100/Justin Beiber-YUKON.mp3',
-    artistName: 'Justin Beiber',
-    songTitle: 'YUKON',
+    artistName: 'Unknown',
+    songTitle: 'Justin Beiber-YUKON',
     storageKey: '553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',
     gatewayUrl: 'https://api.grove.storage/553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',
     uri: 'lens://553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',

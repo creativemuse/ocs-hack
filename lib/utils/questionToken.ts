@@ -9,10 +9,10 @@ import crypto from 'crypto';
  * and compares the answer server-side.
  */
 
-// Allow enough time for a full round after batch question load.
+// Enough time for a full round after batch question load (~15 questions).
 // Single-question fetches still get at least 90s; cap at 10 minutes.
 const getMaxAnswerTimeMs = (timeLimitSeconds: number): number =>
-  Math.min(600_000, Math.max(90_000, timeLimitSeconds * 60 * 1000));
+  Math.min(600_000, Math.max(90_000, timeLimitSeconds * 15 * 1000));
 
 interface QuestionTokenPayload {
   /** Question identifier */
@@ -77,7 +77,7 @@ export interface VerifiedQuestion {
 /**
  * Verify and decode a question token.
  *
- * Returns null if the token is invalid, tampered, or expired (>30s old).
+ * Returns null if the token is invalid, tampered, or expired.
  */
 export function verifyQuestionToken(token: string): VerifiedQuestion | null {
   try {
