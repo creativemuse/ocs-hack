@@ -9,10 +9,10 @@ import crypto from 'crypto';
  * and compares the answer server-side.
  */
 
-// 30s window is safe because questions are fetched one at a time.
-// If batching is added later, each question's token must be signed individually
-// at serve time so iat reflects when the player actually sees the question.
-const MAX_ANSWER_TIME_SECONDS = 30;
+// Enough time for a full round after batch question load (~15 questions).
+// Single-question fetches still get at least 90s; cap at 10 minutes.
+const getMaxAnswerTimeMs = (timeLimitSeconds: number): number =>
+  Math.min(600_000, Math.max(90_000, timeLimitSeconds * 15 * 1000));
 
 interface QuestionTokenPayload {
   /** Question identifier */
@@ -77,7 +77,7 @@ export interface VerifiedQuestion {
 /**
  * Verify and decode a question token.
  *
- * Returns null if the token is invalid, tampered, or expired (>30s old).
+ * Returns null if the token is invalid, tampered, or expired.
  */
 export function verifyQuestionToken(token: string): VerifiedQuestion | null {
   try {
@@ -95,9 +95,10 @@ export function verifyQuestionToken(token: string): VerifiedQuestion | null {
       Buffer.from(payloadStr, 'base64url').toString(),
     );
 
-    // Check expiration — reject answers submitted more than 30s after question served
+    // Check expiration — reject answers submitted after the allowed window
     const elapsedMs = Date.now() - payload.iat;
-    if (elapsedMs > MAX_ANSWER_TIME_SECONDS * 1000) return null;
+    const maxAnswerMs = getMaxAnswerTimeMs(payload.tl);
+    if (elapsedMs > maxAnswerMs) return null;
     if (elapsedMs < 0) return null; // clock skew / replay
 
     return {

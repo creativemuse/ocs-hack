@@ -668,10 +668,14 @@ export default function Game() {
               <div 
                 key={index}
                 className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full transition-colors ${
-                  selectedAnswer === index && verifiedCorrectAnswer !== null
-                    ? index === verifiedCorrectAnswer
-                      ? 'bg-green-200 border-2 border-green-500'
-                      : 'bg-red-200 border-2 border-red-500'
+                  selectedAnswer === index && isAnswered
+                    ? isVerifying
+                      ? 'bg-purple-100 border-2 border-purple-500 animate-pulse'
+                      : verifiedCorrectAnswer === null
+                        ? 'bg-amber-100 border-2 border-amber-500'
+                        : index === verifiedCorrectAnswer
+                          ? 'bg-green-200 border-2 border-green-500'
+                          : 'bg-red-200 border-2 border-red-500'
                     : isAnswered || timeRemaining <= 0
                     ? 'cursor-not-allowed opacity-50'
                     : 'cursor-pointer hover:bg-[#f0f0f0]'

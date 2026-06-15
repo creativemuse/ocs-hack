@@ -939,9 +939,11 @@ function HomePage() {
                         ? 'bg-purple-600 text-white animate-pulse'
                         : 'bg-gray-700 text-gray-400'
                       : selectedAnswer === index
-                        ? verifiedCorrectAnswer === index
-                          ? 'bg-green-600 text-white'
-                          : 'bg-red-600 text-white'
+                        ? verifiedCorrectAnswer === null
+                          ? 'bg-amber-600 text-white'
+                          : verifiedCorrectAnswer === index
+                            ? 'bg-green-600 text-white'
+                            : 'bg-red-600 text-white'
                         : 'bg-gray-700 text-gray-400'
                     : gameTimeRemaining <= 0
                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
@@ -949,9 +951,13 @@ function HomePage() {
                 }`}
               >
                 <span>{option}</span>
-                {isAnswered && !isVerifying && selectedAnswer === index && verifiedCorrectAnswer !== null && (
+                {isAnswered && !isVerifying && selectedAnswer === index && (
                   <span className="block mt-1 text-xs font-semibold">
-                    {verifiedCorrectAnswer === index ? '✓ Correct' : '✗ Incorrect'}
+                    {verifiedCorrectAnswer === null
+                      ? 'Could not verify'
+                      : verifiedCorrectAnswer === index
+                        ? '✓ Correct'
+                        : '✗ Incorrect'}
                   </span>
                 )}
               </button>

@@ -18,5 +18,13 @@ export const parseArtistAndTitle = (
     };
   }
 
+  const hyphen = base.match(/^(.+?)\s*-\s*(.+)$/);
+  if (hyphen) {
+    return {
+      artistName: hyphen[1]!.trim(),
+      songTitle: hyphen[2]!.trim(),
+    };
+  }
+
   return { artistName: 'Unknown', songTitle: base.trim() || 'Unknown' };
 };
