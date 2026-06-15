@@ -31,6 +31,8 @@ export interface JoinGameOptions {
   lobbyDurationSec?: number;
   /** Passed to paid entry verification alongside sub-account `address`. */
   walletUniversalAddress?: string | null;
+  /** Optional progress callback for post-payment join UX */
+  onProgress?: (message: string) => void;
 }
 
 interface UseGameSessionReturn {
@@ -147,7 +149,12 @@ export const useGameSession = (): UseGameSessionReturn => {
         setPlayerId(currentPlayerId);
       }
 
+      const reportProgress = (message: string) => {
+        options?.onProgress?.(message);
+      };
+
       const modeParam = options?.playerMode ?? (isPaidPlayer ? 'paid_solo' : 'trial');
+      reportProgress('Connecting to game session…');
       const sessionResp = await fetch(
         `/api/game-session?mode=${encodeURIComponent(modeParam)}`
       );
@@ -160,6 +167,11 @@ export const useGameSession = (): UseGameSessionReturn => {
         throw new Error('No active game session found');
       }
 
+      reportProgress(
+        isPaidPlayer
+          ? 'Confirming your payment on-chain…'
+          : 'Starting your trial game…',
+      );
       const entryResp = await retryWithBackoff(async () => {
         const resp = await fetch('/api/game-entry', {
           method: 'POST',
@@ -188,9 +200,13 @@ export const useGameSession = (): UseGameSessionReturn => {
         }
 
         return resp;
+      }, {
+        maxAttempts: isPaidPlayer ? 8 : 5,
+        initialDelayMs: isPaidPlayer ? 750 : 1_000,
       });
 
       const { entryId, token, onChainSessionId } = await entryResp.json();
+      reportProgress('Payment confirmed — joining your game…');
 
       if (!isPaidPlayer) {
         // Trial: no Spacetime paid session needed
@@ -213,6 +229,7 @@ export const useGameSession = (): UseGameSessionReturn => {
         }
       }
 
+      reportProgress('Almost ready — loading your first question…');
       const response = await fetch('/api/game-session', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

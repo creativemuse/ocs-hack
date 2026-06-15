@@ -26,6 +26,7 @@ import { cn } from '@/lib/utils';
 import { isLobbySessionStatus } from '@/lib/utils/gameSessionStatus';
 import { ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
 import { useSessionCountdown } from '@/hooks/useSessionCountdown';
+import { retryWithBackoff } from '@/lib/game/retryWithBackoff';
 
 function HomePage() {
   const {
@@ -86,6 +87,9 @@ function HomePage() {
   const playerDisplayName = basename ?? (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player');
   const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
   const [isJoiningAfterPayment, setIsJoiningAfterPayment] = useState(false);
+  const [joinProgressMessage, setJoinProgressMessage] = useState('Confirming payment on-chain…');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const scoreReceiptRef = useRef<string | null>(null);
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
@@ -150,6 +154,7 @@ function HomePage() {
             walletAddress: wallet,
             finalScore,
             entryToken,
+            scoreReceipt: scoreReceiptRef.current ?? undefined,
             username: basename ?? undefined,
           }),
         });
@@ -187,6 +192,7 @@ function HomePage() {
     setIsAnswered(false);
     setIsVerifying(false);
     setVerifiedCorrectAnswer(null);
+    setVerifyError(null);
     setStartTime(Date.now());
     setGameTimeRemaining(10);
     setAudioError(false);
@@ -288,14 +294,18 @@ function HomePage() {
     setJoinGameStartError(null);
     if (!isTrial) {
       setIsJoiningAfterPayment(true);
+      setJoinProgressMessage('Confirming payment on-chain…');
     }
     try {
       const data = await joinGame(!isTrial, paidTxHash, {
         playerMode,
         lobbyDurationSec: 180,
         walletUniversalAddress: walletUniversalAddress ?? undefined,
+        onProgress: (message) => setJoinProgressMessage(message),
       });
       lastGameWasPaidRef.current = !isTrial;
+      scoreReceiptRef.current = null;
+      setVerifyError(null);
       setIsTrialGame(isTrial);
       setCompletedAsTrial(false);
       setShowGameEntry(false);
@@ -346,39 +356,82 @@ function HomePage() {
     }
   };
 
-  const handleAnswerSelect = async (answerIndex: number) => {
-    if (isAnswered || !currentQuestion || gameTimeRemaining <= 0) return;
+  const handleAnswerSelect = async (answerIndex: number, force = false) => {
+    if ((isAnswered && !force) || !currentQuestion || (gameTimeRemaining <= 0 && !force)) return;
 
-    // Optimistically highlight the selected answer immediately
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
     setIsVerifying(true);
+    setVerifyError(null);
 
     try {
-      const res = await fetch('/api/verify-answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionToken: currentQuestion.questionToken,
-          selectedAnswer: answerIndex,
-          entryToken: !isTrialGame ? entryToken ?? undefined : undefined,
-        }),
-      });
+      const data = await retryWithBackoff(
+        async () => {
+          const res = await fetch('/api/verify-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questionToken: currentQuestion.questionToken,
+              selectedAnswer: answerIndex,
+              entryToken: !isTrialGame ? entryToken ?? undefined : undefined,
+              scoreReceipt: !isTrialGame ? scoreReceiptRef.current ?? undefined : undefined,
+            }),
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-        setVerifiedCorrectAnswer(data.correctAnswer);
+          if (!res.ok) {
+            let msg = `Verification failed (${res.status})`;
+            try {
+              const err = (await res.json()) as { error?: string };
+              if (err.error) msg = err.error;
+            } catch {
+              /* ignore */
+            }
+            throw new Error(msg);
+          }
+
+          return res.json() as Promise<{
+            correctAnswer: number;
+            isCorrect: boolean;
+            pointsEarned: number;
+            serverTotalScore?: number;
+            scoreReceipt?: string;
+          }>;
+        },
+        {
+          maxAttempts: 3,
+          initialDelayMs: 500,
+          shouldRetry: (error) => {
+            const message = error instanceof Error ? error.message.toLowerCase() : '';
+            return (
+              message.includes('network') ||
+              message.includes('fetch') ||
+              message.includes('timeout') ||
+              message.includes('verification failed') ||
+              message.includes('502') ||
+              message.includes('503')
+            );
+          },
+        },
+      );
+
+      setVerifiedCorrectAnswer(data.correctAnswer);
+      if (typeof data.scoreReceipt === 'string') {
+        scoreReceiptRef.current = data.scoreReceipt;
+      }
+      if (typeof data.serverTotalScore === 'number') {
+        setTotalScore(data.serverTotalScore);
         if (data.isCorrect && data.pointsEarned > 0) {
-          setScore(prev => prev + data.pointsEarned);
-          setTotalScore(prev => prev + data.pointsEarned);
+          setScore((prev) => prev + data.pointsEarned);
         }
-      } else {
-        // Verification failed (expired token, etc.) — treat as incorrect, no points
-        console.warn('Answer verification failed:', res.status);
+      } else if (data.isCorrect && data.pointsEarned > 0) {
+        setScore((prev) => prev + data.pointsEarned);
+        setTotalScore((prev) => prev + data.pointsEarned);
       }
     } catch (error) {
       console.error('Answer verification error:', error);
-      // Network error — treat as incorrect, no points
+      const message =
+        error instanceof Error ? error.message : 'Could not verify your answer. Please try again.';
+      setVerifyError(message);
     } finally {
       setIsVerifying(false);
     }
@@ -713,6 +766,7 @@ function HomePage() {
             sessionBusy={!canJoin}
             sessionTimeRemaining={timeRemaining}
             isJoiningAfterPayment={isJoiningAfterPayment}
+            joinProgressMessage={joinProgressMessage}
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">
@@ -1002,7 +1056,7 @@ function HomePage() {
                 {isAnswered && !isVerifying && selectedAnswer === index && (
                   <span className="block mt-1 text-xs font-semibold">
                     {verifiedCorrectAnswer === null
-                      ? 'Could not verify'
+                      ? verifyError ?? 'Could not verify'
                       : verifiedCorrectAnswer === index
                         ? '✓ Correct'
                         : '✗ Incorrect'}
@@ -1011,6 +1065,25 @@ function HomePage() {
               </button>
             ))}
           </div>
+
+          {verifyError ? (
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-center">
+              <p className="text-sm text-amber-200">{verifyError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedAnswer === null) return;
+                  setIsAnswered(false);
+                  setVerifiedCorrectAnswer(null);
+                  void handleAnswerSelect(selectedAnswer, true);
+                }}
+                disabled={selectedAnswer === null || isVerifying}
+                className="mt-2 text-sm font-semibold text-amber-300 underline hover:text-amber-100"
+              >
+                Retry verification
+              </button>
+            </div>
+          ) : null}
 
           {/* Current Round Stats and Players */}
           <div className="text-center">

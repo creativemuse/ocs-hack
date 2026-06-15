@@ -1,14 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { verifyQuestionToken } from '@/lib/utils/questionToken';
 import { verifyEntryToken } from '@/lib/utils/jwt';
-import { addVerifiedAnswerScore } from '@/lib/game/paidScoreLedger';
+import {
+  addVerifiedAnswerScore,
+  getPaidScoreLedgerEntry,
+  initPaidScoreLedger,
+} from '@/lib/game/paidScoreLedger';
+import { advancePaidScore } from '@/lib/game/scoreReceipt';
 import { ScoringSystem } from '@/lib/game/scoring';
 import type { DifficultyLevel } from '@/types/game';
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { questionToken, selectedAnswer, entryToken } = body;
+    const { questionToken, selectedAnswer, entryToken, scoreReceipt } = body;
 
     if (typeof questionToken !== 'string' || typeof selectedAnswer !== 'number') {
       return NextResponse.json(
@@ -45,6 +50,8 @@ export async function POST(req: NextRequest) {
     );
 
     let serverTotalScore: number | undefined;
+    let nextScoreReceipt: string | undefined;
+    let ledgerWarning: string | undefined;
 
     if (entryToken && typeof entryToken === 'string') {
       const payload = verifyEntryToken(entryToken);
@@ -61,15 +68,41 @@ export async function POST(req: NextRequest) {
           { status: 401 },
         );
       }
+
+      const onChainSessionId = payload.onChainSessionId ?? '';
+      let ledgerEntry = getPaidScoreLedgerEntry(payload.entryId);
+      if (!ledgerEntry) {
+        initPaidScoreLedger({
+          entryId: payload.entryId,
+          walletAddress: wallet,
+          onChainSessionId,
+          paidTxHash: payload.paidTxHash,
+        });
+        ledgerEntry = getPaidScoreLedgerEntry(payload.entryId);
+      }
+
+      const advanced = advancePaidScore({
+        entryId: payload.entryId,
+        walletAddress: wallet,
+        onChainSessionId,
+        pointsEarned: isCorrect ? pointsEarned : 0,
+        previousReceipt:
+          typeof scoreReceipt === 'string' && scoreReceipt.trim() ? scoreReceipt.trim() : null,
+        ledgerTotalScore: ledgerEntry?.totalScore,
+        ledgerAnswersVerified: ledgerEntry?.answersVerified,
+      });
+      serverTotalScore = advanced.totalScore;
+      nextScoreReceipt = advanced.receipt;
+
       const ledgerResult = addVerifiedAnswerScore(
         payload.entryId,
         wallet,
         isCorrect ? pointsEarned : 0,
       );
       if (!ledgerResult.ok) {
-        return NextResponse.json({ error: ledgerResult.error }, { status: 400 });
+        ledgerWarning = ledgerResult.error;
+        console.warn('paidScoreLedger update failed (score receipt used):', ledgerResult.error);
       }
-      serverTotalScore = ledgerResult.totalScore;
     }
 
     return NextResponse.json({
@@ -78,6 +111,8 @@ export async function POST(req: NextRequest) {
       pointsEarned,
       timeSpent,
       serverTotalScore,
+      scoreReceipt: nextScoreReceipt,
+      ledgerWarning,
     });
   } catch (error) {
     console.error('verify-answer error:', error);

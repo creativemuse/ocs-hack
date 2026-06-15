@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
+import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
 import { submitOnChainScore } from '@/lib/blockchain/submitOnChainScore';
 
 const MAX_GAME_SCORE = 3000;
@@ -17,7 +18,7 @@ const normalizeUsername = (username?: string): string | undefined => {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { walletAddress, finalScore, username, entryToken } = body;
+    const { walletAddress, finalScore, username, entryToken, scoreReceipt } = body;
 
     if (!entryToken || typeof entryToken !== 'string') {
       return NextResponse.json(
@@ -70,11 +71,34 @@ export async function POST(req: NextRequest) {
       normalizedWallet,
       finalScore,
     );
+
+    let authoritativeScore = finalScore;
+    let onChainSessionId = payload.onChainSessionId ?? '';
+
     if (!finalized.ok) {
-      return NextResponse.json({ error: finalized.error }, { status: 400 });
+      const receipt =
+        typeof scoreReceipt === 'string' && scoreReceipt.trim()
+          ? verifyScoreReceipt(scoreReceipt.trim(), payload.entryId, normalizedWallet)
+          : null;
+
+      if (!receipt || receipt.sc !== finalScore || receipt.av === 0) {
+        return NextResponse.json(
+          {
+            error:
+              finalized.error ??
+              'Score could not be verified. Play through at least one verified answer.',
+          },
+          { status: 400 },
+        );
+      }
+
+      authoritativeScore = receipt.sc;
+      onChainSessionId = receipt.ocs || onChainSessionId;
+    } else {
+      authoritativeScore = finalized.authoritativeScore;
+      onChainSessionId = finalized.onChainSessionId;
     }
 
-    const authoritativeScore = finalized.authoritativeScore;
     let spacetimeUpdated = false;
 
     await spacetimeClient.ensurePlayerDataReady();
@@ -97,7 +121,7 @@ export async function POST(req: NextRequest) {
     const onChainResult = await submitOnChainScore(
       normalizedWallet,
       authoritativeScore,
-      finalized.onChainSessionId,
+      onChainSessionId,
     );
 
     if (!onChainResult.ok) {
@@ -106,7 +130,7 @@ export async function POST(req: NextRequest) {
         {
           success: true,
           authoritativeScore,
-          onChainSessionId: finalized.onChainSessionId,
+          onChainSessionId,
           spacetimeUpdated,
           onChainSubmitted: false,
           onChainError: onChainResult.error,
@@ -120,7 +144,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       authoritativeScore,
-      onChainSessionId: finalized.onChainSessionId,
+      onChainSessionId,
       spacetimeUpdated,
       onChainSubmitted: true,
       transactionHash: onChainResult.transactionHash,
