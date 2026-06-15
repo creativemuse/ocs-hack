@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { lighthouseStorage } from '@/lib/apis/lighthouse';
 import type { DifficultyLevel } from '@/types/game';
+import { signQuestionToken } from '@/lib/utils/questionToken';
 
 type Mode = 'name-that-tune' | 'artist-match';
 
@@ -148,16 +149,20 @@ export async function GET(req: NextRequest) {
       // Always use local files for faster loading
       audioUrl = correct.path;
 
+      const qId = `sb_${Date.now()}_${i}`;
+      const correctAns = correctIndex >= 0 ? correctIndex : 0;
+      const tl = getTimeLimit(difficulty);
+
       questions.push({
-        id: `sb_${Date.now()}_${i}`,
+        id: qId,
         type: mode,
         question: mode === 'name-that-tune' 
           ? 'What song is this?' 
           : `Who performs "${correct.songTitle}"?`,
         options,
-        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+        questionToken: signQuestionToken(qId, correctAns, tl, difficulty),
         audioUrl,
-        timeLimit: getTimeLimit(difficulty),
+        timeLimit: tl,
         difficulty,
         metadata: {
           artistName: correct.artistName,

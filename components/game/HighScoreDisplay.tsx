@@ -148,12 +148,6 @@ export default function HighScoreDisplay({
         isNewHighScore: finalIsHigh,
         rank: finalRank,
       });
-
-      if (finalIsHigh) {
-        setShowConfetti(true);
-        const timer = setTimeout(() => setShowConfetti(false), 4000);
-        return () => clearTimeout(timer);
-      }
     }
   }, [
     isTrialGame,
@@ -164,6 +158,13 @@ export default function HighScoreDisplay({
     backendRank,
     submissionResult,
   ]);
+
+  useEffect(() => {
+    if (currentScore <= 0) return;
+    setShowConfetti(true);
+    const timer = setTimeout(() => setShowConfetti(false), 4000);
+    return () => clearTimeout(timer);
+  }, [currentScore]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {

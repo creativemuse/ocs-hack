@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { DifficultyLevel } from '@/types/game';
 import { logger } from '@/lib/utils/logger';
+import { signQuestionToken } from '@/lib/utils/questionToken';
+import { parseArtistAndTitle } from '@/lib/grove/parseMetadata';
 import {
   hasUploadedGroveTriviaFiles,
   listGroveAudioByPrefix,
@@ -51,6 +53,23 @@ const getTimeLimit = (difficulty: DifficultyLevel): number => {
   }
 };
 
+const normalizeTrackMetadata = (file: GroveFileEntry): GroveFileEntry => {
+  if (file.artistName !== 'Unknown') {
+    return file;
+  }
+
+  const parsed = parseArtistAndTitle(file.name);
+  if (parsed.artistName === 'Unknown') {
+    return file;
+  }
+
+  return {
+    ...file,
+    artistName: parsed.artistName,
+    songTitle: parsed.songTitle,
+  };
+};
+
 const loadAudioFiles = (prefix: string): { files: GroveFileEntry[]; source: string } => {
   if (hasUploadedGroveTriviaFiles()) {
     const groveFiles = listGroveAudioByPrefix(prefix);
@@ -77,7 +96,8 @@ export async function GET(req: NextRequest) {
 
     logger.debug(`🌳 Fetching questions from Grove: folder=${folder}, mode=${mode}, count=${count}`);
 
-    const { files, source } = loadAudioFiles(folder);
+    const { files: rawFiles, source } = loadAudioFiles(folder);
+    const files = rawFiles.map(normalizeTrackMetadata);
 
     if (files.length < choices) {
       return NextResponse.json(
@@ -106,18 +126,21 @@ export async function GET(req: NextRequest) {
       const options = shuffle([correctText, ...distractors]).slice(0, choices);
       const correctIndex = options.indexOf(correctText);
       const audioUrl = resolveGroveAudioUrl(correct);
+      const qId = `grove_${Date.now()}_${i}`;
+      const correctAns = correctIndex >= 0 ? correctIndex : 0;
+      const timeLimit = getTimeLimit(difficulty);
 
       questions.push({
-        id: `grove_${Date.now()}_${i}`,
+        id: qId,
         type: mode,
         question:
           mode === 'name-that-tune'
             ? 'What song is this?'
             : `Who performs "${correct.songTitle}"?`,
         options,
-        correctAnswer: correctIndex >= 0 ? correctIndex : 0,
+        questionToken: signQuestionToken(qId, correctAns, timeLimit, difficulty),
         audioUrl,
-        timeLimit: getTimeLimit(difficulty),
+        timeLimit,
         difficulty,
         metadata: {
           artistName: correct.artistName,
