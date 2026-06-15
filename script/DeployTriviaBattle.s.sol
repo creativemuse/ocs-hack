@@ -30,8 +30,8 @@ contract DeployTriviaBattle is Script {
     address constant BASE_MAINNET_CHAINLINK_ORACLE = BASE_MAINNET_KEYSTONE_FORWARDER;
 
     // Configuration constants
-    /// @dev Minimum is 10 minutes (contract MIN_SESSION_INTERVAL). Use a short interval so players can start new rounds after a session ends.
-    uint256 constant SESSION_INTERVAL = 10 minutes;
+    /// @dev Weekly settlement interval (7 days). In-game round timers are separate (API/Spacetime).
+    uint256 constant SESSION_INTERVAL = 7 days;
     uint256 constant ENTRY_FEE = 1e6; // 1 USDC (6 decimals)
 
     function run() external {

@@ -81,6 +81,7 @@ function HomePage() {
   const { data: basename } = useBasename(address ?? undefined);
   const playerDisplayName = basename ?? (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player');
   const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
+  const [isJoiningAfterPayment, setIsJoiningAfterPayment] = useState(false);
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
@@ -269,6 +270,9 @@ function HomePage() {
     walletUniversalAddress,
   }: GameStartOptions) => {
     setJoinGameStartError(null);
+    if (!isTrial) {
+      setIsJoiningAfterPayment(true);
+    }
     try {
       const data = await joinGame(!isTrial, paidTxHash, {
         playerMode,
@@ -295,6 +299,8 @@ function HomePage() {
         error instanceof Error ? error.message : 'Could not join the game. Please try again.';
       setJoinGameStartError(message);
       setShowGameEntry(true);
+    } finally {
+      setIsJoiningAfterPayment(false);
     }
   };
 
@@ -668,6 +674,7 @@ function HomePage() {
             onDismissJoinStartError={() => setJoinGameStartError(null)}
             sessionBusy={!canJoin}
             sessionTimeRemaining={timeRemaining}
+            isJoiningAfterPayment={isJoiningAfterPayment}
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">

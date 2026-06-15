@@ -5,8 +5,13 @@ import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
 import { getBaseAccountProvider } from '@/lib/base-account/sdk';
+import {
+  sendAtomicBatchCalls,
+  sendSequentialTransactions,
+  supportsAtomicBatch,
+} from '@/lib/base-account/batchCalls';
 import { base } from 'viem/chains';
-import { createPublicClient, http, numberToHex, type Hex } from 'viem';
+import { createPublicClient, http, type Hex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
 
 const basePublicClient = createPublicClient({
@@ -15,8 +20,10 @@ const basePublicClient = createPublicClient({
 });
 
 export type BaseAccountTxStatusExtras = {
-  /** Last `eth_sendTransaction` hash (e.g. `joinBattle` after approve in a batch). */
+  /** Last tx hash (joinBattle op — from batch or sequential send). */
   lastTxHash?: string;
+  /** True when approve + join were batched into one wallet confirmation. */
+  usedBatch?: boolean;
 };
 
 export type BaseAccountTransactionHandle = {
@@ -49,12 +56,12 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
   ) {
   const { isConnected: hookConnected, address: hookAddress } = useBaseAccount();
   const { provider: contextProvider } = useBaseAccountContext();
-  // Prefer parent-provided address to avoid race condition where hook hasn't resolved yet
   const address = connectedAddress || hookAddress;
   const isConnected = Boolean(address) || hookConnected;
   const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<'idle' | 'pending' | 'success' | 'error'>('idle');
   const [message, setMessage] = useState<string>('');
+  const [usedBatch, setUsedBatch] = useState(false);
   const inFlightRef = useRef(false);
 
   const handleTransaction = useCallback(async () => {
@@ -67,77 +74,71 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
 
     setIsLoading(true);
     setStatus('pending');
+    setUsedBatch(false);
     onStatus?.('pending', 'Transaction pending...');
 
     try {
       const provider = contextProvider ?? getBaseAccountProvider();
 
-      // Smart accounts (4337): each user op bumps the account nonce on-chain only after
-      // inclusion. Sending approve + joinBattle back-to-back causes AA25 invalid account nonce
-      // on the second op — wait for each receipt before the next send.
       if (calls.length === 0) {
         throw new Error('No transaction calls provided');
       }
 
-      const results: string[] = [];
-      for (let i = 0; i < calls.length; i++) {
-        const call = calls[i];
-        const result = (await provider.request({
-          method: 'eth_sendTransaction',
-          params: [{
-            from: address,
-            to: call.to,
-            value: call.value,
-            data: call.data,
-            chainId: numberToHex(base.id),
-          }]
-        })) as Hex;
+      let lastTxHash: string | undefined;
+      let batchPath = false;
 
-        results.push(result);
+      const canBatch =
+        calls.length > 1 && (await supportsAtomicBatch(provider, address));
 
-        const receipt = await basePublicClient.waitForTransactionReceipt({
-          hash: result,
-          timeout: 180_000,
-        });
-
-        if (receipt.status !== 'success') {
-          throw new Error(
-            `Transaction ${i + 1} of ${calls.length} reverted on-chain. Try again in a moment.`
-          );
-        }
+      if (canBatch) {
+        batchPath = true;
+        onStatus?.('pending', 'Confirm once in your wallet (approve + join)...');
+        lastTxHash = await sendAtomicBatchCalls(provider, address, calls);
+      } else {
+        onStatus?.('pending', 'Confirm in your wallet (step 1 of 2)...');
+        lastTxHash = await sendSequentialTransactions(
+          provider,
+          address,
+          calls,
+          (hash) =>
+            basePublicClient.waitForTransactionReceipt({
+              hash,
+              timeout: 180_000,
+            })
+        );
       }
 
-      const lastTxHash = results.length > 0 ? results[results.length - 1] : undefined;
-      console.log('Transactions confirmed:', results);
+      setUsedBatch(batchPath);
+      console.log('Transaction confirmed:', lastTxHash, { batch: batchPath });
       setStatus('success');
-      setMessage('Transaction successful!');
-      onStatus?.('success', 'Transaction successful!', { lastTxHash });
-    } catch (error: any) {
-      // Safely serialize error to avoid BigInt serialization issues
+      setMessage(batchPath ? 'Payment confirmed!' : 'Transaction successful!');
+      onStatus?.('success', 'Transaction successful!', { lastTxHash, usedBatch: batchPath });
+    } catch (error: unknown) {
+      const err = error as { message?: string; code?: number; name?: string };
       const safeError = {
-        message: error?.message || 'Unknown error',
-        code: error?.code,
-        name: error?.name
+        message: err?.message || 'Unknown error',
+        code: err?.code,
+        name: err?.name,
       };
       console.error('Transaction failed:', safeError);
       setStatus('error');
-      
+
       let errorMessage = 'Transaction failed';
-      if (error?.code === 4001) {
+      if (err?.code === 4001) {
         errorMessage = 'Transaction rejected by user';
-      } else if (error?.code === 5740) {
+      } else if (err?.code === 5740) {
         errorMessage = 'Transaction too large for wallet to process';
-      } else if (error?.message) {
-        errorMessage = error.message;
+      } else if (err?.message) {
+        errorMessage = err.message;
       }
-      
+
       setMessage(errorMessage);
       onStatus?.('error', errorMessage);
     } finally {
       setIsLoading(false);
       inFlightRef.current = false;
     }
-  }, [isConnected, address, calls, onStatus]);
+  }, [isConnected, address, calls, onStatus, contextProvider]);
 
   useImperativeHandle(
     ref,
@@ -161,6 +162,10 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
         return null;
     }
   };
+
+  const pendingMessage = usedBatch
+    ? 'Confirm once in your wallet, then wait for on-chain confirmation…'
+    : 'Confirm in your wallet, then wait for on-chain confirmation…';
 
   return (
     <div className={className}>
@@ -194,17 +199,15 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
           {isLoading ? (
             <>
               <Loader2 className="h-8 w-8 animate-spin text-amber-400" aria-hidden />
-              <span className="text-sm text-zinc-300">
-                Confirm in your wallet, then wait for on-chain confirmation…
-              </span>
+              <span className="text-sm text-zinc-300">{pendingMessage}</span>
             </>
           ) : null}
         </div>
       )}
       {message && (
         <div className={`mt-2 text-sm text-center ${
-          status === 'success' ? 'text-green-400' : 
-          status === 'error' ? 'text-red-400' : 
+          status === 'success' ? 'text-green-400' :
+          status === 'error' ? 'text-red-400' :
           'text-gray-400'
         }`}>
           {message}

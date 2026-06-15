@@ -102,7 +102,7 @@ function decodePlayerJoinedPlayerFromLog(log: {
   return decodePlayerJoinedFromLog(log)?.player ?? null;
 }
 
-async function getReceiptAndTransaction(hash: Hash) {
+async function getReceiptAndTransaction(hash: Hash, attempt = 1, maxAttempts = 3) {
   const urls = getPaidVerificationRpcUrls();
   let lastMessage = 'All RPC endpoints failed';
 
@@ -133,6 +133,16 @@ async function getReceiptAndTransaction(hash: Hash) {
       lastMessage = e instanceof Error ? e.message : String(e);
       continue;
     }
+  }
+
+  const retryable =
+    lastMessage.toLowerCase().includes('pending') ||
+    lastMessage.toLowerCase().includes('not found') ||
+    lastMessage.toLowerCase().includes('timeout');
+
+  if (retryable && attempt < maxAttempts) {
+    await new Promise((r) => setTimeout(r, Math.min(1000 * 2 ** (attempt - 1), 8000)));
+    return getReceiptAndTransaction(hash, attempt + 1, maxAttempts);
   }
 
   throw new Error(lastMessage);
