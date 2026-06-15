@@ -62,7 +62,7 @@ export const verifyScoreReceipt = (
     if (payload.sc < 0 || payload.av < 0 || !Number.isFinite(payload.sc)) return null;
 
     const elapsedMs = Date.now() - payload.iat;
-    if (elapsedMs > RECEIPT_TTL_MS || elapsedMs < 0) return null;
+    if (elapsedMs > RECEIPT_TTL_MS || elapsedMs < -30_000) return null;
 
     return payload;
   } catch {
@@ -83,12 +83,13 @@ export const advancePaidScore = (params: {
   let baseScore = 0;
   let baseAnswers = 0;
 
-  if (params.previousReceipt) {
-    const verified = verifyScoreReceipt(params.previousReceipt, params.entryId, wallet);
-    if (verified) {
-      baseScore = verified.sc;
-      baseAnswers = verified.av;
-    }
+  const verified = params.previousReceipt
+    ? verifyScoreReceipt(params.previousReceipt, params.entryId, wallet)
+    : null;
+
+  if (verified) {
+    baseScore = verified.sc;
+    baseAnswers = verified.av;
   } else if (
     typeof params.ledgerTotalScore === 'number' &&
     typeof params.ledgerAnswersVerified === 'number'

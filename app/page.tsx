@@ -356,8 +356,8 @@ function HomePage() {
     }
   };
 
-  const handleAnswerSelect = async (answerIndex: number) => {
-    if (isAnswered || !currentQuestion || gameTimeRemaining <= 0) return;
+  const handleAnswerSelect = async (answerIndex: number, force = false) => {
+    if ((isAnswered && !force) || !currentQuestion || (gameTimeRemaining <= 0 && !force)) return;
 
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
@@ -406,7 +406,9 @@ function HomePage() {
               message.includes('network') ||
               message.includes('fetch') ||
               message.includes('timeout') ||
-              message.includes('failed to verify')
+              message.includes('verification failed') ||
+              message.includes('502') ||
+              message.includes('503')
             );
           },
         },
@@ -1073,7 +1075,7 @@ function HomePage() {
                   if (selectedAnswer === null) return;
                   setIsAnswered(false);
                   setVerifiedCorrectAnswer(null);
-                  void handleAnswerSelect(selectedAnswer);
+                  void handleAnswerSelect(selectedAnswer, true);
                 }}
                 disabled={selectedAnswer === null || isVerifying}
                 className="mt-2 text-sm font-semibold text-amber-300 underline hover:text-amber-100"

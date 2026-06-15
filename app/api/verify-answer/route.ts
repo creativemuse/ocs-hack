@@ -70,14 +70,15 @@ export async function POST(req: NextRequest) {
       }
 
       const onChainSessionId = payload.onChainSessionId ?? '';
-      const ledgerEntry = getPaidScoreLedgerEntry(payload.entryId);
-      if (!ledgerEntry && onChainSessionId) {
+      let ledgerEntry = getPaidScoreLedgerEntry(payload.entryId);
+      if (!ledgerEntry) {
         initPaidScoreLedger({
           entryId: payload.entryId,
           walletAddress: wallet,
           onChainSessionId,
           paidTxHash: payload.paidTxHash,
         });
+        ledgerEntry = getPaidScoreLedgerEntry(payload.entryId);
       }
 
       const advanced = advancePaidScore({

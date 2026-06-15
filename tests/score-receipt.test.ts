@@ -88,4 +88,28 @@ describe('scoreReceipt', () => {
     assert.equal(third.totalScore, 140);
     assert.equal(third.answersVerified, 3);
   });
+
+  it('falls back to ledger when previous receipt fails verification', () => {
+    const staleReceipt = signScoreReceipt({
+      eid: entryId,
+      wal: wallet.toLowerCase(),
+      sc: 999,
+      av: 99,
+      ocs: onChainSessionId,
+      iat: Date.now() - 4 * 60 * 60 * 1000,
+    });
+
+    const advanced = advancePaidScore({
+      entryId,
+      walletAddress: wallet,
+      onChainSessionId,
+      pointsEarned: 40,
+      previousReceipt: staleReceipt,
+      ledgerTotalScore: 80,
+      ledgerAnswersVerified: 1,
+    });
+
+    assert.equal(advanced.totalScore, 120);
+    assert.equal(advanced.answersVerified, 2);
+  });
 });
