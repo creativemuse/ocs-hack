@@ -14,6 +14,20 @@ export type BeatMeOgOptions = {
 const OG_WIDTH = 1200;
 const OG_HEIGHT = 630;
 
+const parseScore = (score?: string): number | null => {
+  if (!score) return null;
+  const parsed = Number(score);
+  if (!Number.isFinite(parsed) || parsed < 0) return null;
+  return Math.floor(parsed);
+};
+
+const parseRank = (rank?: string): number | null => {
+  if (!rank) return null;
+  const parsed = Number(rank);
+  if (!Number.isFinite(parsed) || parsed <= 0) return null;
+  return Math.floor(parsed);
+};
+
 export const BeatMeOgLayout = ({
   mode = 'scoreOverlay',
   backgroundImageUrl,
@@ -22,6 +36,9 @@ export const BeatMeOgLayout = ({
   score,
   rank,
 }: BeatMeOgOptions): ReactElement => {
+  const scoreValue = parseScore(score);
+  const rankValue = parseRank(rank);
+
   if (mode === 'thumbnailOnly' && backgroundImageUrl) {
     return (
       <div
@@ -108,7 +125,7 @@ export const BeatMeOgLayout = ({
             {headline}
           </div>
         )}
-        {score && (
+        {scoreValue != null && (
           <div
             style={{
               fontSize: 96,
@@ -119,10 +136,10 @@ export const BeatMeOgLayout = ({
               textShadow: '0 2px 16px rgba(0,0,0,0.9)',
             }}
           >
-            {Number(score).toLocaleString()} pts
+            {scoreValue.toLocaleString()} pts
           </div>
         )}
-        {rank && (
+        {rankValue != null && (
           <div
             style={{
               fontSize: 32,
@@ -131,7 +148,7 @@ export const BeatMeOgLayout = ({
               textShadow: '0 2px 8px rgba(0,0,0,0.8)',
             }}
           >
-            Rank #{rank} this week
+            Rank #{rankValue} this week
           </div>
         )}
         <div
