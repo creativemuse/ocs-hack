@@ -1,81 +1,150 @@
 import type { ReactElement } from 'react';
 
+export type BeatMeOgMode = 'thumbnailOnly' | 'scoreOverlay';
+
 export type BeatMeOgOptions = {
-  headline: string;
+  mode?: BeatMeOgMode;
+  backgroundImageUrl?: string;
+  headline?: string;
   subline?: string;
   score?: string;
   rank?: string;
 };
 
+const OG_WIDTH = 1200;
+const OG_HEIGHT = 630;
+
 export const BeatMeOgLayout = ({
+  mode = 'scoreOverlay',
+  backgroundImageUrl,
   headline,
   subline = 'Name the tune, win a reward.',
   score,
   rank,
-}: BeatMeOgOptions): ReactElement => (
-  <div
-    style={{
-      width: '100%',
-      height: '100%',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      background: 'linear-gradient(135deg, #0a0014 0%, #1a0533 40%, #2d0a4e 100%)',
-      color: '#ffffff',
-      fontFamily: 'system-ui, sans-serif',
-      padding: '48px',
-    }}
-  >
-    <div
-      style={{
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        border: '3px solid #a855f7',
-        borderRadius: '32px',
-        padding: '56px 72px',
-        background: 'rgba(0,0,0,0.45)',
-        maxWidth: '1000px',
-        width: '100%',
-      }}
-    >
+}: BeatMeOgOptions): ReactElement => {
+  if (mode === 'thumbnailOnly' && backgroundImageUrl) {
+    return (
       <div
         style={{
-          fontSize: 72,
-          fontWeight: 800,
-          letterSpacing: '0.08em',
-          marginBottom: 16,
-          background: 'linear-gradient(90deg, #c084fc, #f472b6)',
-          backgroundClip: 'text',
-          color: 'transparent',
+          width: '100%',
+          height: '100%',
+          display: 'flex',
+          position: 'relative',
         }}
       >
-        BEAT ME
+        <img
+          src={backgroundImageUrl}
+          alt=""
+          width={OG_WIDTH}
+          height={OG_HEIGHT}
+          style={{
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
       </div>
-      <div style={{ fontSize: 44, fontWeight: 700, textAlign: 'center', marginBottom: 12 }}>
-        {headline}
-      </div>
-      {score && (
+    );
+  }
+
+  return (
+    <div
+      style={{
+        width: '100%',
+        height: '100%',
+        display: 'flex',
+        position: 'relative',
+      }}
+    >
+      {backgroundImageUrl && (
+        <img
+          src={backgroundImageUrl}
+          alt=""
+          width={OG_WIDTH}
+          height={OG_HEIGHT}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            width: '100%',
+            height: '100%',
+            objectFit: 'cover',
+          }}
+        />
+      )}
+      <div
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          background: 'linear-gradient(180deg, rgba(0,0,0,0.15) 0%, rgba(0,0,0,0.75) 100%)',
+        }}
+      />
+      <div
+        style={{
+          position: 'relative',
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'flex-end',
+          padding: '48px 56px',
+          color: '#ffffff',
+          fontFamily: 'system-ui, sans-serif',
+        }}
+      >
+        {headline && (
+          <div
+            style={{
+              fontSize: 44,
+              fontWeight: 700,
+              textAlign: 'center',
+              marginBottom: 12,
+              textShadow: '0 2px 12px rgba(0,0,0,0.8)',
+            }}
+          >
+            {headline}
+          </div>
+        )}
+        {score && (
+          <div
+            style={{
+              fontSize: 96,
+              fontWeight: 900,
+              color: '#fbbf24',
+              marginBottom: 12,
+              lineHeight: 1,
+              textShadow: '0 2px 16px rgba(0,0,0,0.9)',
+            }}
+          >
+            {Number(score).toLocaleString()} pts
+          </div>
+        )}
+        {rank && (
+          <div
+            style={{
+              fontSize: 32,
+              color: '#c4b5fd',
+              marginBottom: 12,
+              textShadow: '0 2px 8px rgba(0,0,0,0.8)',
+            }}
+          >
+            Rank #{rank} this week
+          </div>
+        )}
         <div
           style={{
-            fontSize: 96,
-            fontWeight: 900,
-            color: '#fbbf24',
-            marginBottom: 12,
-            lineHeight: 1,
+            fontSize: 28,
+            color: '#e5e7eb',
+            textAlign: 'center',
+            textShadow: '0 2px 8px rgba(0,0,0,0.8)',
           }}
         >
-          {Number(score).toLocaleString()} pts
+          {subline}
         </div>
-      )}
-      {rank && (
-        <div style={{ fontSize: 32, color: '#c4b5fd', marginBottom: 12 }}>
-          Rank #{rank} this week
-        </div>
-      )}
-      <div style={{ fontSize: 28, color: '#d1d5db', textAlign: 'center' }}>{subline}</div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
