@@ -80,18 +80,9 @@ export async function POST(req: NextRequest) {
     await spacetimeClient.ensurePlayerDataReady();
 
     if (spacetimeClient.isConfigured()) {
-      const existing = spacetimeClient.getPlayerProfile(normalizedWallet);
-      const totalScore = (existing?.totalScore ?? 0) + authoritativeScore;
-      const gamesPlayed = (existing?.gamesPlayed ?? 0) + 1;
-      const bestScore = Math.max(existing?.bestScore ?? 0, authoritativeScore);
-      const totalEarnings = existing?.totalEarnings ?? 0;
-
-      await spacetimeClient.updatePlayerStats(
+      await spacetimeClient.recordPaidGameScore(
         normalizedWallet,
-        totalScore,
-        gamesPlayed,
-        bestScore,
-        totalEarnings,
+        authoritativeScore,
         displayUsername,
       );
       spacetimeUpdated = true;
@@ -111,15 +102,19 @@ export async function POST(req: NextRequest) {
 
     if (!onChainResult.ok) {
       console.warn('On-chain score submission failed:', onChainResult.error);
-      return NextResponse.json({
-        success: true,
-        authoritativeScore,
-        onChainSessionId: finalized.onChainSessionId,
-        spacetimeUpdated,
-        onChainSubmitted: false,
-        onChainError: onChainResult.error,
-        warning: 'Score saved but on-chain leaderboard update failed. Your score may not appear until retried.',
-      });
+      return NextResponse.json(
+        {
+          success: true,
+          authoritativeScore,
+          onChainSessionId: finalized.onChainSessionId,
+          spacetimeUpdated,
+          onChainSubmitted: false,
+          onChainError: onChainResult.error,
+          warning:
+            'Score saved but the weekly leaderboard update failed. Your score may not appear until retried.',
+        },
+        { status: 202 },
+      );
     }
 
     return NextResponse.json({

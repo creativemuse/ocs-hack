@@ -16,38 +16,57 @@ export interface WeeklyLeaderboardEntry {
   sessionCounter: number;
 }
 
-async function rpcCall(method: string, params: unknown[]): Promise<string> {
+type JsonRpcResponse = {
+  id: number;
+  result?: string;
+  error?: { message: string };
+};
+
+/** Batch multiple eth_call requests into a single HTTP round-trip. */
+const rpcBatchEthCall = async (callData: `0x${string}`[]): Promise<string[]> => {
+  if (callData.length === 0) return [];
+
+  const payload = callData.map((data, index) => ({
+    jsonrpc: '2.0',
+    id: index + 1,
+    method: 'eth_call',
+    params: [{ to: TRIVIA_CONTRACT_ADDRESS, data }, 'latest'],
+  }));
+
   const res = await fetch(BASE_RPC_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    body: JSON.stringify(payload),
   });
-  const json = await res.json();
-  if (json.error) throw new Error(json.error.message);
-  return json.result;
-}
+  const json = (await res.json()) as JsonRpcResponse[];
+  const sorted = [...json].sort((a, b) => a.id - b.id);
 
-const ethCall = (data: `0x${string}`): Promise<string> =>
-  rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data }, 'latest']);
+  return sorted.map((item, index) => {
+    if (item.error) {
+      throw new Error(item.error.message || `RPC batch call ${index + 1} failed`);
+    }
+    return item.result ?? '0x';
+  });
+};
 
 const fetchWeeklyScoresFromChain = async (): Promise<{
   sessionCounter: number;
   entries: WeeklyLeaderboardEntry[];
 }> => {
-  const sessionCounterRaw = await ethCall(
-    encodeFunctionData({
-      abi: TRIVIA_ABI,
-      functionName: 'sessionCounter',
-    }),
-  );
-  const sessionCounter = Number(BigInt(sessionCounterRaw));
+  const sessionCounterData = encodeFunctionData({
+    abi: TRIVIA_ABI,
+    functionName: 'sessionCounter',
+  });
+  const playersListData = encodeFunctionData({
+    abi: TRIVIA_ABI,
+    functionName: 'getCurrentPlayers',
+  });
 
-  const playersRaw = await ethCall(
-    encodeFunctionData({
-      abi: TRIVIA_ABI,
-      functionName: 'getCurrentPlayers',
-    }),
-  );
+  const [sessionCounterRaw, playersRaw] = await rpcBatchEthCall([
+    sessionCounterData,
+    playersListData,
+  ]);
+  const sessionCounter = Number(BigInt(sessionCounterRaw));
 
   let players: `0x${string}`[] = [];
   if (playersRaw && playersRaw !== '0x') {
@@ -58,25 +77,26 @@ const fetchWeeklyScoresFromChain = async (): Promise<{
     }) as `0x${string}`[];
   }
 
-  const scoreResults = await Promise.all(
-    players.map(async (player) => {
-      const scoreRaw = await ethCall(
-        encodeFunctionData({
-          abi: TRIVIA_ABI,
-          functionName: 'getPlayerScore',
-          args: [player],
-        }),
-      );
-      const score = Number(BigInt(scoreRaw));
-      return {
-        walletAddress: player.toLowerCase(),
-        bestScore: score,
-        sessionCounter,
-      };
+  if (players.length === 0) {
+    return { sessionCounter, entries: [] };
+  }
+
+  const scoreCallData = players.map((player) =>
+    encodeFunctionData({
+      abi: TRIVIA_ABI,
+      functionName: 'getPlayerScore',
+      args: [player],
     }),
   );
 
-  const entries = scoreResults
+  const scoreRaws = await rpcBatchEthCall(scoreCallData);
+
+  const entries = players
+    .map((player, index) => ({
+      walletAddress: player.toLowerCase(),
+      bestScore: Number(BigInt(scoreRaws[index] ?? '0x0')),
+      sessionCounter,
+    }))
     .filter((entry) => entry.bestScore > 0)
     .sort((a, b) => b.bestScore - a.bestScore);
 

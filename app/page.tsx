@@ -77,6 +77,9 @@ function HomePage() {
   const timerTriggeredRef = useRef(false);
   const lastGameWasPaidRef = useRef(false);
   const paidScoreSavedRef = useRef(false);
+  const countdownStartedAtRef = useRef<number | null>(null);
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   // Add trial status hook
   const { address } = useBaseAccount();
   const { data: basename } = useBasename(address ?? undefined);
@@ -160,6 +163,14 @@ function HomePage() {
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
+        if (data.onChainSubmitted === false) {
+          setPaidScoreWarning(
+            data.warning ??
+              'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
+          );
+        } else {
+          setPaidScoreWarning(null);
+        }
         refreshContractUsdcBalance();
         refreshWeeklyLeaderboard();
       } catch (e) {
@@ -180,6 +191,8 @@ function HomePage() {
     setGameTimeRemaining(10);
     setAudioError(false);
     timerTriggeredRef.current = false;
+    countdownStartedAtRef.current = null;
+    setIsCountdownActive(false);
 
     try {
       const params = new URLSearchParams({
@@ -398,7 +411,17 @@ function HomePage() {
     loadRandomQuestion();
   };
 
+  const startQuestionCountdown = useCallback(() => {
+    if (countdownStartedAtRef.current !== null) return;
+    countdownStartedAtRef.current = Date.now();
+    setIsCountdownActive(true);
+  }, []);
+
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
+    if (currentTime > 0) {
+      startQuestionCountdown();
+    }
+
     const audioRemaining = Math.max(0, duration - currentTime);
     const maxTime = 10;
     const remaining = Math.min(audioRemaining, maxTime);
@@ -410,14 +433,29 @@ function HomePage() {
       }
       return prev;
     });
-  }, []);
+  }, [startQuestionCountdown]);
 
-  // Wall-clock countdown — runs even when audio fails to load or play
+  const handleAudioPlay = useCallback(() => {
+    startQuestionCountdown();
+  }, [startQuestionCountdown]);
+
+  // Start countdown when audio begins; fallback if buffering fails
   useEffect(() => {
-    if (!currentQuestion || isAnswered || gameLoading) return;
+    if (!currentQuestion || isAnswered || gameLoading || isCountdownActive) return;
+
+    const fallbackTimer = setTimeout(() => {
+      startQuestionCountdown();
+    }, 5000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [currentQuestion, isAnswered, gameLoading, isCountdownActive, startQuestionCountdown]);
+
+  // Wall-clock countdown after audio starts (or fallback fires)
+  useEffect(() => {
+    if (!isCountdownActive || !currentQuestion || isAnswered || gameLoading) return;
 
     const clipMs = 10000;
-    const startedAt = Date.now();
+    const startedAt = countdownStartedAtRef.current ?? Date.now();
 
     const tick = () => {
       const elapsed = Date.now() - startedAt;
@@ -429,7 +467,7 @@ function HomePage() {
     tick();
     const interval = setInterval(tick, 100);
     return () => clearInterval(interval);
-  }, [currentQuestion, isAnswered, gameLoading]);
+  }, [isCountdownActive, currentQuestion, isAnswered, gameLoading]);
 
   const handleAudioError = () => {
     setAudioError(true);
@@ -751,6 +789,15 @@ function HomePage() {
                 </div>
               )}
 
+              {!completedAsTrial && paidScoreWarning && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6">
+                  <div className="text-amber-300 text-sm">
+                    <p className="font-medium mb-2">Leaderboard update pending</p>
+                    <p className="text-amber-200/80">{paidScoreWarning}</p>
+                  </div>
+                </div>
+              )}
+
               {/* High Score Display with Reward Claiming */}
               <div className="mb-6">
                 <HighScoreDisplay
@@ -764,7 +811,7 @@ function HomePage() {
               </div>
 
               {/* Paid Player Success */}
-              {!completedAsTrial && (
+              {!completedAsTrial && !paidScoreWarning && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
                   <div className="text-green-300 text-sm">
                     <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
@@ -894,6 +941,7 @@ function HomePage() {
                 autoPlay={true}
                 clipDurationSeconds={10}
                 onTimeUpdate={handleAudioTimeUpdate}
+                onPlay={handleAudioPlay}
                 onError={handleAudioError}
                 className="bg-transparent border-0 shadow-none"
               />

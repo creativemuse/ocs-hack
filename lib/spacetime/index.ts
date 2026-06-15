@@ -53,6 +53,7 @@ import LeaveMultiplayerPoolReducer from "./leave_multiplayer_pool_reducer";
 import LinkWalletToIdentityReducer from "./link_wallet_to_identity_reducer";
 import MarkEntryConsumedReducer from "./mark_entry_consumed_reducer";
 import RecordGuestGameReducer from "./record_guest_game_reducer";
+import RecordPaidGameScoreReducer from "./record_paid_game_score_reducer";
 import RecordPrizeDistributionReducer from "./record_prize_distribution_reducer";
 import RecordQuestionAttemptReducer from "./record_question_attempt_reducer";
 import RevokeAdminPrivilegesReducer from "./revoke_admin_privileges_reducer";
@@ -344,6 +345,7 @@ const reducersSchema = __reducers(
   __reducerSchema("link_wallet_to_identity", LinkWalletToIdentityReducer),
   __reducerSchema("mark_entry_consumed", MarkEntryConsumedReducer),
   __reducerSchema("record_guest_game", RecordGuestGameReducer),
+  __reducerSchema("record_paid_game_score", RecordPaidGameScoreReducer),
   __reducerSchema("record_prize_distribution", RecordPrizeDistributionReducer),
   __reducerSchema("record_question_attempt", RecordQuestionAttemptReducer),
   __reducerSchema("revoke_admin_privileges", RevokeAdminPrivilegesReducer),

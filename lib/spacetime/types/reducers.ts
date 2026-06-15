@@ -27,6 +27,7 @@ import LeaveMultiplayerPoolReducer from "../leave_multiplayer_pool_reducer";
 import LinkWalletToIdentityReducer from "../link_wallet_to_identity_reducer";
 import MarkEntryConsumedReducer from "../mark_entry_consumed_reducer";
 import RecordGuestGameReducer from "../record_guest_game_reducer";
+import RecordPaidGameScoreReducer from "../record_paid_game_score_reducer";
 import RecordPrizeDistributionReducer from "../record_prize_distribution_reducer";
 import RecordQuestionAttemptReducer from "../record_question_attempt_reducer";
 import RevokeAdminPrivilegesReducer from "../revoke_admin_privileges_reducer";
@@ -59,6 +60,7 @@ export type LeaveMultiplayerPoolParams = __Infer<typeof LeaveMultiplayerPoolRedu
 export type LinkWalletToIdentityParams = __Infer<typeof LinkWalletToIdentityReducer>;
 export type MarkEntryConsumedParams = __Infer<typeof MarkEntryConsumedReducer>;
 export type RecordGuestGameParams = __Infer<typeof RecordGuestGameReducer>;
+export type RecordPaidGameScoreParams = __Infer<typeof RecordPaidGameScoreReducer>;
 export type RecordPrizeDistributionParams = __Infer<typeof RecordPrizeDistributionReducer>;
 export type RecordQuestionAttemptParams = __Infer<typeof RecordQuestionAttemptReducer>;
 export type RevokeAdminPrivilegesParams = __Infer<typeof RevokeAdminPrivilegesReducer>;

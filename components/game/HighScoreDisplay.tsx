@@ -76,7 +76,7 @@ export default function HighScoreDisplay({
       ...entries,
       {
         walletAddress: normalizedWallet,
-        username: playerName.includes('...') ? undefined : playerName,
+        username: playerName?.includes('...') ? undefined : playerName,
         bestScore: currentScore,
         sessionCounter: 0,
       },
