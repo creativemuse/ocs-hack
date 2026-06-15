@@ -138,7 +138,7 @@ function HomePage() {
     }
   }, [searchParams]);
 
-  // Persist paid run to Spacetime (TOP EARNERS / bestScore). Trial scores never call this.
+  // Persist paid run to Spacetime (weekly top scores). Trial scores never call this.
   useEffect(() => {
     if (!gameCompleted || !lastGameWasPaidRef.current || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
@@ -1298,10 +1298,10 @@ function HomePage() {
             </div>
           </div>
           
-          {/* Container for the TOP EARNERS section */}
+          {/* Container for the weekly top scores section */}
           <div className="flex flex-col items-center w-full">
             <h2 className="text-white text-lg font-['Audiowide:Regular',_sans-serif] mb-1">
-              TOP EARNERS
+              TOP SCORES
             </h2>
             <p className="text-gray-400 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-3 text-center max-w-[328px]">
               Paid games only — resets each week after payout

@@ -13,5 +13,6 @@ import {
 export default {
   walletAddress: __t.string(),
   gameScore: __t.u32(),
+  onChainSessionId: __t.u64(),
   username: __t.option(__t.string()),
 };

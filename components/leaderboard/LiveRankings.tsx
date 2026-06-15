@@ -1,58 +1,58 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Medal, Award, TrendingUp, Clock, Target } from 'lucide-react';
+import { Trophy, Medal, Award, TrendingUp, Clock, Target, Loader2 } from 'lucide-react';
 import { BaseAvatar } from '@/components/identity/BaseAvatar';
 import { BaseName } from '@/components/identity/BaseName';
 import type { LeaderboardEntry } from '@/types/game';
 import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
+import { useLeaderboardLive } from '@/hooks/useLeaderboardLive';
 
 interface LiveRankingsProps {
-  entries: LeaderboardEntry[];
+  entries?: LeaderboardEntry[];
   currentPlayerAddress?: string;
   refreshInterval?: number;
+  limit?: number;
   className?: string;
 }
 
 export default function LiveRankings({
-  entries,
+  entries: entriesProp,
   currentPlayerAddress,
-  refreshInterval = 5000,
+  refreshInterval = 30000,
+  limit = 10,
   className = '',
 }: LiveRankingsProps) {
-  const [displayEntries, setDisplayEntries] = useState<LeaderboardEntry[]>([]);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const {
+    leaderboardEntries: liveEntries,
+    sessionCounter,
+    isLoading,
+    refresh,
+  } = useLeaderboardLive(limit, { type: 'paid' });
+
   const { user: currentUserProfile } = useMiniAppProfile();
 
   useEffect(() => {
-    // Filter for paid players only, sort by total score in descending order, take top 10
-    const paidPlayersOnly = entries.filter(entry => !entry.isTrialPlayer);
-    const sortedEntries = paidPlayersOnly
+    if (!refreshInterval || entriesProp) return;
+    const interval = setInterval(() => {
+      void refresh();
+    }, refreshInterval);
+    return () => clearInterval(interval);
+  }, [refreshInterval, refresh, entriesProp]);
+
+  const displayEntries = useMemo(() => {
+    const source = entriesProp ?? liveEntries;
+    return source
+      .filter((entry) => !entry.isTrialPlayer)
       .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 10) // Top 10 only
+      .slice(0, limit)
       .map((entry, index) => ({
         ...entry,
-        rank: index + 1 // Reassign ranks based on sorted position
+        rank: index + 1,
       }));
-    
-    setDisplayEntries(sortedEntries);
-  }, [entries]);
-
-  useEffect(() => {
-    if (!refreshInterval) return;
-
-    const interval = setInterval(() => {
-      setIsUpdating(true);
-      // Simulate real-time updates - in production this would fetch from server
-      setTimeout(() => {
-        setIsUpdating(false);
-      }, 500);
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, [entriesProp, liveEntries, limit]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -110,13 +110,15 @@ export default function LiveRankings({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-6 w-6 text-blue-500" />
-            <span>Top 10 Leaderboard</span>
+            <span>Top {limit} Leaderboard</span>
           </div>
-          {isUpdating && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span>Updating...</span>
-            </div>
+          {sessionCounter > 0 && (
+            <span className="text-xs text-gray-500 font-normal">
+              Week {sessionCounter}
+            </span>
+          )}
+          {isLoading && !entriesProp && (
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
         </CardTitle>
       </CardHeader>

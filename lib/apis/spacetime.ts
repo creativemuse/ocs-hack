@@ -458,17 +458,24 @@ class SpacetimeDBClient {
   async recordPaidGameScore(
     walletAddress: string,
     gameScore: number,
+    onChainSessionId: number | string,
     username?: string,
   ): Promise<void> {
     if (!this.connection) return;
+
+    const sessionId =
+      typeof onChainSessionId === 'string'
+        ? BigInt(onChainSessionId || '0')
+        : BigInt(onChainSessionId);
 
     try {
       await this.connection.reducers.recordPaidGameScore({
         walletAddress,
         gameScore,
+        onChainSessionId: sessionId,
         username: username ?? undefined,
       });
-      console.log(`✅ Recorded paid game score: ${walletAddress} (+${gameScore})`);
+      console.log(`✅ Recorded paid game score: ${walletAddress} (+${gameScore}) session ${sessionId}`);
     } catch (error) {
       console.error('❌ Failed to record paid game score:', error);
       throw error;
@@ -718,6 +725,18 @@ class SpacetimeDBClient {
         gamesPlayed: p.gamesPlayed,
         bestScore: p.bestScore,
       }));
+  }
+
+  /** Paid weekly leaderboard rows from local Spacetime cache (no chain merge). */
+  getWeeklyPlayersFromCache(sessionCounter: number, limit: number = 10): Player[] {
+    if (!this.connection) return [];
+    const sessionId = BigInt(sessionCounter);
+    return (Array.from(this.connection.db.players.iter()) as Player[])
+      .filter(
+        (p) => p.weeklySessionId === sessionId && p.weeklyBestScore > 0,
+      )
+      .sort((a, b) => b.weeklyBestScore - a.weeklyBestScore)
+      .slice(0, limit);
   }
 
   // ============================================================================

@@ -25,6 +25,55 @@ export type SubmitOnChainScoreResult =
   | { ok: true; transactionHash: `0x${string}`; sessionCounter: bigint }
   | { ok: false; error: string };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const isRetryableOnChainError = (error: string): boolean => {
+  const lower = error.toLowerCase();
+  return (
+    lower.includes('timeout') ||
+    lower.includes('rate limit') ||
+    lower.includes('network') ||
+    lower.includes('econnreset') ||
+    lower.includes('nonce') ||
+    lower.includes('replacement transaction underpriced')
+  );
+};
+
+/**
+ * Submit with one retry (~2s) on transient RPC / nonce failures.
+ */
+export async function submitOnChainScoreWithRetry(
+  walletAddress: string,
+  score: number,
+  expectedSessionId?: string,
+): Promise<SubmitOnChainScoreResult> {
+  const first = await submitOnChainScore(walletAddress, score, expectedSessionId);
+  if (first.ok || !isRetryableOnChainError(first.error)) {
+    if (!first.ok) {
+      console.warn('[submitOnChainScore] failed', {
+        walletAddress,
+        score,
+        expectedSessionId,
+        error: first.error,
+      });
+    }
+    return first;
+  }
+
+  console.warn('[submitOnChainScore] retrying after transient error:', first.error);
+  await sleep(2000);
+  const second = await submitOnChainScore(walletAddress, score, expectedSessionId);
+  if (!second.ok) {
+    console.warn('[submitOnChainScore] retry failed', {
+      walletAddress,
+      score,
+      expectedSessionId,
+      error: second.error,
+    });
+  }
+  return second;
+}
+
 /**
  * Submit a player's latest score for the active on-chain session via owner wallet.
  */

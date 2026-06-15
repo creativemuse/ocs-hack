@@ -184,6 +184,8 @@ export const Player = __t.object("Player", {
   trialGamesRemaining: __t.u32(),
   trialCompleted: __t.bool(),
   walletConnected: __t.bool(),
+  weeklySessionId: __t.u64(),
+  weeklyBestScore: __t.u32(),
   createdAt: __t.timestamp(),
   updatedAt: __t.timestamp(),
 });

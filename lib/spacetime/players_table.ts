@@ -21,6 +21,8 @@ export default __t.row({
   trialGamesRemaining: __t.u32().name("trial_games_remaining"),
   trialCompleted: __t.bool().name("trial_completed"),
   walletConnected: __t.bool().name("wallet_connected"),
+  weeklySessionId: __t.u64().name("weekly_session_id"),
+  weeklyBestScore: __t.u32().name("weekly_best_score"),
   createdAt: __t.timestamp().name("created_at"),
   updatedAt: __t.timestamp().name("updated_at"),
 });
