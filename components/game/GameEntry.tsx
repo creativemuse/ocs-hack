@@ -29,6 +29,11 @@ import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 import { base } from 'viem/chains';
 import type { GameStartOptions, PlayerModeChoice } from '@/types/game';
 import type { BaseAccountTxStatusExtras } from '@/components/base-account/BaseAccountTransaction';
+import {
+  savePendingPaidEntry,
+  loadPendingPaidEntry,
+  type PendingPaidEntry,
+} from '@/lib/game/pendingPaidEntry';
 
 interface GameEntryProps {
   onGameStart: (options: GameStartOptions) => void | Promise<void>;
@@ -41,6 +46,8 @@ interface GameEntryProps {
   sessionBusy?: boolean;
   /** seconds remaining in the active round (from server) */
   sessionTimeRemaining?: number;
+  /** Parent shows full-screen overlay while verifying payment + joining */
+  isJoiningAfterPayment?: boolean;
 }
 
 export default function GameEntry({
@@ -52,6 +59,7 @@ export default function GameEntry({
   onDismissJoinStartError,
   sessionBusy = false,
   sessionTimeRemaining = 0,
+  isJoiningAfterPayment = false,
 }: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
@@ -77,6 +85,11 @@ export default function GameEntry({
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
   const generatingAddressRef = useRef<string | null>(null);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
+  const [pendingPaidEntry, setPendingPaidEntry] = useState<PendingPaidEntry | null>(null);
+
+  useEffect(() => {
+    setPendingPaidEntry(loadPendingPaidEntry(address));
+  }, [address, joinStartError]);
 
   // Local countdown timer that ticks every second from the server-provided value
   const [localCountdown, setLocalCountdown] = useState(sessionTimeRemaining);
@@ -157,14 +170,32 @@ export default function GameEntry({
     
     if (status === 'success') {
       console.log('Paid game transaction successful!');
+      const paidTxHash = extras?.lastTxHash;
+      if (!paidTxHash) {
+        setError('Payment succeeded but no transaction hash was returned. Check your wallet activity and use Continue paid game.');
+        setIsProcessingPayment(false);
+        setAwaitingWalletOpen(true);
+        setIsStartingGame(false);
+        return;
+      }
+
+      if (address) {
+        savePendingPaidEntry({
+          paidTxHash,
+          playerMode: playerModeChoice,
+          walletAddress: address,
+          walletUniversalAddress: universalAddress ?? undefined,
+        });
+        setPendingPaidEntry(loadPendingPaidEntry(address));
+      }
+
       setIsProcessingPayment(false);
       setAwaitingWalletOpen(false);
-      setIsStartingGame(false);
       setTransactionError(null);
       setError(null);
       void onGameStart({
         isTrial: false,
-        paidTxHash: extras?.lastTxHash,
+        paidTxHash,
         playerMode: playerModeChoice,
         walletUniversalAddress: universalAddress ?? undefined,
       });
@@ -412,13 +443,22 @@ export default function GameEntry({
   };
 
   const handlePaymentSuccess = () => {
-    setError(null);
+    setError(
+      'USDC added to your wallet. Tap Start paid game to approve and join on-chain (one wallet confirmation).'
+    );
     setShowPayment(false);
-    // USDC onramp only — no joinBattle hash; server may reject paid verification until user completes on-chain join.
+  };
+
+  const handleContinuePendingPaid = () => {
+    const pending = pendingPaidEntry ?? loadPendingPaidEntry(address);
+    if (!pending?.paidTxHash) return;
+    setError(null);
+    onDismissJoinStartError?.();
     void onGameStart({
       isTrial: false,
-      playerMode: playerModeChoice,
-      walletUniversalAddress: universalAddress ?? undefined,
+      paidTxHash: pending.paidTxHash,
+      playerMode: pending.playerMode,
+      walletUniversalAddress: pending.walletUniversalAddress,
     });
   };
 
@@ -523,22 +563,57 @@ export default function GameEntry({
 
       {joinStartError ? (
         <div
-          className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-3 text-sm text-red-200"
-          role="alert"
+          className="rounded-lg border border-red-500/60 bg-red-950/60 px-4 py-4 text-sm text-red-100 shadow-lg"
+          role="alertdialog"
+          aria-labelledby="join-error-title"
         >
-          <div className="flex items-start justify-between gap-2">
-            <span>{joinStartError}</span>
-            {onDismissJoinStartError ? (
-              <button
+          <p id="join-error-title" className="font-semibold text-red-50 mb-1">
+            Payment received — game did not start
+          </p>
+          <p className="mb-3">{joinStartError}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {(pendingPaidEntry ?? loadPendingPaidEntry(address)) ? (
+              <Button
                 type="button"
+                onClick={handleContinuePendingPaid}
+                className="bg-amber-500 hover:bg-amber-400 text-black"
+                aria-label="Retry starting game with your existing payment"
+              >
+                Retry with same payment
+              </Button>
+            ) : null}
+            {onDismissJoinStartError ? (
+              <Button
+                type="button"
+                variant="outline"
                 onClick={onDismissJoinStartError}
-                className="shrink-0 text-red-300 underline text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"
+                className="border-red-400/50 text-red-100"
                 aria-label="Dismiss error"
               >
                 Dismiss
-              </button>
+              </Button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {pendingPaidEntry && !joinStartError && !isJoiningAfterPayment ? (
+        <div
+          className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-100"
+          role="status"
+        >
+          <p className="font-medium text-amber-50">You have a paid entry waiting</p>
+          <p className="text-xs text-amber-200/80 mt-1 mb-3">
+            Your USDC payment is on-chain. Continue without paying again.
+          </p>
+          <Button
+            type="button"
+            onClick={handleContinuePendingPaid}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-black"
+            aria-label="Continue paid game without paying again"
+          >
+            Continue paid game
+          </Button>
         </div>
       ) : null}
 
@@ -858,6 +933,23 @@ export default function GameEntry({
           )}
         </CardContent>
       </Card>
+
+      {isJoiningAfterPayment ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+          role="status"
+          aria-live="polite"
+          aria-label="Starting game after payment"
+        >
+          <div className="max-w-sm rounded-xl border border-amber-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl">
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400 mb-4" aria-hidden />
+            <p className="text-lg font-semibold text-white">Starting your game</p>
+            <p className="mt-2 text-sm text-zinc-300">
+              Confirming payment on-chain and joining the session…
+            </p>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

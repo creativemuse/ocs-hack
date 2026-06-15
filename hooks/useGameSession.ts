@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useBaseAccount } from './useBaseAccount';
 import type { PlayerModeChoice } from '@/types/game';
+import { retryWithBackoff } from '@/lib/game/retryWithBackoff';
+import { clearPendingPaidEntry } from '@/lib/game/pendingPaidEntry';
 
 export interface GameSessionPlayer {
   id: string;
@@ -137,7 +139,7 @@ export const useGameSession = (): UseGameSessionReturn => {
       }
 
       if (isPaidPlayer && !transactionHash) {
-        console.warn('⚠️ Paid game started without transaction hash - this may cause issues');
+        throw new Error('Payment transaction hash missing. Please retry or use Continue paid game.');
       }
 
       const currentPlayerId = playerId || `player_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -145,31 +147,48 @@ export const useGameSession = (): UseGameSessionReturn => {
         setPlayerId(currentPlayerId);
       }
 
-      const sessionId = (await (await fetch('/api/game-session')).json()).session.session_id as string;
-
-      const entryResp = await fetch('/api/game-entry', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sessionId,
-          isTrial: !isPaidPlayer,
-          walletAddress: isPaidPlayer ? address : undefined,
-          paidTxHash: isPaidPlayer ? transactionHash : undefined,
-          walletUniversalAddress:
-            isPaidPlayer && options?.walletUniversalAddress
-              ? options.walletUniversalAddress
-              : undefined,
-        }),
-      });
-
-      if (!entryResp.ok) {
-        let msg = 'Entry not allowed';
-        try {
-          const err = await entryResp.json();
-          msg = (err as { error?: string }).error || msg;
-        } catch {}
-        throw new Error(msg);
+      const modeParam = options?.playerMode ?? (isPaidPlayer ? 'paid_solo' : 'trial');
+      const sessionResp = await fetch(
+        `/api/game-session?mode=${encodeURIComponent(modeParam)}`
+      );
+      if (!sessionResp.ok) {
+        throw new Error(`Failed to fetch game session: ${sessionResp.statusText}`);
       }
+      const sessionData = await sessionResp.json();
+      const sessionId = sessionData?.session?.session_id as string | undefined;
+      if (!sessionId) {
+        throw new Error('No active game session found');
+      }
+
+      const entryResp = await retryWithBackoff(async () => {
+        const resp = await fetch('/api/game-entry', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sessionId,
+            isTrial: !isPaidPlayer,
+            walletAddress: isPaidPlayer ? address : undefined,
+            paidTxHash: isPaidPlayer ? transactionHash : undefined,
+            walletUniversalAddress:
+              isPaidPlayer && options?.walletUniversalAddress
+                ? options.walletUniversalAddress
+                : undefined,
+          }),
+        });
+
+        if (!resp.ok) {
+          let msg = 'Entry not allowed';
+          try {
+            const err = await resp.json();
+            msg = (err as { error?: string }).error || msg;
+          } catch {
+            /* ignore */
+          }
+          throw new Error(msg);
+        }
+
+        return resp;
+      });
 
       const { entryId, token, onChainSessionId } = await entryResp.json();
 
@@ -220,6 +239,7 @@ export const useGameSession = (): UseGameSessionReturn => {
       const data = (await response.json()) as Record<string, unknown>;
       applySessionPayload(data);
       saveEntryToken(token as string);
+      clearPendingPaidEntry();
       return data;
     },
     [playerId, address, applySessionPayload, saveEntryToken]

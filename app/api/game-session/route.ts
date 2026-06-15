@@ -187,6 +187,37 @@ export async function POST(req: NextRequest) {
       }
 
       if (!useMemoryLobbyForPaidMultiplayer) {
+        if (!token) {
+          console.error('No entry token provided');
+          return NextResponse.json({ error: 'Entry token required' }, { status: 401 });
+        }
+
+        const validation = validatePlayerAccess(token);
+        if (!validation.isValid) {
+          return NextResponse.json(
+            { error: validation.error || 'Invalid or expired entry token' },
+            { status: 401 }
+          );
+        }
+
+        const playerInfo = validation.playerInfo!;
+
+        if (playerInfo.entryId !== entryId) {
+          return NextResponse.json({ error: 'Entry ID mismatch' }, { status: 401 });
+        }
+
+        const actualIsPaidPlayer = playerInfo.playerType === 'paid';
+
+        const mode: JoinPlayerMode = actualIsPaidPlayer
+          ? playerMode === 'paid_multiplayer'
+            ? 'paid_multiplayer'
+            : 'paid_solo'
+          : 'trial';
+
+        if (!playerId || typeof playerId !== 'string') {
+          return NextResponse.json({ error: 'Player ID required' }, { status: 400 });
+        }
+
         try {
           await spacetimeClient.initialize();
 
@@ -209,71 +240,46 @@ export async function POST(req: NextRequest) {
         } catch {
           console.warn('⚠️ SpacetimeDB initialization failed, using memory fallback');
         }
-      }
 
-      if (!token) {
-        console.error('No entry token provided');
-        return NextResponse.json({ error: 'Entry token required' }, { status: 401 });
-      }
+        let s;
+        try {
+          s = memJoin(actualIsPaidPlayer, playerId, {
+            playerMode: mode,
+            lobbyDurationSec: typeof lobbyDurationSec === 'number' ? lobbyDurationSec : undefined,
+            walletAddress: playerInfo.walletAddress || undefined,
+          });
+        } catch (e) {
+          const msg = e instanceof Error ? e.message : 'Cannot join session';
+          return NextResponse.json({ error: msg }, { status: 409 });
+        }
 
-      const validation = validatePlayerAccess(token);
-      if (!validation.isValid) {
-        return NextResponse.json(
-          { error: validation.error || 'Invalid or expired entry token' },
-          { status: 401 }
-        );
-      }
+        reconcileLobbyToActive();
+        const timeRemaining = memTime(s);
+        const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
+        const inLobby = s.status === 'lobby';
+        const isFirstPaidPlayer =
+          actualIsPaidPlayer && s.paid_player_count === 1 && (s.status === 'active' || s.status === 'lobby');
+        const waitingForPaidPlayer = s.paid_player_count === 0 && !inLobby;
 
-      const playerInfo = validation.playerInfo!;
+        const isWaiting = s.status === 'waiting';
+        const isLobbyOpen = inLobby && lobbyTimeRemaining > 0;
+        const isActiveWithTime = s.status === 'active' && s.paid_player_count > 0 && timeRemaining > 0;
+        const hasNoPaidPlayers = s.paid_player_count === 0;
+        const canJoin = isWaiting || isLobbyOpen || isActiveWithTime || hasNoPaidPlayers;
 
-      if (playerInfo.entryId !== entryId) {
-        return NextResponse.json({ error: 'Entry ID mismatch' }, { status: 401 });
-      }
-
-      const actualIsPaidPlayer = playerInfo.playerType === 'paid';
-
-      const mode: JoinPlayerMode = actualIsPaidPlayer
-        ? playerMode === 'paid_multiplayer'
-          ? 'paid_multiplayer'
-          : 'paid_solo'
-        : 'trial';
-
-      let s;
-      try {
-        s = memJoin(actualIsPaidPlayer, playerId, {
-          playerMode: mode,
-          lobbyDurationSec: typeof lobbyDurationSec === 'number' ? lobbyDurationSec : undefined,
-          walletAddress: playerInfo.walletAddress || undefined,
+        return NextResponse.json({
+          session: s,
+          timeRemaining,
+          lobbyTimeRemaining,
+          inLobby,
+          isFirstPaidPlayer,
+          waitingForPaidPlayer,
+          canJoin,
+          source: 'memory',
         });
-      } catch (e) {
-        const msg = e instanceof Error ? e.message : 'Cannot join session';
-        return NextResponse.json({ error: msg }, { status: 409 });
       }
 
-      reconcileLobbyToActive();
-      const timeRemaining = memTime(s);
-      const lobbyTimeRemaining = getLobbyTimeRemainingSeconds(s);
-      const inLobby = s.status === 'lobby';
-      const isFirstPaidPlayer =
-        actualIsPaidPlayer && s.paid_player_count === 1 && (s.status === 'active' || s.status === 'lobby');
-      const waitingForPaidPlayer = s.paid_player_count === 0 && !inLobby;
-
-      const isWaiting = s.status === 'waiting';
-      const isLobbyOpen = inLobby && lobbyTimeRemaining > 0;
-      const isActiveWithTime = s.status === 'active' && s.paid_player_count > 0 && timeRemaining > 0;
-      const hasNoPaidPlayers = s.paid_player_count === 0;
-      const canJoin = isWaiting || isLobbyOpen || isActiveWithTime || hasNoPaidPlayers;
-
-      return NextResponse.json({
-        session: s,
-        timeRemaining,
-        lobbyTimeRemaining,
-        inLobby,
-        isFirstPaidPlayer,
-        waitingForPaidPlayer,
-        canJoin,
-        source: 'memory',
-      });
+      return NextResponse.json({ error: 'Invalid join request' }, { status: 400 });
     }
 
     if (action === 'end_lobby') {
