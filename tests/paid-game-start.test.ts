@@ -137,4 +137,95 @@ describe('batchCalls status helpers', () => {
     const hash = await pollBatchCallsStatus(provider, 'calls-id-test');
     assert.equal(hash, '0x' + '2'.repeat(64));
   });
+
+  it('pollBatchCallsStatus accepts a single atomic receipt object', async () => {
+    const { pollBatchCallsStatus } = await import('../lib/base-account/batchCalls');
+
+    const provider = {
+      request: async ({ method }: { method: string }) => {
+        if (method === 'wallet_getCallsStatus') {
+          return {
+            status: 200,
+            atomic: true,
+            receipts: { transactionHash: '0x' + '3'.repeat(64), status: '0x1' },
+          };
+        }
+        throw new Error('unexpected');
+      },
+    };
+
+    const hash = await pollBatchCallsStatus(provider, 'calls-id-test');
+    assert.equal(hash, '0x' + '3'.repeat(64));
+  });
+
+  it('sendAtomicBatchCalls accepts object-shaped sendCalls ids', async () => {
+    const { sendAtomicBatchCalls } = await import('../lib/base-account/batchCalls');
+    const callsId = '0x' + '4'.repeat(64);
+    const txHash = '0x' + '5'.repeat(64);
+
+    const provider = {
+      request: async ({ method }: { method: string }) => {
+        if (method === 'wallet_sendCalls') {
+          return { batchId: callsId, status: 'pending' };
+        }
+        if (method === 'wallet_getCallsStatus') {
+          return {
+            status: 201,
+            atomic: true,
+            receipts: [{ transactionHash: txHash, status: '0x1' }],
+          };
+        }
+        throw new Error('unexpected');
+      },
+    };
+
+    const hash = await sendAtomicBatchCalls(
+      provider,
+      '0x1111111111111111111111111111111111111111',
+      [
+        {
+          to: '0x2222222222222222222222222222222222222222',
+          value: '0x0',
+          data: '0x',
+        },
+      ]
+    );
+    assert.equal(hash, txHash);
+  });
+
+  it('extractCallsId ignores unexpected response payloads', async () => {
+    const { extractCallsId } = await import('../lib/base-account/batchCalls');
+
+    assert.equal(extractCallsId(null), undefined);
+    assert.equal(extractCallsId(undefined), undefined);
+    assert.equal(extractCallsId(123 as never), undefined);
+    assert.equal(extractCallsId({ id: 123 }), undefined);
+    assert.equal(extractCallsId({ result: { callsId: '0xabc' } }), '0xabc');
+  });
+
+  it('pollBatchCallsStatus treats numeric string statuses correctly', async () => {
+    const { pollBatchCallsStatus } = await import('../lib/base-account/batchCalls');
+    const txHash = '0x' + '6'.repeat(64);
+    let calls = 0;
+
+    const provider = {
+      request: async ({ method }: { method: string }) => {
+        if (method === 'wallet_getCallsStatus') {
+          calls += 1;
+          if (calls === 1) {
+            return { status: '100' };
+          }
+          return {
+            status: '200',
+            atomic: true,
+            receipts: [{ transactionHash: txHash, status: '0x1' }],
+          };
+        }
+        throw new Error('unexpected');
+      },
+    };
+
+    const hash = await pollBatchCallsStatus(provider, 'calls-id-test');
+    assert.equal(hash, txHash);
+  });
 });

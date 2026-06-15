@@ -24,13 +24,31 @@ type CapabilitiesMap = Record<
 
 type CallsStatusResult = {
   status?: number | string;
-  receipts?: Array<{ transactionHash?: string }>;
+  receipts?: CallsStatusReceipt | CallsStatusReceipt[];
 };
 
 const BATCH_POLL_INTERVAL_MS = 2_000;
 const BATCH_POLL_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export type SendCallsResult =
+  | string
+  | {
+      id?: unknown;
+      batchId?: unknown;
+      callsId?: unknown;
+      result?: unknown;
+    }
+  | null
+  | undefined;
+
+type SendCallsObject = Exclude<SendCallsResult, string | null | undefined>;
+
+type CallsStatusReceipt = {
+  transactionHash?: string;
+  status?: string;
+};
 
 export const supportsAtomicBatch = async (
   provider: WalletProvider,
@@ -48,22 +66,89 @@ export const supportsAtomicBatch = async (
   }
 };
 
+const normalizeReceipts = (
+  receipts: CallsStatusResult['receipts']
+): CallsStatusReceipt[] => {
+  if (!receipts) return [];
+  return Array.isArray(receipts) ? receipts : [receipts];
+};
+
+export const extractCallsId = (result: SendCallsResult): string | undefined => {
+  if (!result) return undefined;
+  if (typeof result === 'string') return result;
+
+  if (typeof result !== 'object') return undefined;
+
+  const getStringValue = (
+    source: SendCallsObject | undefined,
+    key: keyof SendCallsObject
+  ): string | undefined => {
+    const value = source?.[key];
+    return typeof value === 'string' ? value : undefined;
+  };
+
+  if (typeof result.result === 'string') return result.result;
+
+  const innerResult =
+    typeof result.result === 'object' && result.result !== null
+      ? (result.result as SendCallsObject)
+      : undefined;
+
+  return (
+    getStringValue(result, 'id') ??
+    getStringValue(result, 'batchId') ??
+    getStringValue(result, 'callsId') ??
+    getStringValue(innerResult, 'id') ??
+    getStringValue(innerResult, 'batchId') ??
+    getStringValue(innerResult, 'callsId')
+  );
+};
+
+const getNumericStatus = (status: CallsStatusResult['status']): number => {
+  if (typeof status === 'number') return status;
+  if (typeof status === 'string' && /^\d+$/.test(status.trim())) {
+    return Number.parseInt(status, 10);
+  }
+  return Number.NaN;
+};
+
 const extractLastTxHash = (status: CallsStatusResult): string | undefined => {
   const receipts = status.receipts;
-  if (!receipts?.length) return undefined;
-  const last = receipts[receipts.length - 1];
+  const normalizedReceipts = normalizeReceipts(receipts);
+  if (normalizedReceipts.length === 0) return undefined;
+  const successfulReceipts = normalizedReceipts.filter((receipt) => receipt.status !== '0x0');
+  const candidates = successfulReceipts.length > 0 ? successfulReceipts : normalizedReceipts;
+  const last = candidates[candidates.length - 1];
   return last?.transactionHash;
 };
 
 const isBatchConfirmed = (status: CallsStatusResult): boolean => {
   const s = status.status;
-  return s === 200 || s === 'CONFIRMED' || s === 'confirmed';
+  const numericStatus = getNumericStatus(s);
+  if (!Number.isNaN(numericStatus)) return numericStatus >= 200 && numericStatus < 300;
+  return s === 'CONFIRMED' || s === 'confirmed' || s === 'SUCCESS' || s === 'success';
 };
 
 const isBatchFailed = (status: CallsStatusResult): boolean => {
   const s = status.status;
-  if (!s || s === 100 || s === 'PENDING' || s === 'pending') return false;
+  if (!s) return false;
+  const numericStatus = getNumericStatus(s);
+  if (!Number.isNaN(numericStatus)) return numericStatus < 100 || numericStatus >= 300;
+  if (s === 'PENDING' || s === 'pending') return false;
   return !isBatchConfirmed(status);
+};
+
+const getBatchFailureMessage = (status: CallsStatusResult): string => {
+  switch (getNumericStatus(status.status)) {
+    case 400:
+      return 'Batch transaction failed before being included on-chain';
+    case 500:
+      return 'Batch transaction reverted on-chain';
+    case 600:
+      return 'Batch transaction partially reverted on-chain';
+    default:
+      return `Batch transaction failed with status ${String(status.status)}`;
+  }
 };
 
 export const pollBatchCallsStatus = async (
@@ -80,10 +165,12 @@ export const pollBatchCallsStatus = async (
       })) as CallsStatusResult;
 
       if (isBatchConfirmed(status)) {
-        return extractLastTxHash(status);
+        const txHash = extractLastTxHash(status);
+        if (txHash) return txHash;
+        // Some wallets report success before receipts are indexed. Keep polling for the hash.
       }
       if (isBatchFailed(status)) {
-        throw new Error('Batch transaction reverted on-chain');
+        throw new Error(getBatchFailureMessage(status));
       }
     } catch (err) {
       if (err instanceof Error && err.message.includes('reverted')) {
@@ -109,7 +196,7 @@ export const sendAtomicBatchCalls = async (
     data: call.data,
   }));
 
-  const callsId = (await provider.request({
+  const result = (await provider.request({
     method: 'wallet_sendCalls',
     params: [
       {
@@ -123,7 +210,9 @@ export const sendAtomicBatchCalls = async (
         },
       },
     ],
-  })) as string;
+  })) as SendCallsResult;
+
+  const callsId = extractCallsId(result);
 
   if (!callsId || typeof callsId !== 'string') {
     throw new Error('wallet_sendCalls did not return a callsId');
