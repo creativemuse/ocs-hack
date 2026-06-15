@@ -192,4 +192,40 @@ describe('batchCalls status helpers', () => {
     );
     assert.equal(hash, txHash);
   });
+
+  it('extractCallsId ignores unexpected response payloads', async () => {
+    const { extractCallsId } = await import('../lib/base-account/batchCalls');
+
+    assert.equal(extractCallsId(null), undefined);
+    assert.equal(extractCallsId(undefined), undefined);
+    assert.equal(extractCallsId(123 as never), undefined);
+    assert.equal(extractCallsId({ id: 123 }), undefined);
+    assert.equal(extractCallsId({ result: { callsId: '0xabc' } }), '0xabc');
+  });
+
+  it('pollBatchCallsStatus treats numeric string statuses correctly', async () => {
+    const { pollBatchCallsStatus } = await import('../lib/base-account/batchCalls');
+    const txHash = '0x' + '6'.repeat(64);
+    let calls = 0;
+
+    const provider = {
+      request: async ({ method }: { method: string }) => {
+        if (method === 'wallet_getCallsStatus') {
+          calls += 1;
+          if (calls === 1) {
+            return { status: '100' };
+          }
+          return {
+            status: '200',
+            atomic: true,
+            receipts: [{ transactionHash: txHash, status: '0x1' }],
+          };
+        }
+        throw new Error('unexpected');
+      },
+    };
+
+    const hash = await pollBatchCallsStatus(provider, 'calls-id-test');
+    assert.equal(hash, txHash);
+  });
 });

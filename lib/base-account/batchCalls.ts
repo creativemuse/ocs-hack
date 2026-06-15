@@ -32,14 +32,18 @@ const BATCH_POLL_TIMEOUT_MS = 180_000;
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-type SendCallsResult =
+export type SendCallsResult =
   | string
   | {
-      id?: string;
-      batchId?: string;
-      callsId?: string;
-      result?: string | { id?: string; batchId?: string; callsId?: string };
-    };
+      id?: unknown;
+      batchId?: unknown;
+      callsId?: unknown;
+      result?: unknown;
+    }
+  | null
+  | undefined;
+
+type SendCallsObject = Exclude<SendCallsResult, string | null | undefined>;
 
 type CallsStatusReceipt = {
   transactionHash?: string;
@@ -70,18 +74,42 @@ const normalizeReceipts = (
 };
 
 export const extractCallsId = (result: SendCallsResult): string | undefined => {
+  if (!result) return undefined;
   if (typeof result === 'string') return result;
+
+  if (typeof result !== 'object') return undefined;
+
+  const getStringValue = (
+    source: SendCallsObject | undefined,
+    key: keyof SendCallsObject
+  ): string | undefined => {
+    const value = source?.[key];
+    return typeof value === 'string' ? value : undefined;
+  };
 
   if (typeof result.result === 'string') return result.result;
 
+  const innerResult =
+    typeof result.result === 'object' && result.result !== null
+      ? (result.result as SendCallsObject)
+      : undefined;
+
   return (
-    result.id ??
-    result.batchId ??
-    result.callsId ??
-    result.result?.id ??
-    result.result?.batchId ??
-    result.result?.callsId
+    getStringValue(result, 'id') ??
+    getStringValue(result, 'batchId') ??
+    getStringValue(result, 'callsId') ??
+    getStringValue(innerResult, 'id') ??
+    getStringValue(innerResult, 'batchId') ??
+    getStringValue(innerResult, 'callsId')
   );
+};
+
+const getNumericStatus = (status: CallsStatusResult['status']): number => {
+  if (typeof status === 'number') return status;
+  if (typeof status === 'string' && /^\d+$/.test(status.trim())) {
+    return Number.parseInt(status, 10);
+  }
+  return Number.NaN;
 };
 
 const extractLastTxHash = (status: CallsStatusResult): string | undefined => {
@@ -96,20 +124,22 @@ const extractLastTxHash = (status: CallsStatusResult): string | undefined => {
 
 const isBatchConfirmed = (status: CallsStatusResult): boolean => {
   const s = status.status;
-  if (typeof s === 'number') return s >= 200 && s < 300;
+  const numericStatus = getNumericStatus(s);
+  if (!Number.isNaN(numericStatus)) return numericStatus >= 200 && numericStatus < 300;
   return s === 'CONFIRMED' || s === 'confirmed' || s === 'SUCCESS' || s === 'success';
 };
 
 const isBatchFailed = (status: CallsStatusResult): boolean => {
   const s = status.status;
   if (!s) return false;
-  if (typeof s === 'number') return s < 100 || s >= 300;
+  const numericStatus = getNumericStatus(s);
+  if (!Number.isNaN(numericStatus)) return numericStatus < 100 || numericStatus >= 300;
   if (s === 'PENDING' || s === 'pending') return false;
   return !isBatchConfirmed(status);
 };
 
 const getBatchFailureMessage = (status: CallsStatusResult): string => {
-  switch (status.status) {
+  switch (getNumericStatus(status.status)) {
     case 400:
       return 'Batch transaction failed before being included on-chain';
     case 500:

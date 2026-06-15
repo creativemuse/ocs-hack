@@ -2,7 +2,11 @@ import { Interface } from 'ethers';
 import { base } from 'viem/chains';
 import { numberToHex } from 'viem';
 import { getBaseAccountProvider } from '@/lib/base-account/sdk';
-import { extractCallsId, pollBatchCallsStatus } from '@/lib/base-account/batchCalls';
+import {
+  extractCallsId,
+  pollBatchCallsStatus,
+  type SendCallsResult,
+} from '@/lib/base-account/batchCalls';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
 
 export interface BatchCall {
@@ -69,7 +73,7 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
       ],
     });
 
-    const callsId = extractCallsId(sendCallsResult as Parameters<typeof extractCallsId>[0]);
+    const callsId = extractCallsId(sendCallsResult as SendCallsResult);
 
     if (!callsId || typeof callsId !== 'string') {
       throw new Error('wallet_sendCalls did not return a callsId');
