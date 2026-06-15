@@ -1,10 +1,20 @@
 import { ImageResponse } from 'next/og';
 import { NextRequest } from 'next/server';
 import { BeatMeOgLayout } from '@/lib/og/beatMeOgLayout';
+import { getSiteUrl } from '@/lib/config/site';
 
 export const runtime = 'edge';
 
+const OG_THUMBNAIL_PATH = '/assets/BEAT_ME_thumbnail.png';
+
+const parseScoreParam = (score: string): number => {
+  const parsed = Number(score);
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+};
+
 const headlineForType = (type: string, score: string, rank: string): string => {
+  const scoreValue = parseScoreParam(score);
   if (rank === '1') return 'New #1 on the weekly leaderboard!';
   switch (type) {
     case 'high-score':
@@ -14,21 +24,27 @@ const headlineForType = (type: string, score: string, rank: string): string => {
     case 'perfect-round':
       return 'Perfect round!';
     default:
-      return `Scored ${Number(score).toLocaleString()} points!`;
+      return scoreValue > 0
+        ? `Scored ${scoreValue.toLocaleString()} points!`
+        : 'Play BEAT ME — music trivia on Base';
   }
 };
 
 export const GET = async (req: NextRequest) => {
   const { searchParams } = new URL(req.url);
-  const score = searchParams.get('score') ?? '0';
+  const scoreParam = searchParams.get('score') ?? '0';
   const rank = searchParams.get('rank') ?? '';
   const type = searchParams.get('type') ?? 'game-complete';
-  const headline = headlineForType(type, score, rank);
+  const scoreValue = parseScoreParam(scoreParam);
+  const headline = headlineForType(type, scoreParam, rank);
+  const backgroundImageUrl = `${getSiteUrl()}${OG_THUMBNAIL_PATH}`;
 
   return new ImageResponse(
     <BeatMeOgLayout
+      mode="scoreOverlay"
+      backgroundImageUrl={backgroundImageUrl}
       headline={headline}
-      score={score}
+      score={scoreValue > 0 ? String(scoreValue) : undefined}
       rank={rank || undefined}
       subline="Play BEAT ME — music trivia on Base"
     />,

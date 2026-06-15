@@ -28,6 +28,8 @@ const siteUrl = getSiteUrl();
 
 const siteTitle = "BEAT ME";
 const siteDescription = "Name the tune, win a reward.";
+const ogThumbnailPath = "/assets/BEAT_ME_thumbnail.png";
+const ogThumbnailAlt = "BEAT ME — Name the tune, win a reward";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
@@ -39,24 +41,39 @@ export const metadata: Metadata = {
     url: "/",
     siteName: siteTitle,
     type: "website",
+    images: [
+      {
+        url: ogThumbnailPath,
+        width: 1200,
+        height: 630,
+        alt: ogThumbnailAlt,
+        type: "image/png",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
+    images: [
+      {
+        url: ogThumbnailPath,
+        alt: ogThumbnailAlt,
+      },
+    ],
   },
   other: {
     "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID ?? "",
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: `${siteUrl}/opengraph-image`,
+      imageUrl: `${siteUrl}${ogThumbnailPath}`,
       button: {
         title: "Can you BEAT ME?",
         action: {
           type: "launch_frame",
           name: "BEAT ME",
           url: siteUrl,
-          splashImageUrl: `${siteUrl}/opengraph-image`,
+          splashImageUrl: `${siteUrl}${ogThumbnailPath}`,
           splashBackgroundColor: "#000000"
         }
       }
