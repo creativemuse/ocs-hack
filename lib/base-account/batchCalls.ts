@@ -41,7 +41,7 @@ export const supportsAtomicBatch = async (
       method: 'wallet_getCapabilities',
       params: [address],
     })) as CapabilitiesMap;
-    const chainKey = String(base.id);
+    const chainKey = numberToHex(base.id);
     return Boolean(capabilities?.[chainKey]?.atomicBatch?.supported);
   } catch {
     return false;
@@ -62,7 +62,7 @@ const isBatchConfirmed = (status: CallsStatusResult): boolean => {
 
 const isBatchFailed = (status: CallsStatusResult): boolean => {
   const s = status.status;
-  if (s === 100 || s === 'PENDING' || s === 'pending') return false;
+  if (!s || s === 100 || s === 'PENDING' || s === 'pending') return false;
   return !isBatchConfirmed(status);
 };
 

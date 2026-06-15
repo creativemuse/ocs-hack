@@ -148,11 +148,17 @@ export const useGameSession = (): UseGameSessionReturn => {
       }
 
       const modeParam = options?.playerMode ?? (isPaidPlayer ? 'paid_solo' : 'trial');
-      const sessionId = (
-        await (
-          await fetch(`/api/game-session?mode=${encodeURIComponent(modeParam)}`)
-        ).json()
-      ).session.session_id as string;
+      const sessionResp = await fetch(
+        `/api/game-session?mode=${encodeURIComponent(modeParam)}`
+      );
+      if (!sessionResp.ok) {
+        throw new Error(`Failed to fetch game session: ${sessionResp.statusText}`);
+      }
+      const sessionData = await sessionResp.json();
+      const sessionId = sessionData?.session?.session_id as string | undefined;
+      if (!sessionId) {
+        throw new Error('No active game session found');
+      }
 
       const entryResp = await retryWithBackoff(async () => {
         const resp = await fetch('/api/game-entry', {

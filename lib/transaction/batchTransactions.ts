@@ -2,6 +2,7 @@ import { Interface } from 'ethers';
 import { base } from 'viem/chains';
 import { numberToHex } from 'viem';
 import { getBaseAccountProvider } from '@/lib/base-account/sdk';
+import { pollBatchCallsStatus } from '@/lib/base-account/batchCalls';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
 
 export interface BatchCall {
@@ -44,35 +45,42 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
       value: call.value || '0'
     })));
 
-    const result = (await provider.request({
+    const callsId = (await provider.request({
       method: 'wallet_sendCalls',
       params: [
-      {
-        version: '2.0.0',
-        from,
-        chainId: numberToHex(base.id),
-        atomicRequired,
-        calls: calls.map((call) => ({
-          to: call.to,
-          data: call.data,
-          value: call.value || '0x0',
-        })),
-        ...(gasless
-          ? {
-              capabilities: {
-                dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true },
-              },
-            }
-          : {}),
-      },
-    ],
-    })) as { transactionHash?: string; hash?: string };
+        {
+          version: '2.0.0',
+          from,
+          chainId: numberToHex(base.id),
+          atomicRequired,
+          calls: calls.map((call) => ({
+            to: call.to,
+            data: call.data,
+            value: call.value || '0x0',
+          })),
+          ...(gasless
+            ? {
+                capabilities: {
+                  dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true },
+                },
+              }
+            : {}),
+        },
+      ],
+    })) as string;
 
-    console.log('Batch transaction result:', result);
+    if (!callsId || typeof callsId !== 'string') {
+      throw new Error('wallet_sendCalls did not return a callsId');
+    }
+
+    console.log('Batch submitted, callsId:', callsId);
+
+    const transactionHash = (await pollBatchCallsStatus(provider, callsId)) ?? '';
 
     return {
-      transactionHash: (result?.transactionHash || result?.hash || '') as string,
-      success: true
+      transactionHash,
+      success: Boolean(transactionHash),
+      ...(transactionHash ? {} : { error: 'Batch completed without a transaction hash' }),
     };
 
   } catch (error) {
