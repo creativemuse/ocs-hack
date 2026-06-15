@@ -85,7 +85,7 @@ export async function POST(req: NextRequest) {
       id: `weekly_${walletAddress.toLowerCase()}`,
       playerName: playerName || matched?.username || walletAddress,
       walletAddress: walletAddress.toLowerCase(),
-      score: matched?.bestScore ?? score,
+      score: matched ? Math.max(matched.bestScore, score) : score,
       timestamp: Date.now(),
       isGuest: false,
       playerType: 'paid',

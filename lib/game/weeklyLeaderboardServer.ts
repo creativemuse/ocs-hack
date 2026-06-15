@@ -21,7 +21,9 @@ const toSpacetimeRows = (players: Player[]) =>
 export const getWeeklyLeaderboardEntries = async (
   limit: number = 10,
 ): Promise<{ sessionCounter: number; entries: WeeklyLeaderboardEntry[] }> => {
-  await spacetimeClient.ensurePlayerDataReady();
+  if (process.env.SPACETIME_HOST && process.env.SPACETIME_MODULE) {
+    await spacetimeClient.ensurePlayerDataReady();
+  }
 
   const { sessionCounter, chainScores } = await fetchWeeklyScoresFromChain();
   const players = spacetimeClient.isConfigured()

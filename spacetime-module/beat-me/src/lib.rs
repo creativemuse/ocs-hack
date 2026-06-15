@@ -1253,6 +1253,8 @@ fn apply_username_if_available(
         return;
     }
     let name_owned = trimmed.to_string();
+    // Option<String> unique columns are not FilterableValue in SpacetimeDB 2.1,
+    // so .username().find() cannot be used; scan until schema uses plain String.
     let username_taken = ctx
         .db
         .players()
@@ -1275,7 +1277,7 @@ fn apply_weekly_score(player: &mut Player, on_chain_session_id: u64, game_score:
     }
     if player.weekly_session_id == on_chain_session_id {
         player.weekly_best_score = std::cmp::max(player.weekly_best_score, game_score);
-    } else {
+    } else if on_chain_session_id > player.weekly_session_id {
         player.weekly_session_id = on_chain_session_id;
         player.weekly_best_score = game_score;
     }

@@ -35,6 +35,15 @@ const normalizeRpcBatchResponse = (json: unknown): JsonRpcResponse[] => {
   return [json as JsonRpcResponse];
 };
 
+const safeBigIntFromHex = (hex: string | undefined): bigint => {
+  if (!hex || hex === '0x') return BigInt(0);
+  try {
+    return BigInt(hex);
+  } catch {
+    return BigInt(0);
+  }
+};
+
 /** Batch multiple eth_call requests into a single HTTP round-trip. */
 export const rpcBatchEthCall = async (
   callData: `0x${string}`[],
@@ -53,6 +62,7 @@ export const rpcBatchEthCall = async (
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload.length === 1 ? payload[0] : payload),
+    cache: 'no-store',
   });
 
   const json = await res.json();
@@ -84,7 +94,7 @@ export const fetchWeeklyScoresFromChain = async (): Promise<{
     sessionCounterData,
     playersListData,
   ]);
-  const sessionCounter = Number(BigInt(sessionCounterRaw));
+  const sessionCounter = Number(safeBigIntFromHex(sessionCounterRaw));
 
   let players: `0x${string}`[] = [];
   if (playersRaw && playersRaw !== '0x') {
@@ -112,7 +122,7 @@ export const fetchWeeklyScoresFromChain = async (): Promise<{
 
   players.forEach((player, index) => {
     const wallet = player.toLowerCase();
-    const score = Number(BigInt(scoreRaws[index] ?? '0x0'));
+    const score = Number(safeBigIntFromHex(scoreRaws[index]));
     if (score > 0) {
       chainScores.set(wallet, score);
     }
