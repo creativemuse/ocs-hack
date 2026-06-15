@@ -16,6 +16,10 @@ const defaultShouldRetry = (error: unknown): boolean => {
   return (
     lower.includes('pending') ||
     lower.includes('could not load transaction') ||
+    lower.includes('could not be verified') ||
+    lower.includes('transaction not found') ||
+    lower.includes('could not determine') ||
+    lower.includes('verification will retry') ||
     lower.includes('network') ||
     lower.includes('fetch') ||
     lower.includes('timeout') ||

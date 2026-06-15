@@ -48,6 +48,7 @@ interface GameEntryProps {
   sessionTimeRemaining?: number;
   /** Parent shows full-screen overlay while verifying payment + joining */
   isJoiningAfterPayment?: boolean;
+  joinProgressMessage?: string;
 }
 
 export default function GameEntry({
@@ -60,6 +61,7 @@ export default function GameEntry({
   sessionBusy = false,
   sessionTimeRemaining = 0,
   isJoiningAfterPayment = false,
+  joinProgressMessage = 'Confirming payment on-chain and joining the session…',
 }: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
@@ -944,8 +946,9 @@ export default function GameEntry({
           <div className="max-w-sm rounded-xl border border-amber-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl">
             <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400 mb-4" aria-hidden />
             <p className="text-lg font-semibold text-white">Starting your game</p>
-            <p className="mt-2 text-sm text-zinc-300">
-              Confirming payment on-chain and joining the session…
+            <p className="mt-2 text-sm text-zinc-300">{joinProgressMessage}</p>
+            <p className="mt-4 text-xs text-zinc-500">
+              This usually takes a few seconds. On busy networks it can take up to a minute.
             </p>
           </div>
         </div>
