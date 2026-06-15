@@ -1,6 +1,6 @@
 'use client';
 
-import { useTopEarners, type LeaderboardViewType } from '@/hooks/useTopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { Loader2 } from 'lucide-react';
@@ -9,35 +9,23 @@ import { BaseName } from '@/components/identity/BaseName';
 interface TopEarnersProps {
   limit?: number;
   className?: string;
-  viewType?: LeaderboardViewType;
   currentWalletAddress?: string;
 }
 
 export default function TopEarners({
   limit = 10,
   className = '',
-  viewType = 'scores',
   currentWalletAddress,
 }: TopEarnersProps) {
-  const { topEarners, isLoading, error } = useTopEarners(limit, { viewType });
+  const { entries, sessionCounter, isLoading, error } = useWeeklyLeaderboard(limit);
 
-  const formatScore = (score: number) => {
-    return score.toLocaleString(); // Format score with commas for readability
-  };
+  const formatScore = (score: number) => score.toLocaleString();
 
-  const formatEarnings = (earnings: number) => {
-    return earnings.toFixed(2); // Format earnings to 2 decimal places
-  };
-
-  // Component to display player name with fallback priority:
-  // 1. Username (if set)
-  // 2. Basename (if available)
-  // 3. Shortened wallet address
   const PlayerDisplayName = ({ walletAddress, username }: { walletAddress: string; username?: string }) => {
-    if (username) {
+    if (username && !username.includes('...')) {
       return <span className="text-[#ffffff] text-[12px]">{username}</span>;
     }
-    
+
     return (
       <BaseName
         address={walletAddress as `0x${string}`}
@@ -51,19 +39,16 @@ export default function TopEarners({
     return `#${rank}`;
   };
 
-  // Avatar mapping - rotate through available avatars
   const avatarImages = [
     ASSETS.ellipse7, ASSETS.ellipse4, ASSETS.ellipse5,
     ASSETS.ellipse6, ASSETS.ellipse8, ASSETS.ellipse9,
-    ASSETS.ellipse10
+    ASSETS.ellipse10,
   ];
 
   if (error) {
     return (
       <div className="text-gray-400 text-sm text-center p-4">
-        {error.includes('connected') || error.includes('connection') 
-          ? 'Leaderboard will appear when connected'
-          : 'Failed to load leaderboard'}
+        Failed to load leaderboard
       </div>
     );
   }
@@ -78,61 +63,62 @@ export default function TopEarners({
 
   return (
     <div className={`w-full ${className}`}>
-      {topEarners.map((earner, index) => {
+      {sessionCounter > 0 && (
+        <p className="text-gray-500 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-2 text-center">
+          Week {sessionCounter} — resets after payout
+        </p>
+      )}
+      {entries.map((earner, index) => {
         const isCurrentPlayer =
           currentWalletAddress &&
           earner.walletAddress.toLowerCase() === currentWalletAddress.toLowerCase();
         return (
-        <div 
-          key={earner.walletAddress}
-          className={`content-stretch flex items-center justify-between relative shrink-0 w-full mb-3 ${
-            isCurrentPlayer ? 'rounded-lg bg-white/10 px-2 py-1 -mx-2' : ''
-          }`}
-        >
-          <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
-            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
-              <p className="leading-[normal]">{getRankIcon(index + 1)}</p>
-            </div>
-            <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
-              <div className="relative shrink-0 size-9">
-                <Image 
-                  alt="player avatar" 
-                  className="block max-w-none size-full" 
-                  height="36" 
-                  src={earner.avatarUrl || avatarImages[index % avatarImages.length]} 
-                  width="36" 
-                />
+          <div
+            key={earner.walletAddress}
+            className={`content-stretch flex items-center justify-between relative shrink-0 w-full mb-3 ${
+              isCurrentPlayer ? 'rounded-lg bg-white/10 px-2 py-1 -mx-2' : ''
+            }`}
+          >
+            <div className="content-stretch flex gap-4 items-center justify-start relative shrink-0">
+              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] w-5">
+                <p className="leading-[normal]">{getRankIcon(index + 1)}</p>
               </div>
-              <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
-                <p className="leading-[normal] whitespace-pre">
-                  <PlayerDisplayName 
-                    walletAddress={earner.walletAddress} 
-                    username={earner.username} 
+              <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
+                <div className="relative shrink-0 size-9">
+                  <Image
+                    alt="player avatar"
+                    className="block max-w-none size-full"
+                    height="36"
+                    src={earner.avatarUrl || avatarImages[index % avatarImages.length]}
+                    width="36"
                   />
-                  {isCurrentPlayer && (
-                    <span className="text-[10px] text-purple-300 ml-1">(You)</span>
-                  )}
-                </p>
+                </div>
+                <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+                  <p className="leading-[normal] whitespace-pre">
+                    <PlayerDisplayName
+                      walletAddress={earner.walletAddress}
+                      username={earner.username}
+                    />
+                    {isCurrentPlayer && (
+                      <span className="text-[10px] text-purple-300 ml-1">(You)</span>
+                    )}
+                  </p>
+                </div>
               </div>
             </div>
+            <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
+              <p className="leading-[normal] whitespace-pre">
+                {`${formatScore(earner.bestScore)} pts`}
+              </p>
+            </div>
           </div>
-          <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">
-            <p className="leading-[normal] whitespace-pre">
-              {viewType === 'scores' 
-                ? `${formatScore(earner.bestScore)} pts`
-                : `${formatEarnings(earner.totalEarnings)} USDC`
-              }
-            </p>
-          </div>
-        </div>
         );
       })}
-      {topEarners.length === 0 && (
+      {entries.length === 0 && (
         <div className="text-gray-400 text-sm text-center p-4">
-          No winners yet. Be the first!
+          No scores yet this week. Be the first!
         </div>
       )}
     </div>
   );
 }
-

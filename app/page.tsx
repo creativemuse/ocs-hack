@@ -19,6 +19,7 @@ import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -102,6 +103,7 @@ function HomePage() {
     onChainLastSessionTime > 0 ? BigInt(onChainLastSessionTime) : undefined,
     onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
   );
+  const { refresh: refreshWeeklyLeaderboard } = useWeeklyLeaderboard(10);
 
   // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
@@ -145,7 +147,7 @@ function HomePage() {
             walletAddress: wallet,
             finalScore,
             entryToken,
-            username: playerDisplayName ?? undefined,
+            username: basename ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -159,12 +161,13 @@ function HomePage() {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
         refreshContractUsdcBalance();
+        refreshWeeklyLeaderboard();
       } catch (e) {
         paidScoreSavedRef.current = false;
         console.error('save-paid-score error', e);
       }
     })();
-  }, [gameCompleted, address, totalScore, entryToken, playerDisplayName, refreshContractUsdcBalance]);
+  }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -396,40 +399,37 @@ function HomePage() {
   };
 
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
-    // Calculate remaining time based on audio progress, but cap at 10 seconds
     const audioRemaining = Math.max(0, duration - currentTime);
-    const maxTime = 10; // 10 second limit
+    const maxTime = 10;
     const remaining = Math.min(audioRemaining, maxTime);
-    
-    // Round to nearest 0.1 seconds for smoother display
     const roundedRemaining = Math.round(remaining * 10) / 10;
-    
-    // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
-    setGameTimeRemaining(prev => {
-      if (Math.abs(prev - roundedRemaining) >= 0.1) {
+
+    setGameTimeRemaining((prev) => {
+      if (roundedRemaining < prev) {
         return roundedRemaining;
       }
       return prev;
     });
-  }, [currentQuestion]);
+  }, []);
 
-  // Add a safety timer that only triggers if audio doesn't update properly
+  // Wall-clock countdown — runs even when audio fails to load or play
   useEffect(() => {
-    if (!currentQuestion || isAnswered) return;
-    
-    // Safety timer - only trigger if audio hasn't updated for too long
-    const safetyTimer = setTimeout(() => {
-      setGameTimeRemaining(prev => {
-        // Only force to 0 if we're still at the initial value (audio didn't update)
-        if (prev === 10) {
-          return 0;
-        }
-        return prev;
-      });
-    }, 11000); // 11 seconds - gives audio time to update
+    if (!currentQuestion || isAnswered || gameLoading) return;
 
-    return () => clearTimeout(safetyTimer);
-  }, [currentQuestion, isAnswered]);
+    const clipMs = 10000;
+    const startedAt = Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, (clipMs - elapsed) / 1000);
+      const rounded = Math.round(remaining * 10) / 10;
+      setGameTimeRemaining((prev) => Math.min(prev, rounded));
+    };
+
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [currentQuestion, isAnswered, gameLoading]);
 
   const handleAudioError = () => {
     setAudioError(true);
@@ -1183,7 +1183,7 @@ function HomePage() {
               TOP EARNERS
             </h2>
             <p className="text-gray-400 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-3 text-center max-w-[328px]">
-              Paid games only — practice / trial scores are not listed
+              Paid games only — resets each week after payout
             </p>
             <div className="w-full max-w-[328px]">
               <TopEarners limit={10} currentWalletAddress={address ?? undefined} />

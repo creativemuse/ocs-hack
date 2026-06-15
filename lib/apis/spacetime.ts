@@ -460,7 +460,8 @@ class SpacetimeDBClient {
     totalScore: number,
     gamesPlayed: number,
     bestScore: number,
-    totalEarnings: number
+    totalEarnings: number,
+    username?: string,
   ): Promise<void> {
     if (!this.connection) return;
 
@@ -471,6 +472,7 @@ class SpacetimeDBClient {
         gamesPlayed,
         bestScore,
         totalEarnings,
+        username: username ?? undefined,
       });
       console.log(`✅ Updated player stats: ${walletAddress}`);
     } catch (error) {

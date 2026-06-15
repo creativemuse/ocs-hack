@@ -6,6 +6,14 @@ import { submitOnChainScore } from '@/lib/blockchain/submitOnChainScore';
 
 const MAX_GAME_SCORE = 3000;
 
+/** Only persist real basenames — not truncated wallet addresses. */
+const normalizeUsername = (username?: string): string | undefined => {
+  if (!username?.trim()) return undefined;
+  const trimmed = username.trim();
+  if (trimmed.includes('...')) return undefined;
+  return trimmed;
+};
+
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -34,6 +42,7 @@ export async function POST(req: NextRequest) {
     }
 
     const normalizedWallet = walletAddress.trim().toLowerCase();
+    const displayUsername = normalizeUsername(username);
 
     if (payload.identity.walletAddress?.toLowerCase() !== normalizedWallet) {
       return NextResponse.json(
@@ -66,15 +75,11 @@ export async function POST(req: NextRequest) {
     }
 
     const authoritativeScore = finalized.authoritativeScore;
+    let spacetimeUpdated = false;
 
     await spacetimeClient.ensurePlayerDataReady();
 
     if (spacetimeClient.isConfigured()) {
-      const current = spacetimeClient.getPlayerProfile(normalizedWallet);
-      if (!current) {
-        await spacetimeClient.createPlayer(normalizedWallet, username);
-      }
-
       const existing = spacetimeClient.getPlayerProfile(normalizedWallet);
       const totalScore = (existing?.totalScore ?? 0) + authoritativeScore;
       const gamesPlayed = (existing?.gamesPlayed ?? 0) + 1;
@@ -87,7 +92,9 @@ export async function POST(req: NextRequest) {
         gamesPlayed,
         bestScore,
         totalEarnings,
+        displayUsername,
       );
+      spacetimeUpdated = true;
 
       try {
         await spacetimeClient.endGameSession(payload.entryId);
@@ -103,22 +110,26 @@ export async function POST(req: NextRequest) {
     );
 
     if (!onChainResult.ok) {
-      return NextResponse.json(
-        {
-          error: 'Score verified but on-chain submission failed',
-          details: onChainResult.error,
-          authoritativeScore,
-          onChainSessionId: finalized.onChainSessionId,
-        },
-        { status: 502 },
-      );
+      console.warn('On-chain score submission failed:', onChainResult.error);
+      return NextResponse.json({
+        success: true,
+        authoritativeScore,
+        onChainSessionId: finalized.onChainSessionId,
+        spacetimeUpdated,
+        onChainSubmitted: false,
+        onChainError: onChainResult.error,
+        warning: 'Score saved but on-chain leaderboard update failed. Your score may not appear until retried.',
+      });
     }
 
     return NextResponse.json({
       success: true,
       authoritativeScore,
       onChainSessionId: finalized.onChainSessionId,
+      spacetimeUpdated,
+      onChainSubmitted: true,
       transactionHash: onChainResult.transactionHash,
+      sessionCounter: onChainResult.sessionCounter.toString(),
     });
   } catch (error) {
     console.error('Error saving paid score:', error);

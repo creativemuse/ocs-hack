@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import type { DifficultyLevel } from '@/types/game';
 import { logger } from '@/lib/utils/logger';
 import { signQuestionToken } from '@/lib/utils/questionToken';
-import { parseArtistAndTitle } from '@/lib/grove/parseMetadata';
+import { parseArtistAndTitle, stripFeaturingFromTitle } from '@/lib/grove/parseMetadata';
 import {
   hasUploadedGroveTriviaFiles,
   listGroveAudioByPrefix,
@@ -54,19 +54,18 @@ const getTimeLimit = (difficulty: DifficultyLevel): number => {
 };
 
 const normalizeTrackMetadata = (file: GroveFileEntry): GroveFileEntry => {
-  if (file.artistName !== 'Unknown') {
-    return file;
-  }
+  const parsed =
+    file.artistName === 'Unknown' ? parseArtistAndTitle(file.name) : null;
 
-  const parsed = parseArtistAndTitle(file.name);
-  if (parsed.artistName === 'Unknown') {
-    return file;
-  }
+  const artistName =
+    parsed && parsed.artistName !== 'Unknown' ? parsed.artistName : file.artistName;
+  const rawTitle =
+    parsed && parsed.artistName !== 'Unknown' ? parsed.songTitle : file.songTitle;
 
   return {
     ...file,
-    artistName: parsed.artistName,
-    songTitle: parsed.songTitle,
+    artistName,
+    songTitle: stripFeaturingFromTitle(rawTitle),
   };
 };
 

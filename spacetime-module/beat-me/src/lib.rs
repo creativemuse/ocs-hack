@@ -1233,21 +1233,53 @@ pub fn link_wallet_to_identity(
 }
 
 #[spacetimedb::reducer]
-pub fn update_player_stats(ctx: &ReducerContext, wallet_address: String, total_score: u32, games_played: u32, best_score: u32, total_earnings: f64) {
-    log::info!("📊 Updating player stats: {} (score: {}, games: {}, best: {})", wallet_address, total_score, games_played, best_score);
-    
-    // Use efficient primary key lookup and atomic update
+pub fn update_player_stats(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    total_score: u32,
+    games_played: u32,
+    best_score: u32,
+    total_earnings: f64,
+    username: Option<String>,
+) {
+    log::info!(
+        "📊 Updating player stats: {} (score: {}, games: {}, best: {})",
+        wallet_address,
+        total_score,
+        games_played,
+        best_score
+    );
+
     if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet_address) {
         player.total_score = total_score;
         player.games_played = games_played;
         player.best_score = best_score;
         player.total_earnings = total_earnings;
+        if let Some(name) = username {
+            if !name.trim().is_empty() {
+                player.username = Some(name);
+            }
+        }
         player.updated_at = ctx.timestamp;
-        
+
         ctx.db.players().wallet_address().update(player);
         log::info!("✅ Player stats updated: {}", wallet_address);
     } else {
-        log::warn!("❌ Player not found for update: {}", wallet_address);
+        ctx.db.players().insert(Player {
+            wallet_address: wallet_address.clone(),
+            username,
+            avatar_url: None,
+            total_score,
+            games_played,
+            best_score,
+            total_earnings,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        });
+        log::info!("✅ Player created with stats: {}", wallet_address);
     }
 }
 

@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
-import { useTopEarners } from '@/hooks/useTopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
@@ -35,7 +35,7 @@ export default function HighScoreDisplay({
   className = '' 
 }: HighScoreDisplayProps) {
   const { submitScore } = useHighScores();
-  const { topEarners, isLoading: leaderboardLoading } = useTopEarners(LEADERBOARD_LIMIT, { viewType: 'scores' });
+  const { entries: topEarners, isLoading: leaderboardLoading } = useWeeklyLeaderboard(LEADERBOARD_LIMIT);
   const { address, isConnected } = useBaseAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -76,10 +76,9 @@ export default function HighScoreDisplay({
       ...entries,
       {
         walletAddress: normalizedWallet,
-        username: playerName,
+        username: playerName.includes('...') ? undefined : playerName,
         bestScore: currentScore,
-        totalEarnings: 0,
-        gamesPlayed: 1,
+        sessionCounter: 0,
       },
     ]
       .sort((a, b) => b.bestScore - a.bestScore)
