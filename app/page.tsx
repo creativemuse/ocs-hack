@@ -19,6 +19,7 @@ import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -76,6 +77,9 @@ function HomePage() {
   const timerTriggeredRef = useRef(false);
   const lastGameWasPaidRef = useRef(false);
   const paidScoreSavedRef = useRef(false);
+  const countdownStartedAtRef = useRef<number | null>(null);
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   // Add trial status hook
   const { address } = useBaseAccount();
   const { data: basename } = useBasename(address ?? undefined);
@@ -102,6 +106,7 @@ function HomePage() {
     onChainLastSessionTime > 0 ? BigInt(onChainLastSessionTime) : undefined,
     onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
   );
+  const { refresh: refreshWeeklyLeaderboard } = useWeeklyLeaderboard(10);
 
   // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
@@ -145,7 +150,7 @@ function HomePage() {
             walletAddress: wallet,
             finalScore,
             entryToken,
-            username: playerDisplayName ?? undefined,
+            username: basename ?? undefined,
           }),
         });
         if (!res.ok) {
@@ -158,13 +163,22 @@ function HomePage() {
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
+        if (data.onChainSubmitted === false) {
+          setPaidScoreWarning(
+            data.warning ??
+              'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
+          );
+        } else {
+          setPaidScoreWarning(null);
+        }
         refreshContractUsdcBalance();
+        refreshWeeklyLeaderboard();
       } catch (e) {
         paidScoreSavedRef.current = false;
         console.error('save-paid-score error', e);
       }
     })();
-  }, [gameCompleted, address, totalScore, entryToken, playerDisplayName, refreshContractUsdcBalance]);
+  }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -177,6 +191,8 @@ function HomePage() {
     setGameTimeRemaining(10);
     setAudioError(false);
     timerTriggeredRef.current = false;
+    countdownStartedAtRef.current = null;
+    setIsCountdownActive(false);
 
     try {
       const params = new URLSearchParams({
@@ -395,41 +411,63 @@ function HomePage() {
     loadRandomQuestion();
   };
 
+  const startQuestionCountdown = useCallback(() => {
+    if (countdownStartedAtRef.current !== null) return;
+    countdownStartedAtRef.current = Date.now();
+    setIsCountdownActive(true);
+  }, []);
+
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
-    // Calculate remaining time based on audio progress, but cap at 10 seconds
+    if (currentTime > 0) {
+      startQuestionCountdown();
+    }
+
     const audioRemaining = Math.max(0, duration - currentTime);
-    const maxTime = 10; // 10 second limit
+    const maxTime = 10;
     const remaining = Math.min(audioRemaining, maxTime);
-    
-    // Round to nearest 0.1 seconds for smoother display
     const roundedRemaining = Math.round(remaining * 10) / 10;
-    
-    // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
-    setGameTimeRemaining(prev => {
-      if (Math.abs(prev - roundedRemaining) >= 0.1) {
+
+    setGameTimeRemaining((prev) => {
+      if (roundedRemaining < prev) {
         return roundedRemaining;
       }
       return prev;
     });
-  }, [currentQuestion]);
+  }, [startQuestionCountdown]);
 
-  // Add a safety timer that only triggers if audio doesn't update properly
+  const handleAudioPlay = useCallback(() => {
+    startQuestionCountdown();
+  }, [startQuestionCountdown]);
+
+  // Start countdown when audio begins; fallback if buffering fails
   useEffect(() => {
-    if (!currentQuestion || isAnswered) return;
-    
-    // Safety timer - only trigger if audio hasn't updated for too long
-    const safetyTimer = setTimeout(() => {
-      setGameTimeRemaining(prev => {
-        // Only force to 0 if we're still at the initial value (audio didn't update)
-        if (prev === 10) {
-          return 0;
-        }
-        return prev;
-      });
-    }, 11000); // 11 seconds - gives audio time to update
+    if (!currentQuestion || isAnswered || gameLoading || isCountdownActive) return;
 
-    return () => clearTimeout(safetyTimer);
-  }, [currentQuestion, isAnswered]);
+    const fallbackTimer = setTimeout(() => {
+      startQuestionCountdown();
+    }, 5000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [currentQuestion, isAnswered, gameLoading, isCountdownActive, startQuestionCountdown]);
+
+  // Wall-clock countdown after audio starts (or fallback fires)
+  useEffect(() => {
+    if (!isCountdownActive || !currentQuestion || isAnswered || gameLoading) return;
+
+    const clipMs = 10000;
+    const startedAt = countdownStartedAtRef.current ?? Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, (clipMs - elapsed) / 1000);
+      const rounded = Math.round(remaining * 10) / 10;
+      setGameTimeRemaining((prev) => Math.min(prev, rounded));
+    };
+
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [isCountdownActive, currentQuestion, isAnswered, gameLoading]);
 
   const handleAudioError = () => {
     setAudioError(true);
@@ -751,6 +789,15 @@ function HomePage() {
                 </div>
               )}
 
+              {!completedAsTrial && paidScoreWarning && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6">
+                  <div className="text-amber-300 text-sm">
+                    <p className="font-medium mb-2">Leaderboard update pending</p>
+                    <p className="text-amber-200/80">{paidScoreWarning}</p>
+                  </div>
+                </div>
+              )}
+
               {/* High Score Display with Reward Claiming */}
               <div className="mb-6">
                 <HighScoreDisplay
@@ -764,7 +811,7 @@ function HomePage() {
               </div>
 
               {/* Paid Player Success */}
-              {!completedAsTrial && (
+              {!completedAsTrial && !paidScoreWarning && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
                   <div className="text-green-300 text-sm">
                     <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
@@ -894,6 +941,7 @@ function HomePage() {
                 autoPlay={true}
                 clipDurationSeconds={10}
                 onTimeUpdate={handleAudioTimeUpdate}
+                onPlay={handleAudioPlay}
                 onError={handleAudioError}
                 className="bg-transparent border-0 shadow-none"
               />
@@ -1183,7 +1231,7 @@ function HomePage() {
               TOP EARNERS
             </h2>
             <p className="text-gray-400 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-3 text-center max-w-[328px]">
-              Paid games only — practice / trial scores are not listed
+              Paid games only — resets each week after payout
             </p>
             <div className="w-full max-w-[328px]">
               <TopEarners limit={10} currentWalletAddress={address ?? undefined} />

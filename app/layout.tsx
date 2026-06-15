@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { RootProvider } from "./rootProvider";
 import { MiniKitLayout } from "@/components/minikit/MiniKitLayout";
 import { SpeedInsights } from '@vercel/speed-insights/next';
+import { getSiteUrl } from "@/lib/config/site";
 import "./globals.css";
 
 const inter = Inter({
@@ -23,9 +24,7 @@ const audiowide = localFont({
   display: "swap",
 });
 
-const siteUrl =
-  process.env.NEXT_PUBLIC_URL ??
-  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+const siteUrl = getSiteUrl();
 
 const siteTitle = "BEAT ME";
 const siteDescription = "Name the tune, win a reward.";
@@ -40,33 +39,24 @@ export const metadata: Metadata = {
     url: "/",
     siteName: siteTitle,
     type: "website",
-    images: [
-      {
-        url: "/assets/BEAT_ME_thumbnail.png",
-        width: 1200,
-        height: 1200,
-        alt: "BEAT ME — Name the tune, win the reward",
-      },
-    ],
   },
   twitter: {
     card: "summary_large_image",
     title: siteTitle,
     description: siteDescription,
-    images: ["/assets/BEAT_ME_thumbnail.png"],
   },
   other: {
     "base:app_id": process.env.NEXT_PUBLIC_BASE_APP_ID ?? "",
     "fc:frame": JSON.stringify({
       version: "next",
-      imageUrl: "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
+      imageUrl: `${siteUrl}/opengraph-image`,
       button: {
         title: "Can you BEAT ME?",
         action: {
           type: "launch_frame",
           name: "BEAT ME",
-          url: "https://beatme.creativeplatform.xyz",
-          splashImageUrl: "https://beatme.creativeplatform.xyz/assets/BEAT_ME_thumbnail.png",
+          url: siteUrl,
+          splashImageUrl: `${siteUrl}/opengraph-image`,
           splashBackgroundColor: "#000000"
         }
       }

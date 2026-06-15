@@ -455,12 +455,33 @@ class SpacetimeDBClient {
     }
   }
 
+  async recordPaidGameScore(
+    walletAddress: string,
+    gameScore: number,
+    username?: string,
+  ): Promise<void> {
+    if (!this.connection) return;
+
+    try {
+      await this.connection.reducers.recordPaidGameScore({
+        walletAddress,
+        gameScore,
+        username: username ?? undefined,
+      });
+      console.log(`✅ Recorded paid game score: ${walletAddress} (+${gameScore})`);
+    } catch (error) {
+      console.error('❌ Failed to record paid game score:', error);
+      throw error;
+    }
+  }
+
   async updatePlayerStats(
     walletAddress: string,
     totalScore: number,
     gamesPlayed: number,
     bestScore: number,
-    totalEarnings: number
+    totalEarnings: number,
+    username?: string,
   ): Promise<void> {
     if (!this.connection) return;
 
@@ -471,6 +492,7 @@ class SpacetimeDBClient {
         gamesPlayed,
         bestScore,
         totalEarnings,
+        username: username ?? undefined,
       });
       console.log(`✅ Updated player stats: ${walletAddress}`);
     } catch (error) {

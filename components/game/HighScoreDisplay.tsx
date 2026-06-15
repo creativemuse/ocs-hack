@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
-import { useTopEarners } from '@/hooks/useTopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import { usePlayerWinnings } from '@/hooks/usePlayerWinnings';
 import { Badge } from '@/components/ui/badge';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
@@ -35,7 +35,7 @@ export default function HighScoreDisplay({
   className = '' 
 }: HighScoreDisplayProps) {
   const { submitScore } = useHighScores();
-  const { topEarners, isLoading: leaderboardLoading } = useTopEarners(LEADERBOARD_LIMIT, { viewType: 'scores' });
+  const { entries: topEarners, isLoading: leaderboardLoading } = useWeeklyLeaderboard(LEADERBOARD_LIMIT);
   const { address, isConnected } = useBaseAccount();
   const { winnings, markAsClaimed, refreshWinnings } = usePlayerWinnings();
   const [hasSubmitted, setHasSubmitted] = useState(false);
@@ -76,10 +76,9 @@ export default function HighScoreDisplay({
       ...entries,
       {
         walletAddress: normalizedWallet,
-        username: playerName,
+        username: playerName?.includes('...') ? undefined : playerName,
         bestScore: currentScore,
-        totalEarnings: 0,
-        gamesPlayed: 1,
+        sessionCounter: 0,
       },
     ]
       .sort((a, b) => b.bestScore - a.bestScore)
@@ -100,6 +99,8 @@ export default function HighScoreDisplay({
     !leaderboardLoading && playerRank !== null && playerRank <= LEADERBOARD_LIMIT;
   const currentHighScore = leaderboardEntries[0]?.bestScore ?? 0;
   const isHighestScore = !isTrialGame && !leaderboardLoading && playerRank === 1;
+  const shouldCelebrate =
+    !isTrialGame && currentScore > 0 && isHighestScore && !leaderboardLoading;
 
   const handleClaimSuccess = () => {
     markAsClaimed();
@@ -160,11 +161,24 @@ export default function HighScoreDisplay({
   ]);
 
   useEffect(() => {
-    if (currentScore <= 0) return;
-    setShowConfetti(true);
-    const timer = setTimeout(() => setShowConfetti(false), 4000);
-    return () => clearTimeout(timer);
-  }, [currentScore]);
+    if (!shouldCelebrate) {
+      setShowConfetti(false);
+      return;
+    }
+
+    const startDelay = setTimeout(() => {
+      setShowConfetti(true);
+    }, 400);
+
+    const hideTimer = setTimeout(() => {
+      setShowConfetti(false);
+    }, 7500);
+
+    return () => {
+      clearTimeout(startDelay);
+      clearTimeout(hideTimer);
+    };
+  }, [shouldCelebrate]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -207,18 +221,20 @@ export default function HighScoreDisplay({
   };
 
   return (
-    <div className={`bg-white rounded-lg p-4 shadow-lg border ${className} relative`}>
-      {/* Confetti Effect - Centered at top of container */}
+    <div className={`bg-white rounded-lg p-4 shadow-lg border ${className} relative overflow-visible`}>
       {showConfetti && (
-        <div className="absolute top-0 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+        <div
+          className="fixed inset-0 z-[100] pointer-events-none flex items-start justify-center"
+          aria-hidden="true"
+        >
           <Confetti
-            particleCount={200}
-            force={0.6}
-            duration={3500}
-            colors={['#FFC700', '#FFD700', '#FF0000', '#2E3191', '#41BBC7', '#10B981']}
+            particleCount={350}
+            force={0.85}
+            duration={6000}
+            colors={['#FFC700', '#FFD700', '#FF0000', '#A855F7', '#EC4899', '#10B981', '#FFFFFF']}
             particleShape="mix"
-            stageHeight={600}
-            stageWidth={800}
+            stageHeight={900}
+            stageWidth={1200}
           />
         </div>
       )}
@@ -356,11 +372,12 @@ export default function HighScoreDisplay({
           </div>
         )}
 
-        {isOnLeaderboard && !isTrialGame && (
+        {isOnLeaderboard && !isTrialGame && currentScore > 0 && (
           <div className="mb-3 flex justify-center">
             <ComposeCastButton
               achievementType={playerRank === 1 ? 'high-score' : 'game-complete'}
               score={currentScore}
+              rank={playerRank ?? undefined}
               className="w-full"
             />
           </div>

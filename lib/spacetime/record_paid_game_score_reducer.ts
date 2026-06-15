@@ -12,9 +12,6 @@ import {
 
 export default {
   walletAddress: __t.string(),
-  totalScore: __t.u32(),
-  gamesPlayed: __t.u32(),
-  bestScore: __t.u32(),
-  totalEarnings: __t.f64(),
+  gameScore: __t.u32(),
   username: __t.option(__t.string()),
 };

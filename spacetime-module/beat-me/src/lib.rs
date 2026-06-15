@@ -1232,22 +1232,124 @@ pub fn link_wallet_to_identity(
     log::info!("✅ Successfully linked wallet {} to identity {:?}", wallet_address, identity);
 }
 
+/// Assign username only when the value is free or already owned by this wallet.
+fn apply_username_if_available(
+    ctx: &ReducerContext,
+    wallet_address: &str,
+    player: &mut Player,
+    username: Option<String>,
+) {
+    let Some(name) = username else {
+        return;
+    };
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let name_owned = trimmed.to_string();
+    if let Some(existing) = ctx.db.players().username().find(&name_owned) {
+        if existing.wallet_address != wallet_address {
+            log::warn!(
+                "Username '{}' already taken by {}, skipping for {}",
+                name_owned,
+                existing.wallet_address,
+                wallet_address
+            );
+            return;
+        }
+    }
+    player.username = Some(name_owned);
+}
+
+/// Atomically record a completed paid game score (server-side accumulation).
 #[spacetimedb::reducer]
-pub fn update_player_stats(ctx: &ReducerContext, wallet_address: String, total_score: u32, games_played: u32, best_score: u32, total_earnings: f64) {
-    log::info!("📊 Updating player stats: {} (score: {}, games: {}, best: {})", wallet_address, total_score, games_played, best_score);
-    
-    // Use efficient primary key lookup and atomic update
+pub fn record_paid_game_score(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    game_score: u32,
+    username: Option<String>,
+) {
+    log::info!(
+        "🏆 Recording paid game score: {} (+{} pts)",
+        wallet_address,
+        game_score
+    );
+
+    if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet_address) {
+        player.total_score = player.total_score.saturating_add(game_score);
+        player.games_played = player.games_played.saturating_add(1);
+        player.best_score = std::cmp::max(player.best_score, game_score);
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        player.updated_at = ctx.timestamp;
+        ctx.db.players().wallet_address().update(player);
+        log::info!("✅ Paid game score accumulated for {}", wallet_address);
+    } else {
+        let mut player = Player {
+            wallet_address: wallet_address.clone(),
+            username: None,
+            avatar_url: None,
+            total_score: game_score,
+            games_played: 1,
+            best_score: game_score,
+            total_earnings: 0.0,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        };
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        ctx.db.players().insert(player);
+        log::info!("✅ Player created with paid game score: {}", wallet_address);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn update_player_stats(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    total_score: u32,
+    games_played: u32,
+    best_score: u32,
+    total_earnings: f64,
+    username: Option<String>,
+) {
+    log::info!(
+        "📊 Updating player stats: {} (score: {}, games: {}, best: {})",
+        wallet_address,
+        total_score,
+        games_played,
+        best_score
+    );
+
     if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet_address) {
         player.total_score = total_score;
         player.games_played = games_played;
         player.best_score = best_score;
         player.total_earnings = total_earnings;
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
         player.updated_at = ctx.timestamp;
-        
+
         ctx.db.players().wallet_address().update(player);
         log::info!("✅ Player stats updated: {}", wallet_address);
     } else {
-        log::warn!("❌ Player not found for update: {}", wallet_address);
+        let mut player = Player {
+            wallet_address: wallet_address.clone(),
+            username: None,
+            avatar_url: None,
+            total_score,
+            games_played,
+            best_score,
+            total_earnings,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        };
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        ctx.db.players().insert(player);
+        log::info!("✅ Player created with stats: {}", wallet_address);
     }
 }
 
