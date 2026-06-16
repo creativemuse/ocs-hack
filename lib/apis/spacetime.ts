@@ -27,7 +27,7 @@ import {
   type PrizePool,
   type Admin,
 } from '../spacetime/database';
-import type { PoolPlayer } from '../spacetime/types';
+import type { PoolPlayer, SocialIdentity } from '../spacetime/types';
 import { pickCurrentActiveGameSession } from './mapSpacetimeGameSession';
 
 // Re-export types for convenience
@@ -44,7 +44,7 @@ export type {
   PrizePool,
   Admin,
 };
-export type { PoolPlayer };
+export type { PoolPlayer, SocialIdentity };
 
 export interface TopEarner {
   walletAddress: string;
@@ -57,8 +57,14 @@ export interface TopEarner {
 
 // Configuration
 const SPACETIME_CONFIG = {
-  host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  module: process.env.SPACETIME_MODULE || 'beat-me',
+  host:
+    process.env.SPACETIME_HOST ||
+    process.env.NEXT_PUBLIC_SPACETIME_HOST ||
+    'https://maincloud.spacetimedb.com',
+  module:
+    process.env.SPACETIME_MODULE ||
+    process.env.NEXT_PUBLIC_SPACETIME_MODULE ||
+    'beat-me',
 };
 
 export interface SpacetimeInitOptions {
@@ -200,8 +206,10 @@ class SpacetimeDBClient {
   }
 
   private async _doInitialize(): Promise<void> {
-    // Check if SpacetimeDB is configured
-    if (!process.env.SPACETIME_HOST || !process.env.SPACETIME_MODULE) {
+    // Check if SpacetimeDB is configured (server or public env)
+    const host = process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST;
+    const moduleName = process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE;
+    if (!host || !moduleName) {
       console.log('⚠️ SpacetimeDB not configured - using fallback mode');
       this.isConnected = false;
       return;
@@ -267,10 +275,11 @@ class SpacetimeDBClient {
             reject(error);
           });
 
-        // Anonymous connection - no token needed
-        // The SDK will generate and manage identity automatically
-
-        // Build connection (this initiates the WebSocket connection)
+        // Use server token when available (admin writes for Orb link)
+        const serverToken = process.env.SPACETIME_TOKEN;
+        if (serverToken && typeof window === 'undefined') {
+          builder.withToken(serverToken);
+        }
         builder.build();
       });
 
@@ -388,14 +397,22 @@ class SpacetimeDBClient {
   /**
    * Link current SpacetimeDB identity to wallet address for persistent stats
    */
-  async linkWalletToIdentity(walletAddress: string): Promise<void> {
+  async linkWalletToIdentity(
+    walletAddress: string,
+    universalWalletAddress?: string | null,
+  ): Promise<void> {
     if (!this.connection) {
       console.warn('⚠️ Not connected to SpacetimeDB');
       return;
     }
 
     try {
-      this.connection.reducers.linkWalletToIdentity({ walletAddress });
+      const universal = universalWalletAddress?.trim().toLowerCase();
+      this.connection.reducers.linkWalletToIdentity({
+        walletAddress: walletAddress.trim().toLowerCase(),
+        universalWalletAddress:
+          universal && universal.startsWith('0x') ? universal : undefined,
+      });
       console.log(`✅ Linked wallet ${walletAddress} to SpacetimeDB identity`);
     } catch (error) {
       console.error('❌ Failed to link wallet:', error);
@@ -413,8 +430,7 @@ class SpacetimeDBClient {
     }
 
     try {
-      // Link the Sub Account address (primary) to SpacetimeDB identity
-      this.connection.reducers.linkWalletToIdentity({ walletAddress: subAccountAddress });
+      await this.linkWalletToIdentity(subAccountAddress, universalAddress);
       
       // Store both addresses in localStorage for reference
       localStorage.setItem('base_account_addresses', JSON.stringify({
@@ -737,6 +753,81 @@ class SpacetimeDBClient {
       )
       .sort((a, b) => b.weeklyBestScore - a.weeklyBestScore)
       .slice(0, limit);
+  }
+
+  getPlayerByWallet(walletAddress: string): Player | undefined {
+    if (!this.connection) return undefined;
+    const wallet = walletAddress.trim().toLowerCase();
+    return (Array.from(this.connection.db.players.iter()) as Player[]).find(
+      (p) => p.walletAddress.toLowerCase() === wallet,
+    );
+  }
+
+  getSocialIdentityByWallet(walletAddress: string): SocialIdentity | undefined {
+    if (!this.connection) return undefined;
+    const wallet = walletAddress.trim().toLowerCase();
+    return (Array.from(this.connection.db.social_identity.iter()) as SocialIdentity[]).find(
+      (row) => row.walletAddress.toLowerCase() === wallet,
+    );
+  }
+
+  getUniversalWalletForSubAccount(walletAddress: string): string | null {
+    if (!this.connection) return null;
+    const wallet = walletAddress.trim().toLowerCase();
+    const mapping = (
+      Array.from(this.connection.db.identity_wallet_mapping.iter()) as Array<{
+        walletAddress: string;
+        universalWalletAddress?: string | null;
+      }>
+    ).find((row) => row.walletAddress.toLowerCase() === wallet);
+    const universal = mapping?.universalWalletAddress?.trim().toLowerCase();
+    return universal?.startsWith('0x') ? universal : null;
+  }
+
+  async setVerifiedSocialIdentity(input: {
+    walletAddress: string;
+    lensAccountId: string;
+    handle: string;
+    displayName?: string;
+    avatarUrl?: string;
+  }): Promise<void> {
+    if (!this.connection) {
+      throw new Error('Not connected to SpacetimeDB');
+    }
+
+    await this.connection.reducers.setVerifiedSocialIdentity({
+      walletAddress: input.walletAddress.trim().toLowerCase(),
+      lensAccountId: input.lensAccountId,
+      handle: input.handle.trim().replace(/^@/, ''),
+      displayName: input.displayName ?? undefined,
+      avatarUrl: input.avatarUrl ?? undefined,
+    });
+  }
+
+  getActiveConnections(limit: number = 20): Array<{
+    walletAddress: string | null;
+    lastActivity: Date;
+  }> {
+    if (!this.connection) return [];
+
+    return (Array.from(this.connection.db.active_connections.iter()) as Array<{
+      walletAddress?: string | null;
+      lastActivity: { toDate?: () => Date } | Date;
+    }>)
+      .map((row) => ({
+        walletAddress: row.walletAddress ?? null,
+        lastActivity:
+          row.lastActivity instanceof Date
+            ? row.lastActivity
+            : (row.lastActivity?.toDate?.() ?? new Date()),
+      }))
+      .sort((a, b) => b.lastActivity.getTime() - a.lastActivity.getTime())
+      .slice(0, limit);
+  }
+
+  getPoolPlayersForActiveSessions(): PoolPlayer[] {
+    if (!this.connection) return [];
+    return Array.from(this.connection.db.pool_players.iter()) as PoolPlayer[];
   }
 
   // ============================================================================

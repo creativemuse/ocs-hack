@@ -13,7 +13,9 @@ export const generateNonce = (): string => {
   );
 };
 
-export const signInWithBase = async (): Promise<{
+export const signInWithBase = async (
+  signingAddress?: string,
+): Promise<{
   address: string;
   signature: string;
   message: string;
@@ -24,16 +26,25 @@ export const signInWithBase = async (): Promise<{
   const uri = window.location.origin;
   const chainId = base.id;
 
-  const accounts = (await provider.request({
-    method: 'eth_accounts',
-    params: [],
-  })) as string[];
+  let address = signingAddress?.trim().toLowerCase();
 
-  if (!accounts.length) {
-    throw new Error('No account connected');
+  if (!address) {
+    const accounts = (await provider.request({
+      method: 'eth_accounts',
+      params: [],
+    })) as string[];
+
+    if (!accounts.length) {
+      throw new Error('No account connected');
+    }
+
+    // Prefer sub-account (last account) when Base returns [universal, sub].
+    address =
+      accounts.length > 1
+        ? accounts[accounts.length - 1]!.toLowerCase()
+        : accounts[0]!.toLowerCase();
   }
 
-  const address = accounts[0];
   const message = `${domain} wants you to sign in with your Ethereum account:
 ${address}
 

@@ -31,6 +31,7 @@ import RecordPaidGameScoreReducer from "../record_paid_game_score_reducer";
 import RecordPrizeDistributionReducer from "../record_prize_distribution_reducer";
 import RecordQuestionAttemptReducer from "../record_question_attempt_reducer";
 import RevokeAdminPrivilegesReducer from "../revoke_admin_privileges_reducer";
+import SetVerifiedSocialIdentityReducer from "../set_verified_social_identity_reducer";
 import StartGameSessionReducer from "../start_game_session_reducer";
 import SyncMultiplayerLobbyEndsAfterSecsReducer from "../sync_multiplayer_lobby_ends_after_secs_reducer";
 import UpdateAnonymousSessionReducer from "../update_anonymous_session_reducer";
@@ -64,6 +65,7 @@ export type RecordPaidGameScoreParams = __Infer<typeof RecordPaidGameScoreReduce
 export type RecordPrizeDistributionParams = __Infer<typeof RecordPrizeDistributionReducer>;
 export type RecordQuestionAttemptParams = __Infer<typeof RecordQuestionAttemptReducer>;
 export type RevokeAdminPrivilegesParams = __Infer<typeof RevokeAdminPrivilegesReducer>;
+export type SetVerifiedSocialIdentityParams = __Infer<typeof SetVerifiedSocialIdentityReducer>;
 export type StartGameSessionParams = __Infer<typeof StartGameSessionReducer>;
 export type SyncMultiplayerLobbyEndsAfterSecsParams = __Infer<typeof SyncMultiplayerLobbyEndsAfterSecsReducer>;
 export type UpdateAnonymousSessionParams = __Infer<typeof UpdateAnonymousSessionReducer>;

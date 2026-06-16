@@ -1,10 +1,9 @@
 'use client';
 
 import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
-import Image from 'next/image';
-import { ASSETS } from '@/lib/config/assets';
 import { Skeleton } from '@/components/ui/skeleton';
 import { BaseName } from '@/components/identity/BaseName';
+import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
 
 interface TopEarnersProps {
   limit?: number;
@@ -38,12 +37,6 @@ export default function TopEarners({
     if (rank === 1) return '🏆';
     return `#${rank}`;
   };
-
-  const avatarImages = [
-    ASSETS.ellipse7, ASSETS.ellipse4, ASSETS.ellipse5,
-    ASSETS.ellipse6, ASSETS.ellipse8, ASSETS.ellipse9,
-    ASSETS.ellipse10,
-  ];
 
   if (error) {
     return (
@@ -97,12 +90,11 @@ export default function TopEarners({
               </div>
               <div className="content-stretch flex gap-3 items-center justify-start relative shrink-0">
                 <div className="relative shrink-0 size-9">
-                  <Image
-                    alt="player avatar"
-                    className="block max-w-none size-full"
-                    height="36"
-                    src={earner.avatarUrl || avatarImages[index % avatarImages.length]}
-                    width="36"
+                  <PlayerAvatarWithFetch
+                    walletAddress={earner.walletAddress}
+                    username={earner.username}
+                    avatarUrl={earner.avatarUrl}
+                    className="size-9"
                   />
                 </div>
                 <div className="font-['Audiowide:Regular',_sans-serif] leading-[0] not-italic relative shrink-0 text-[#ffffff] text-[12px] text-nowrap">

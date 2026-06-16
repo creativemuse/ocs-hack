@@ -33,6 +33,7 @@ export const buildAppSubscriptionQueries = (t: AppSubscriptionTables) => [
     row.lastActivity.gte(Timestamp.UNIX_EPOCH)
   ),
   t.identity_wallet_mapping,
+  t.social_identity,
 ];
 
 /** Minimal subscriptions for serverless `/api/game-session` — avoids long initial sync (504 on Vercel). */

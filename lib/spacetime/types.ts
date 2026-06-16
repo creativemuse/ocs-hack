@@ -154,6 +154,7 @@ export type GuestPlayer = __Infer<typeof GuestPlayer>;
 export const IdentityWalletMapping = __t.object("IdentityWalletMapping", {
   spacetimeIdentity: __t.identity(),
   walletAddress: __t.string(),
+  universalWalletAddress: __t.option(__t.string()),
   linkedAt: __t.timestamp(),
   lastSeen: __t.timestamp(),
 });
@@ -223,6 +224,17 @@ export const PoolPlayer = __t.object("PoolPlayer", {
   joinedAt: __t.timestamp(),
 });
 export type PoolPlayer = __Infer<typeof PoolPlayer>;
+
+export const SocialIdentity = __t.object("SocialIdentity", {
+  walletAddress: __t.string(),
+  lensAccountId: __t.string(),
+  handle: __t.string(),
+  displayName: __t.option(__t.string()),
+  avatarUrl: __t.option(__t.string()),
+  linkedAt: __t.timestamp(),
+  verifiedAt: __t.timestamp(),
+});
+export type SocialIdentity = __Infer<typeof SocialIdentity>;
 
 export const PrizeHistory = __t.object("PrizeHistory", {
   id: __t.u64(),

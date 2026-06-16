@@ -16,6 +16,7 @@ import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
+import OrbConnectButton from '@/components/auth/OrbConnectButton';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
@@ -666,13 +667,18 @@ export default function GameEntry({
               {/* Base Account Display */}
               <div className="mb-4">
                 {isConnected ? (
-                  <SubAccountDisplay
-                    showActions={true}
-                    onFundEth={handleFundEth}
-                    ethFundingLoading={ethFundingLoading}
-                    ethFundingError={ethFundingError}
-                    paymasterConfigured={paymasterConfigured}
-                  />
+                  <>
+                    <SubAccountDisplay
+                      showActions={true}
+                      onFundEth={handleFundEth}
+                      ethFundingLoading={ethFundingLoading}
+                      ethFundingError={ethFundingError}
+                      paymasterConfigured={paymasterConfigured}
+                    />
+                    <div className="mt-3 flex justify-center">
+                      <OrbConnectButton />
+                    </div>
+                  </>
                 ) : (
                   <div className="text-center">
                     <SignInWithBaseButton
