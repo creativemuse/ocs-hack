@@ -78,6 +78,7 @@ export interface SpacetimeInitOptions {
 class SpacetimeDBClient {
   private connection: DbConnection | null = null;
   private isConnected = false;
+  private connectedIdentityHex: string | null = null;
   private connectionPromise: Promise<void> | null = null;
   private initOptions: SpacetimeInitOptions = {};
   private playersSubscribed = false;
@@ -241,6 +242,7 @@ class SpacetimeDBClient {
             console.log(`   Identity: ${identity.toHexString()}`);
             console.log(`   Token: ${token ? '***' + token.slice(-8) : 'None'}`);
             this.connection = conn;
+            this.connectedIdentityHex = identity.toHexString();
             this.isConnected = true;
             this.beginSyncWait();
 
@@ -263,6 +265,7 @@ class SpacetimeDBClient {
             console.log('🔌 Disconnected from SpacetimeDB');
             this.isConnected = false;
             this.connection = null;
+            this.connectedIdentityHex = null;
             this.playersSubscribed = false;
             this.resetSyncState();
           })
@@ -307,6 +310,10 @@ class SpacetimeDBClient {
     return this.connection;
   }
 
+  getConnectedIdentityHex(): string | null {
+    return this.connectedIdentityHex;
+  }
+
   /**
    * Disconnect from SpacetimeDB
    */
@@ -315,6 +322,7 @@ class SpacetimeDBClient {
       this.connection.disconnect();
       this.connection = null;
       this.isConnected = false;
+      this.connectedIdentityHex = null;
       console.log('🔌 Disconnected from SpacetimeDB');
     }
   }
@@ -795,13 +803,23 @@ class SpacetimeDBClient {
       throw new Error('Not connected to SpacetimeDB');
     }
 
-    await this.connection.reducers.setVerifiedSocialIdentity({
+    const conn = this.connection;
+    const params = {
       walletAddress: input.walletAddress.trim().toLowerCase(),
       lensAccountId: input.lensAccountId,
       handle: input.handle.trim().replace(/^@/, ''),
       displayName: input.displayName ?? undefined,
       avatarUrl: input.avatarUrl ?? undefined,
-    });
+    };
+
+    try {
+      await conn.reducers.setVerifiedSocialIdentity(params);
+    } catch (error) {
+      console.error('❌ setVerifiedSocialIdentity failed:', error);
+      throw error instanceof Error
+        ? error
+        : new Error('set_verified_social_identity failed');
+    }
   }
 
   getActiveConnections(limit: number = 20): Array<{
