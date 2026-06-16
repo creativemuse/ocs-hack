@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
+import { AvatarSkeleton, StatValueSkeleton } from '@/components/identity/IdentitySkeleton';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -104,12 +105,16 @@ export default function SocialProfileViewer({
           {/* Player Avatar and Basic Info */}
           <div className="text-center space-y-4">
             <div className="relative inline-block">
-              <PlayerAvatarWithFetch
-                walletAddress={player.isWalletUser ? player.address : undefined}
-                username={player.username}
-                avatarUrl={player.avatarUrl}
-                className="w-20 h-20 border-4 border-gray-700 rounded-full"
-              />
+              {profileLoading && player.isWalletUser ? (
+                <AvatarSkeleton className="w-20 h-20 border-4 border-gray-700" />
+              ) : (
+                <PlayerAvatarWithFetch
+                  walletAddress={player.isWalletUser ? player.address : undefined}
+                  username={player.username}
+                  avatarUrl={player.avatarUrl}
+                  className="w-20 h-20 border-4 border-gray-700 rounded-full"
+                />
+              )}
               <div className="absolute -bottom-2 -right-2">
                 <Badge className={`${getRankColor(getPlayerRank())} text-white border-0`}>
                   {getPlayerRank()}
@@ -141,7 +146,7 @@ export default function SocialProfileViewer({
               <Trophy className="w-6 h-6 text-yellow-400 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">
                 {profileLoading ? (
-                  <div className="h-8 w-20 mx-auto bg-gray-700 animate-pulse rounded" />
+                  <StatValueSkeleton />
                 ) : (
                   displayStats.totalScore
                 )}
@@ -153,7 +158,7 @@ export default function SocialProfileViewer({
               <Users className="w-6 h-6 text-blue-400 mx-auto mb-2" />
               <div className="text-2xl font-bold text-white">
                 {profileLoading ? (
-                  <div className="h-8 w-20 mx-auto bg-gray-700 animate-pulse rounded" />
+                  <StatValueSkeleton />
                 ) : (
                   displayStats.gamesPlayed
                 )}

@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
+import { AvatarSkeleton } from '@/components/identity/IdentitySkeleton';
 import { useActivePlayers, type ActivePlayer } from '@/hooks/useActivePlayers';
 import { useLobbyPlayers } from '@/hooks/useLobbyPlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
@@ -81,13 +82,17 @@ export default function ActivePlayers({
 
   if (isLoading) {
     return (
-      <div className={`flex items-center justify-center space-x-1 ${className}`}>
+      <div className={`flex items-center justify-start space-x-1 ${className}`}>
         {Array.from({ length: Math.min(8, maxPlayers) }, (_, i) => (
           <div
             key={i}
-            className="w-5 h-5 bg-gray-600 rounded-full animate-pulse"
-            style={{ animationDelay: `${i * 0.1}s` }}
-          />
+            style={{
+              marginRight: i < Math.min(8, maxPlayers) - 1 ? '-8px' : '0',
+              zIndex: Math.min(8, maxPlayers) - i,
+            }}
+          >
+            <AvatarSkeleton className="w-5 h-5 border-2 border-black" />
+          </div>
         ))}
       </div>
     );

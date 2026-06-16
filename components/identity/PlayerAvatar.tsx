@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useBasename } from '@/hooks/useBasename';
 import { resolveLensMediaUrl } from '@/lib/identity/resolveLensMedia';
@@ -9,6 +9,8 @@ import {
   gradientClassForWallet,
   type PlayerIdentityCache,
 } from '@/lib/identity/playerIdentity';
+import { AvatarSkeleton } from '@/components/identity/IdentitySkeleton';
+import { cn } from '@/lib/utils';
 
 export type PlayerAvatarProps = {
   walletAddress?: string | null;
@@ -30,8 +32,10 @@ export const PlayerAvatar = ({
 }: PlayerAvatarProps) => {
   const normalizedWallet = walletAddress?.trim().toLowerCase();
   const isWallet = !!normalizedWallet?.startsWith('0x');
+  const [imageLoaded, setImageLoaded] = useState(false);
+  const [imageError, setImageError] = useState(false);
 
-  const { data: basename } = useBasename(
+  const { data: basename, isLoading: basenameLoading } = useBasename(
     isWallet ? (normalizedWallet as `0x${string}`) : undefined,
     universalWalletAddress ?? undefined,
   );
@@ -49,13 +53,30 @@ export const PlayerAvatar = ({
     ? gradientClassForWallet(normalizedWallet)
     : 'from-purple-400 to-pink-400';
 
-  if (resolvedAvatar) {
+  const isResolvingIdentity =
+    isWallet && !username && !resolvedAvatar && basenameLoading;
+
+  if (isResolvingIdentity) {
+    return <AvatarSkeleton className={className} />;
+  }
+
+  if (resolvedAvatar && !imageError) {
     return (
-      <img
-        src={resolvedAvatar}
-        alt={alt ?? displayLabel}
-        className={`rounded-full object-cover ${className}`}
-      />
+      <div className={cn('relative shrink-0', className)}>
+        {!imageLoaded && (
+          <AvatarSkeleton className="absolute inset-0 h-full w-full" />
+        )}
+        <img
+          src={resolvedAvatar}
+          alt={alt ?? displayLabel}
+          className={cn(
+            'rounded-full object-cover h-full w-full',
+            !imageLoaded && 'opacity-0',
+          )}
+          onLoad={() => setImageLoaded(true)}
+          onError={() => setImageError(true)}
+        />
+      </div>
     );
   }
 
@@ -79,12 +100,13 @@ export const PlayerAvatarWithFetch = ({
   ...rest
 }: PlayerAvatarWithFetchProps) => {
   const normalizedWallet = walletAddress?.trim().toLowerCase();
+  const hasKnownIdentity = !!(rest.username || rest.avatarUrl);
   const shouldFetch =
     fetchIfMissing &&
     !!normalizedWallet?.startsWith('0x') &&
-    !rest.avatarUrl;
+    !hasKnownIdentity;
 
-  const { data } = useQuery({
+  const { data, isPending, isFetching } = useQuery({
     queryKey: ['player-identity', normalizedWallet],
     queryFn: async () => {
       const response = await fetch(
@@ -102,9 +124,16 @@ export const PlayerAvatarWithFetch = ({
     staleTime: 5 * 60 * 1000,
   });
 
+  const isResolving = shouldFetch && (isPending || isFetching) && !data;
+
+  if (isResolving) {
+    return <AvatarSkeleton className={rest.className} />;
+  }
+
   return (
     <PlayerAvatar
       walletAddress={normalizedWallet}
+      universalWalletAddress={rest.universalWalletAddress}
       username={rest.username ?? data?.username ?? data?.displayName}
       avatarUrl={rest.avatarUrl ?? data?.avatarUrl ?? undefined}
       className={rest.className}

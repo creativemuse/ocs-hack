@@ -6,6 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Trophy, Medal, Award, TrendingUp, Clock, Target, Loader2 } from 'lucide-react';
 import { BaseAvatar } from '@/components/identity/BaseAvatar';
 import { BaseName } from '@/components/identity/BaseName';
+import { AvatarSkeleton, DisplayNameSkeleton } from '@/components/identity/IdentitySkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { LeaderboardEntry } from '@/types/game';
 import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
 import { useLeaderboardLive } from '@/hooks/useLeaderboardLive';
@@ -124,7 +126,24 @@ export default function LiveRankings({
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {displayEntries.length === 0 ? (
+        {isLoading && !entriesProp && displayEntries.length === 0 ? (
+          Array.from({ length: limit }).map((_, index) => (
+            <div
+              key={`live-ranking-skeleton-${index}`}
+              className="p-4 rounded-lg border-2 border-gray-200 bg-white"
+            >
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-6 w-6 rounded-full" />
+                <AvatarSkeleton className="h-8 w-8" />
+                <div className="space-y-2 flex-1">
+                  <DisplayNameSkeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+          ))
+        ) : displayEntries.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">No players yet</p>
