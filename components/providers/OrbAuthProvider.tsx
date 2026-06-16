@@ -36,6 +36,31 @@ type OrbAuthContextValue = {
 
 const OrbAuthContext = createContext<OrbAuthContextValue | null>(null);
 
+const formatOrbConnectError = (err: unknown): string => {
+  if (!(err instanceof Error)) {
+    return 'Could not start Orb sign-in. Check your connection and try again.';
+  }
+
+  const message = err.message.toLowerCase();
+
+  if (
+    message.includes('qr init request failed') ||
+    message.includes('qr poll request failed')
+  ) {
+    return 'Could not start Orb sign-in. Check your connection and try again.';
+  }
+
+  if (message.includes('timed out') || message.includes('timeout')) {
+    return 'Orb sign-in timed out. Please try again.';
+  }
+
+  if (message.includes('cancelled')) {
+    return 'Orb sign-in was cancelled.';
+  }
+
+  return err.message;
+};
+
 const loadStoredSession = (): OrbSession | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -149,7 +174,7 @@ export const OrbAuthProvider = ({ children }: { children: ReactNode }) => {
         const nextSession = enrichSessionWithAccount(sessionFromQrResult(result));
         persistSession(nextSession);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Orb sign-in failed');
+        setError(formatOrbConnectError(err));
         throw err;
       } finally {
         setIsConnecting(false);
