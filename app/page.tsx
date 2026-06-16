@@ -81,6 +81,7 @@ function HomePage() {
   const countdownStartedAtRef = useRef<number | null>(null);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
+  const [userRequestedMainMenu, setUserRequestedMainMenu] = useState(false);
   // Add trial status hook
   const { address } = useBaseAccount();
   const { data: basename } = useBasename(address ?? undefined);
@@ -259,6 +260,7 @@ function HomePage() {
 
   const handleJoinGame = async () => {
     setJoinGameStartError(null);
+    setUserRequestedMainMenu(false);
     setShowGameEntry(true);
   };
 
@@ -282,6 +284,7 @@ function HomePage() {
 
   const handleWalletConnect = () => {
     // Payment view removed — go straight to game entry with paid modes
+    setUserRequestedMainMenu(false);
     setShowGameEntry(true);
   };
 
@@ -340,6 +343,7 @@ function HomePage() {
       console.error('Error leaving game session:', error);
     } finally {
       setJoinGameStartError(null);
+      setUserRequestedMainMenu(true);
       setShowGameEntry(false);
       setShowGuestMode(false);
       setGameStarted(false);
@@ -554,6 +558,7 @@ function HomePage() {
 
   const handlePlayAgain = () => {
     paidScoreSavedRef.current = false;
+    setUserRequestedMainMenu(false);
     setGameCompleted(false);
     setGameStarted(false);
     setShowGameEntry(true);
@@ -627,10 +632,26 @@ function HomePage() {
   // When trial is exhausted, automatically show game entry with paid modes
   // (Trial Games Complete screen has been removed — users go straight to game entry)
   useEffect(() => {
-    if (trialStatus.requiresWallet && !gameCompleted && !gameStarted && !showGameEntry && !showGuestMode && !inMultiplayerLobby) {
+    if (
+      trialStatus.requiresWallet &&
+      !gameCompleted &&
+      !gameStarted &&
+      !showGameEntry &&
+      !showGuestMode &&
+      !inMultiplayerLobby &&
+      !userRequestedMainMenu
+    ) {
       setShowGameEntry(true);
     }
-  }, [trialStatus.requiresWallet, gameCompleted, gameStarted, showGameEntry, showGuestMode, inMultiplayerLobby]);
+  }, [
+    trialStatus.requiresWallet,
+    gameCompleted,
+    gameStarted,
+    showGameEntry,
+    showGuestMode,
+    inMultiplayerLobby,
+    userRequestedMainMenu,
+  ]);
 
   // Paid multiplayer lobby (memory session)
   if (inMultiplayerLobby) {
@@ -660,6 +681,7 @@ function HomePage() {
         onLeaveLobby={async () => {
           await leaveGame();
           setInMultiplayerLobby(false);
+          setUserRequestedMainMenu(true);
           setShowGameEntry(false);
         }}
       />
@@ -673,11 +695,14 @@ function HomePage() {
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
           <button
             type="button"
-            onClick={() => setShowGameEntry(false)}
+            onClick={() => {
+              setUserRequestedMainMenu(true);
+              setShowGameEntry(false);
+            }}
             className="text-sm text-gray-400 hover:text-white transition-colors"
-            aria-label="Back to home"
+            aria-label="Main Menu"
           >
-            ← Back to Home
+            ← Main Menu
           </button>
           {/* Player mode: Trial | Solo (paid) | Multiplayer (paid) */}
           <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
@@ -796,8 +821,9 @@ function HomePage() {
             <button
               onClick={handleBackToHome}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg"
+              aria-label="Main Menu"
             >
-              Back to Home
+              Main Menu
             </button>
           </div>
         </div>
@@ -891,8 +917,9 @@ function HomePage() {
             <button
               onClick={handleBackToHome}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg"
+              aria-label="Main Menu"
             >
-              Back to Home
+              Main Menu
             </button>
           </div>
         </div>
