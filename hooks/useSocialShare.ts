@@ -95,7 +95,8 @@ export const useSocialShare = () => {
     }
     
     if (playerName) {
-      shareText = shareText.replace('Just played', `${playerName} just played`);
+      const handlePrefix = playerName.startsWith('@') ? playerName : `@${playerName}`;
+      shareText = shareText.replace('Just played', `${handlePrefix} just played`);
     }
     
     return share({
@@ -123,7 +124,7 @@ export const useSocialShare = () => {
     
     switch (activityType) {
       case 'joined-game':
-        shareText = `🎵 ${playerName} just joined BEAT ME! The music trivia battle is heating up! 🎶`;
+        shareText = `🎵 ${playerName.startsWith('@') ? playerName : `@${playerName}`} just joined BEAT ME! The music trivia battle is heating up! 🎶`;
         title = `${playerName} Joined BEAT ME!`;
         break;
       case 'left-game':

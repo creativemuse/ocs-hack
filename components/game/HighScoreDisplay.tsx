@@ -10,6 +10,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import ClaimWinningsButton from '@/components/game/ClaimWinningsButton';
 import { BaseName } from '@/components/identity/BaseName';
+import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
 import ComposeCastButton from '@/components/social/ComposeCastButton';
 import { Confetti } from '@neoconfetti/react';
 import {
@@ -441,6 +442,12 @@ export default function HighScoreDisplay({
                 >
                   <div className="flex items-center">
                     {getRankIcon(index + 1)}
+                    <PlayerAvatarWithFetch
+                      walletAddress={entry.walletAddress}
+                      username={entry.username}
+                      avatarUrl={entry.avatarUrl}
+                      className="w-6 h-6 ml-1"
+                    />
                     <span className="ml-2 text-sm font-medium text-gray-700">
                       <PlayerDisplayName
                         walletAddress={entry.walletAddress}

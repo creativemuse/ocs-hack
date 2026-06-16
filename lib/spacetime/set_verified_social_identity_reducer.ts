@@ -12,5 +12,8 @@ import {
 
 export default {
   walletAddress: __t.string(),
-  universalWalletAddress: __t.option(__t.string()),
+  lensAccountId: __t.string(),
+  handle: __t.string(),
+  displayName: __t.option(__t.string()),
+  avatarUrl: __t.option(__t.string()),
 };

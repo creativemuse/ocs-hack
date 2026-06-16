@@ -84,8 +84,8 @@ function HomePage() {
   const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   const [userRequestedMainMenu, setUserRequestedMainMenu] = useState(false);
   // Add trial status hook
-  const { address } = useBaseAccount();
-  const { data: basename } = useBasename(address ?? undefined);
+  const { address, universalAddress } = useBaseAccount();
+  const { data: basename } = useBasename(address ?? undefined, universalAddress ?? undefined);
   const playerDisplayName = basename ?? (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player');
   const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
   const [isJoiningAfterPayment, setIsJoiningAfterPayment] = useState(false);

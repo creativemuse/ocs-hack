@@ -57,6 +57,7 @@ import RecordPaidGameScoreReducer from "./record_paid_game_score_reducer";
 import RecordPrizeDistributionReducer from "./record_prize_distribution_reducer";
 import RecordQuestionAttemptReducer from "./record_question_attempt_reducer";
 import RevokeAdminPrivilegesReducer from "./revoke_admin_privileges_reducer";
+import SetVerifiedSocialIdentityReducer from "./set_verified_social_identity_reducer";
 import StartGameSessionReducer from "./start_game_session_reducer";
 import SyncMultiplayerLobbyEndsAfterSecsReducer from "./sync_multiplayer_lobby_ends_after_secs_reducer";
 import UpdateAnonymousSessionReducer from "./update_anonymous_session_reducer";
@@ -85,6 +86,7 @@ import PoolPlayersRow from "./pool_players_table";
 import PrizeHistoryRow from "./prize_history_table";
 import PrizePoolsRow from "./prize_pools_table";
 import QuestionAttemptsRow from "./question_attempts_table";
+import SocialIdentityRow from "./social_identity_table";
 
 /** Type-only namespace exports for generated type groups. */
 
@@ -289,6 +291,21 @@ const tablesSchema = __schema({
       { name: 'pool_players_player_id_key', constraint: 'unique', columns: ['playerId'] },
     ],
   }, PoolPlayersRow),
+  social_identity: __table({
+    name: 'social_identity',
+    indexes: [
+      { accessor: 'handle', name: 'social_identity_handle_idx_btree', algorithm: 'btree', columns: [
+        'handle',
+      ] },
+      { accessor: 'wallet_address', name: 'social_identity_wallet_address_idx_btree', algorithm: 'btree', columns: [
+        'walletAddress',
+      ] },
+    ],
+    constraints: [
+      { name: 'social_identity_handle_key', constraint: 'unique', columns: ['handle'] },
+      { name: 'social_identity_wallet_address_key', constraint: 'unique', columns: ['walletAddress'] },
+    ],
+  }, SocialIdentityRow),
   prize_history: __table({
     name: 'prize_history',
     indexes: [
@@ -349,6 +366,7 @@ const reducersSchema = __reducers(
   __reducerSchema("record_prize_distribution", RecordPrizeDistributionReducer),
   __reducerSchema("record_question_attempt", RecordQuestionAttemptReducer),
   __reducerSchema("revoke_admin_privileges", RevokeAdminPrivilegesReducer),
+  __reducerSchema("set_verified_social_identity", SetVerifiedSocialIdentityReducer),
   __reducerSchema("start_game_session", StartGameSessionReducer),
   __reducerSchema("sync_multiplayer_lobby_ends_after_secs", SyncMultiplayerLobbyEndsAfterSecsReducer),
   __reducerSchema("update_anonymous_session", UpdateAnonymousSessionReducer),

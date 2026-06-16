@@ -1,34 +1,33 @@
 'use client';
 
-import { useEnsName, useEnsAvatar } from 'wagmi';
-import { normalize } from 'viem/ens';
+import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
 
 interface BaseAvatarProps {
   address?: `0x${string}`;
   className?: string;
   defaultComponent?: React.ReactNode;
+  avatarUrl?: string | null;
+  username?: string | null;
 }
 
-export function BaseAvatar({ address, className = '', defaultComponent }: BaseAvatarProps) {
-  const { data: ensName } = useEnsName({
-    address,
-    query: { enabled: !!address },
-  });
-
-  const { data: avatarUrl } = useEnsAvatar({
-    name: ensName ? normalize(ensName) : undefined,
-    query: { enabled: !!ensName },
-  });
-
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt="avatar"
-        className={`rounded-full object-cover ${className}`}
-      />
-    );
+export function BaseAvatar({
+  address,
+  className = '',
+  defaultComponent,
+  avatarUrl,
+  username,
+}: BaseAvatarProps) {
+  if (!address) {
+    return <>{defaultComponent ?? null}</>;
   }
 
-  return <>{defaultComponent ?? null}</>;
+  return (
+    <PlayerAvatarWithFetch
+      walletAddress={address}
+      username={username}
+      avatarUrl={avatarUrl}
+      className={className}
+      fetchIfMissing={!avatarUrl}
+    />
+  );
 }

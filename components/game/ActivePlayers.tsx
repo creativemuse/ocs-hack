@@ -1,8 +1,9 @@
 'use client';
 
 import { useState } from 'react';
-import { BaseAvatar } from '@/components/identity/BaseAvatar';
+import { PlayerAvatarWithFetch } from '@/components/identity/PlayerAvatar';
 import { useActivePlayers, type ActivePlayer } from '@/hooks/useActivePlayers';
+import { useLobbyPlayers } from '@/hooks/useLobbyPlayers';
 import { useSocialShare } from '@/hooks/useSocialShare';
 import { Share2, Users, Trophy } from 'lucide-react';
 
@@ -12,6 +13,9 @@ interface ActivePlayersProps {
   showTooltips?: boolean;
   showSocialFeatures?: boolean;
   onPlayerClick?: (player: ActivePlayer) => void;
+  /** When set, reads live lobby participants from SpacetimeDB instead of the API. */
+  sessionId?: string | null;
+  useLiveLobby?: boolean;
 }
 
 export default function ActivePlayers({ 
@@ -19,9 +23,27 @@ export default function ActivePlayers({
   maxPlayers = 16, 
   showTooltips = true,
   showSocialFeatures = true,
-  onPlayerClick
+  onPlayerClick,
+  sessionId = null,
+  useLiveLobby = false,
 }: ActivePlayersProps) {
-  const { players, isLoading, error } = useActivePlayers({ maxPlayers });
+  const apiPlayers = useActivePlayers({ maxPlayers, autoRefresh: !useLiveLobby });
+  const lobby = useLobbyPlayers({ sessionId: useLiveLobby ? sessionId : null });
+
+  const players: ActivePlayer[] = useLiveLobby
+    ? lobby.players.slice(0, maxPlayers).map((p) => ({
+        address: p.address,
+        username: p.username,
+        avatarUrl: p.avatarUrl,
+        totalScore: 0,
+        gamesPlayed: 0,
+        isWalletUser: p.isWalletUser,
+        lastActive: p.joinedAt,
+      }))
+    : apiPlayers.players;
+
+  const isLoading = useLiveLobby ? lobby.isLoading : apiPlayers.isLoading;
+  const error = useLiveLobby ? null : apiPlayers.error;
   const [hoveredPlayer, setHoveredPlayer] = useState<ActivePlayer | null>(null);
   const { sharePlayerActivity } = useSocialShare();
 
@@ -96,14 +118,11 @@ export default function ActivePlayers({
             className="relative"
             onClick={() => handlePlayerClick(player)}
           >
-            <BaseAvatar
-              address={player.isWalletUser ? (player.address as `0x${string}`) : undefined}
+            <PlayerAvatarWithFetch
+              walletAddress={player.isWalletUser ? player.address : undefined}
+              username={player.username}
+              avatarUrl={player.avatarUrl}
               className="w-5 h-5 border-2 border-black rounded-full shadow-sm hover:scale-110 transition-transform duration-200 cursor-pointer"
-              defaultComponent={
-                <div className="w-5 h-5 bg-gradient-to-br from-purple-400 to-pink-400 rounded-full flex items-center justify-center text-white text-xs font-bold">
-                  {player.username.slice(0, 2).toUpperCase()}
-                </div>
-              }
             />
             
           </div>

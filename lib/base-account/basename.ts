@@ -25,3 +25,21 @@ export const getBasename = async (
     return null;
   }
 };
+
+/** Basenames register on the universal Base Account; try sub-account then universal. */
+export const getBasenameWithFallback = async (
+  primaryAddress: `0x${string}`,
+  universalFallback?: `0x${string}` | string | null,
+): Promise<string | null> => {
+  const primaryName = await getBasename(primaryAddress);
+  if (primaryName) {
+    return primaryName;
+  }
+
+  const fallback = universalFallback?.trim().toLowerCase() as `0x${string}` | undefined;
+  if (!fallback || fallback === primaryAddress.toLowerCase()) {
+    return null;
+  }
+
+  return getBasename(fallback);
+};

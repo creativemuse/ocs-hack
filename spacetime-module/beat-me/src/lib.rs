@@ -236,9 +236,33 @@ pub struct IdentityWalletMapping {
     
     #[unique]
     pub wallet_address: String,
+
+    /// Base Account universal smart wallet (basename owner); sub-account is `wallet_address`.
+    pub universal_wallet_address: Option<String>,
     
     pub linked_at: Timestamp,
     pub last_seen: Timestamp,
+}
+
+/// Server-verified Orb/Lens social profile linked to a Base wallet.
+#[spacetimedb::table(accessor = social_identity, public)]
+#[derive(Clone)]
+pub struct SocialIdentity {
+    #[primary_key]
+    pub wallet_address: String,
+
+    pub lens_account_id: String,
+
+    #[unique]
+    pub handle: String,
+
+    pub display_name: Option<String>,
+
+    pub avatar_url: Option<String>,
+
+    pub linked_at: Timestamp,
+
+    pub verified_at: Timestamp,
 }
 
 // Game entries for tracking paid/trial status
@@ -1168,9 +1192,18 @@ pub fn create_player(ctx: &ReducerContext, wallet_address: String, username: Opt
 pub fn link_wallet_to_identity(
     ctx: &ReducerContext,
     wallet_address: String,
+    universal_wallet_address: Option<String>,
 ) {
     let identity = ctx.sender();
-    log::info!("🔗 Linking wallet {} to identity {:?}", wallet_address, identity);
+    let universal = universal_wallet_address
+        .map(|a| a.trim().to_lowercase())
+        .filter(|a| !a.is_empty() && a.starts_with("0x"));
+    log::info!(
+        "🔗 Linking wallet {} (universal {:?}) to identity {:?}",
+        wallet_address,
+        universal,
+        identity
+    );
     
     // Check if this identity is already linked
     if let Some(existing_mapping) = ctx.db.identity_wallet_mapping().spacetime_identity().find(&identity) {
@@ -1178,9 +1211,12 @@ pub fn link_wallet_to_identity(
             log::warn!("⚠️ Identity {:?} already linked to {}", identity, existing_mapping.wallet_address);
             return;
         }
-        // Same wallet, just update last_seen
+        // Same wallet, update last_seen and universal if provided
         let mut mapping = existing_mapping;
         mapping.last_seen = ctx.timestamp;
+        if universal.is_some() {
+            mapping.universal_wallet_address = universal.clone();
+        }
         ctx.db.identity_wallet_mapping().spacetime_identity().update(mapping);
         log::info!("✅ Updated existing link for {}", wallet_address);
         return;
@@ -1197,6 +1233,7 @@ pub fn link_wallet_to_identity(
     ctx.db.identity_wallet_mapping().insert(IdentityWalletMapping {
         spacetime_identity: identity,
         wallet_address: wallet_address.clone(),
+        universal_wallet_address: universal,
         linked_at: ctx.timestamp,
         last_seen: ctx.timestamp,
     });
@@ -1236,6 +1273,104 @@ pub fn link_wallet_to_identity(
     }
     
     log::info!("✅ Successfully linked wallet {} to identity {:?}", wallet_address, identity);
+}
+
+/// Server-only: persist verified Orb/Lens profile for a wallet (admin reducer).
+#[spacetimedb::reducer]
+pub fn set_verified_social_identity(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    lens_account_id: String,
+    handle: String,
+    display_name: Option<String>,
+    avatar_url: Option<String>,
+) -> Result<(), String> {
+    if !is_admin(ctx, &AdminLevel::Admin) {
+        return Err("Only admins may set verified social identity".into());
+    }
+
+    let wallet = wallet_address.trim().to_lowercase();
+    if wallet.is_empty() || !wallet.starts_with("0x") {
+        return Err("Invalid wallet address".into());
+    }
+
+    let handle_trimmed = handle.trim().trim_start_matches('@');
+    if handle_trimmed.is_empty() {
+        return Err("Handle cannot be empty".into());
+    }
+    let handle_owned = handle_trimmed.to_string();
+
+    let display = display_name
+        .map(|d| d.trim().to_string())
+        .filter(|d| !d.is_empty());
+
+    let avatar = avatar_url
+        .map(|u| u.trim().to_string())
+        .filter(|u| !u.is_empty());
+
+    let now = ctx.timestamp;
+
+    if let Some(existing) = ctx.db.social_identity().wallet_address().find(&wallet) {
+        if existing.handle != handle_owned {
+            if ctx.db.social_identity().handle().find(&handle_owned).is_some() {
+                return Err(format!("Handle '@{}' is already linked to another wallet", handle_owned));
+            }
+            ctx.db.social_identity().handle().delete(&existing.handle);
+        }
+        let updated = SocialIdentity {
+            wallet_address: wallet.clone(),
+            lens_account_id: lens_account_id.clone(),
+            handle: handle_owned.clone(),
+            display_name: display.clone(),
+            avatar_url: avatar.clone(),
+            linked_at: existing.linked_at,
+            verified_at: now,
+        };
+        ctx.db.social_identity().wallet_address().update(updated);
+    } else {
+        if ctx.db.social_identity().handle().find(&handle_owned).is_some() {
+            return Err(format!("Handle '@{}' is already taken", handle_owned));
+        }
+        ctx.db.social_identity().insert(SocialIdentity {
+            wallet_address: wallet.clone(),
+            lens_account_id,
+            handle: handle_owned.clone(),
+            display_name: display.clone(),
+            avatar_url: avatar.clone(),
+            linked_at: now,
+            verified_at: now,
+        });
+    }
+
+    let username_for_player = Some(format!("@{}", handle_owned));
+    if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet) {
+        apply_username_if_available(ctx, &wallet, &mut player, username_for_player.clone());
+        if avatar.is_some() {
+            player.avatar_url = avatar.clone();
+        }
+        player.updated_at = now;
+        ctx.db.players().wallet_address().update(player);
+    } else {
+        ctx.db.players().insert(Player {
+            wallet_address: wallet.clone(),
+            username: username_for_player,
+            avatar_url: avatar.clone(),
+            total_score: 0,
+            games_played: 0,
+            best_score: 0,
+            total_earnings: 0.0,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
+            created_at: now,
+            updated_at: now,
+        });
+    }
+
+    log::info!("✅ Verified social identity for {} (@{})", wallet, handle_owned);
+    Ok(())
 }
 
 /// Assign username only when the value is free or already owned by this wallet.
