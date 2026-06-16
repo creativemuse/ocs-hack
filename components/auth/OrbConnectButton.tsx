@@ -50,6 +50,10 @@ export default function OrbConnectButton({
   };
 
   const handleConnect = async () => {
+    clearError();
+    setQrCode(null);
+    setDeepLink(null);
+
     try {
       await connectWithQr(({ qrCode: code, deepLink: link }) => {
         setQrCode(code);
@@ -169,9 +173,28 @@ export default function OrbConnectButton({
             )}
 
             {error && (
-              <p className="text-sm text-red-400 text-center" role="alert">
-                {error}
-              </p>
+              <div className="flex flex-col items-center gap-3 w-full">
+                <p className="text-sm text-red-400 text-center" role="alert">
+                  {error}
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleConnect}
+                  disabled={isConnecting}
+                  className="w-full border-purple-500/50 text-purple-200 hover:bg-purple-500/10"
+                  aria-label="Retry Orb sign-in"
+                >
+                  {isConnecting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                      Retrying…
+                    </>
+                  ) : (
+                    'Retry'
+                  )}
+                </Button>
+              </div>
             )}
           </div>
         </DialogContent>
