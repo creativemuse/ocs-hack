@@ -131,7 +131,12 @@ export const fetchWeeklyScoresFromChain = async (): Promise<{
   return { sessionCounter, chainScores };
 };
 
-/** Merge on-chain scores with SpacetimeDB weekly session scores. */
+/**
+ * Merge on-chain scores with SpacetimeDB weekly session scores.
+ * Weekly ranking uses each player's **latest** score (not best-of-week).
+ * On-chain scores are authoritative when present; Spacetime fills gaps while
+ * a submission is still propagating.
+ */
 export const mergeWeeklyLeaderboardEntries = (
   sessionCounter: number,
   chainScores: Map<string, number>,
@@ -154,14 +159,23 @@ export const mergeWeeklyLeaderboardEntries = (
       continue;
     }
     const wallet = player.walletAddress.toLowerCase();
-    const existing = merged.get(wallet);
-    const bestScore = Math.max(existing?.bestScore ?? 0, player.weeklyBestScore);
+    if (merged.has(wallet)) {
+      const existing = merged.get(wallet)!;
+      merged.set(wallet, {
+        ...existing,
+        username: player.username ?? existing.username,
+        avatarUrl: player.avatarUrl ?? existing.avatarUrl,
+        totalEarnings: player.totalEarnings ?? existing.totalEarnings,
+      });
+      continue;
+    }
+
     merged.set(wallet, {
       walletAddress: wallet,
-      username: player.username ?? existing?.username,
-      avatarUrl: player.avatarUrl ?? existing?.avatarUrl,
-      bestScore,
-      totalEarnings: player.totalEarnings ?? existing?.totalEarnings,
+      username: player.username ?? undefined,
+      avatarUrl: player.avatarUrl ?? undefined,
+      bestScore: player.weeklyBestScore,
+      totalEarnings: player.totalEarnings,
       sessionCounter,
     });
   }
@@ -192,6 +206,7 @@ export const enrichWeeklyEntriesWithMetadata = (
   });
 };
 
+/** Rank a wallet using its latest submitted score for the current week. */
 export const computeRankForScore = (
   entries: WeeklyLeaderboardEntry[],
   walletAddress: string,
@@ -205,7 +220,7 @@ export const computeRankForScore = (
   if (existingIdx >= 0) {
     withCurrent[existingIdx] = {
       ...withCurrent[existingIdx],
-      bestScore: Math.max(withCurrent[existingIdx].bestScore, score),
+      bestScore: score,
     };
   } else if (score > 0) {
     withCurrent.push({
@@ -219,4 +234,19 @@ export const computeRankForScore = (
     (e) => e.walletAddress.toLowerCase() === normalized,
   );
   return rankIdx >= 0 ? rankIdx + 1 : withCurrent.length + 1;
+};
+
+/** True when this run took or holds weekly #1 (not merely re-submitted a lower score). */
+export const isNewWeeklyLeader = (
+  entries: WeeklyLeaderboardEntry[],
+  walletAddress: string,
+  score: number,
+): boolean => {
+  if (score <= 0) return false;
+
+  const normalized = walletAddress.toLowerCase();
+  const previousLeaderScore = entries[0]?.bestScore ?? 0;
+  const rank = computeRankForScore(entries, walletAddress, score);
+
+  return rank === 1 && score >= previousLeaderScore;
 };

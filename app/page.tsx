@@ -78,6 +78,7 @@ function HomePage() {
   const timerTriggeredRef = useRef(false);
   const lastGameWasPaidRef = useRef(false);
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
   const countdownStartedAtRef = useRef<number | null>(null);
   const [isCountdownActive, setIsCountdownActive] = useState(false);
   const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
@@ -143,6 +144,7 @@ function HomePage() {
     if (!gameCompleted || !lastGameWasPaidRef.current || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     const finalScore = totalScore;
     const wallet = address.toLowerCase();
     void (async () => {
@@ -160,11 +162,13 @@ function HomePage() {
         });
         if (!res.ok) {
           paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
           const errText = await res.text();
           console.error('save-paid-score failed', errText);
           return;
         }
         const data = await res.json();
+        setPaidScoreSaved(true);
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
@@ -180,6 +184,7 @@ function HomePage() {
         refreshWeeklyLeaderboard();
       } catch (e) {
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
         console.error('save-paid-score error', e);
       }
     })();
@@ -347,6 +352,7 @@ function HomePage() {
       setGameCompleted(false);
       setCompletedAsTrial(false);
       paidScoreSavedRef.current = false;
+    setPaidScoreSaved(false);
       lastGameWasPaidRef.current = false;
       setScore(0);
       setTotalScore(0);
@@ -554,6 +560,7 @@ function HomePage() {
 
   const handlePlayAgain = () => {
     paidScoreSavedRef.current = false;
+    setPaidScoreSaved(false);
     setGameCompleted(false);
     setGameStarted(false);
     setShowGameEntry(true);
@@ -650,6 +657,7 @@ function HomePage() {
           setCurrentRound(1);
           setQuestionNumberInRound(1);
           paidScoreSavedRef.current = false;
+    setPaidScoreSaved(false);
           // Start gameplay
           setGameStarted(true);
           loadRandomQuestion();
@@ -860,6 +868,7 @@ function HomePage() {
                   isGuest={isGuestMode}
                   isTrialGame={completedAsTrial}
                   walletAddress={!completedAsTrial && address ? address : undefined}
+                  scoreSaved={!completedAsTrial && paidScoreSaved}
                   className="w-full"
                 />
               </div>
