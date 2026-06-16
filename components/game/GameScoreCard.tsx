@@ -53,11 +53,13 @@ export default function GameScoreCard({
         });
         if (!res.ok) {
           paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
           return;
         }
         setPaidScoreSaved(true);
       } catch {
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
       }
     })();
   }, [isTrialGame, walletAddress, finalScore, entryToken]);

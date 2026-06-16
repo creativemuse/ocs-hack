@@ -86,4 +86,14 @@ describe('weekly leaderboard latest-score semantics', () => {
     assert.equal(computeRankForScore(entries, walletA, 1200), 1);
     assert.equal(isNewWeeklyLeader(entries, walletA, 1200), true);
   });
+
+  it('does not mark a lower rerun as a new leader when there are other players on the board', () => {
+    const entries: WeeklyLeaderboardEntry[] = [
+      { walletAddress: walletA, bestScore: 2060, sessionCounter: 1 },
+      { walletAddress: walletB, bestScore: 1500, sessionCounter: 1 },
+    ];
+
+    assert.equal(computeRankForScore(entries, walletA, 1800), 1);
+    assert.equal(isNewWeeklyLeader(entries, walletA, 1800), false);
+  });
 });

@@ -245,10 +245,7 @@ export const isNewWeeklyLeader = (
   if (score <= 0) return false;
 
   const normalized = walletAddress.toLowerCase();
-  const previousLeaderScore =
-    entries.find((e) => e.walletAddress.toLowerCase() !== normalized)?.bestScore ??
-    entries[0]?.bestScore ??
-    0;
+  const previousLeaderScore = entries[0]?.bestScore ?? 0;
   const rank = computeRankForScore(entries, walletAddress, score);
 
   return rank === 1 && score >= previousLeaderScore;
