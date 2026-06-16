@@ -1,7 +1,6 @@
 #!/usr/bin/env tsx
 
-import fs from 'fs';
-import path from 'path';
+import { GROVE_FILES } from '../lib/grove-files';
 import { getLocalAudioCatalog } from '../lib/grove/localCatalog';
 import { writeGroveManifestFile } from '../lib/grove/writeManifest';
 import type { GroveFileEntry } from '../lib/grove-files';
@@ -19,11 +18,18 @@ const LOBBY_ENTRY: GroveFileEntry = {
 
 const main = () => {
   const manifest: Record<string, GroveFileEntry> = {
+    ...GROVE_FILES,
     [LOBBY_ENTRY.name]: LOBBY_ENTRY,
   };
 
   for (const entry of getLocalAudioCatalog()) {
-    manifest[entry.name] = entry;
+    const existing = manifest[entry.name];
+    manifest[entry.name] = {
+      ...entry,
+      storageKey: existing?.storageKey,
+      gatewayUrl: existing?.gatewayUrl,
+      uri: existing?.uri,
+    };
   }
 
   writeGroveManifestFile(manifest);

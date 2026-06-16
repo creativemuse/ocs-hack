@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "lighthouse:upload": "tsx scripts/upload-to-lighthouse.ts",
+    "music:download": "tsx scripts/download-music-previews.ts",
     "grove:seed": "tsx scripts/seed-grove-manifest.ts",
     "grove:upload": "tsx scripts/upload-to-grove.ts",
     "grove:upload-lobby": "tsx scripts/upload-lobby-to-grove.ts",
