@@ -1276,7 +1276,8 @@ fn apply_weekly_score(player: &mut Player, on_chain_session_id: u64, game_score:
         return;
     }
     if player.weekly_session_id == on_chain_session_id {
-        player.weekly_best_score = std::cmp::max(player.weekly_best_score, game_score);
+        // Weekly leaderboard ranks the latest run, not the best-of-week.
+        player.weekly_best_score = game_score;
     } else if on_chain_session_id > player.weekly_session_id {
         player.weekly_session_id = on_chain_session_id;
         player.weekly_best_score = game_score;

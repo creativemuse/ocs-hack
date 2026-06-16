@@ -3,7 +3,7 @@
 import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
-import { Loader2 } from 'lucide-react';
+import { Skeleton } from '@/components/ui/skeleton';
 import { BaseName } from '@/components/identity/BaseName';
 
 interface TopEarnersProps {
@@ -17,7 +17,7 @@ export default function TopEarners({
   className = '',
   currentWalletAddress,
 }: TopEarnersProps) {
-  const { entries, sessionCounter, isLoading, error } = useWeeklyLeaderboard(limit);
+  const { entries, sessionCounter, isLoading, isRefreshing, error } = useWeeklyLeaderboard(limit);
 
   const formatScore = (score: number) => score.toLocaleString();
 
@@ -53,10 +53,19 @@ export default function TopEarners({
     );
   }
 
-  if (isLoading) {
+  if (isLoading && entries.length === 0) {
     return (
-      <div className="flex justify-center items-center p-8">
-        <Loader2 className="h-6 w-6 text-white animate-spin" />
+      <div className={`w-full space-y-3 p-2 ${className}`}>
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={`top-earner-skeleton-${index}`} className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <Skeleton className="h-4 w-5 bg-white/20" />
+              <Skeleton className="h-9 w-9 rounded-full bg-white/20" />
+              <Skeleton className="h-4 w-28 bg-white/20" />
+            </div>
+            <Skeleton className="h-4 w-16 bg-white/20" />
+          </div>
+        ))}
       </div>
     );
   }
@@ -66,6 +75,9 @@ export default function TopEarners({
       {sessionCounter > 0 && (
         <p className="text-gray-500 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-2 text-center">
           Week {sessionCounter} — resets after payout
+          {isRefreshing && entries.length > 0 && (
+            <span className="ml-1 text-purple-300">· updating</span>
+          )}
         </p>
       )}
       {entries.map((earner, index) => {

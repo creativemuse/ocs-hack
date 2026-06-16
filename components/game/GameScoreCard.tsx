@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trophy, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import HighScoreDisplay from './HighScoreDisplay';
@@ -37,11 +37,13 @@ export default function GameScoreCard({
   className = '',
 }: GameScoreCardProps) {
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
 
   useEffect(() => {
     if (isTrialGame || !walletAddress || !entryToken || !Number.isFinite(finalScore) || finalScore < 0) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -49,9 +51,15 @@ export default function GameScoreCard({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ walletAddress, finalScore, entryToken }),
         });
-        if (!res.ok) paidScoreSavedRef.current = false;
+        if (!res.ok) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          return;
+        }
+        setPaidScoreSaved(true);
       } catch {
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
       }
     })();
   }, [isTrialGame, walletAddress, finalScore, entryToken]);
@@ -120,6 +128,7 @@ export default function GameScoreCard({
             guestId={guestId}
             isTrialGame={isTrialGame}
             walletAddress={!isTrialGame ? walletAddress : undefined}
+            scoreSaved={!isTrialGame && paidScoreSaved}
             className="w-full"
           />
         </div>
