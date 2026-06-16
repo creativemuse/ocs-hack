@@ -6,9 +6,23 @@ import type { OrbSession } from './types';
 
 let orbLoginSingleton: ReturnType<typeof createOrbLogin> | null = null;
 
+const defaultOrbLoginConfig: OrbLoginConfig = {
+  qr: {
+    initUrl: '/api/auth/orb/qr/init',
+    pollUrl: '/api/auth/orb/qr/poll',
+  },
+};
+
 export const getOrbLogin = (config?: OrbLoginConfig) => {
   if (!orbLoginSingleton) {
-    orbLoginSingleton = createOrbLogin(config);
+    orbLoginSingleton = createOrbLogin({
+      ...defaultOrbLoginConfig,
+      ...config,
+      qr: {
+        ...defaultOrbLoginConfig.qr,
+        ...config?.qr,
+      },
+    });
   }
   return orbLoginSingleton;
 };
