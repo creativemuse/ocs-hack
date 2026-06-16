@@ -96,24 +96,22 @@ export async function GET(request: NextRequest) {
   const spacetimeCache = await loadSpacetimeCache(wallets);
   const identities: Record<string, ResolvedPlayerIdentity> = {};
 
-  await Promise.all(
-    wallets.map(async (wallet) => {
-      const cached = spacetimeCache.get(wallet);
-      const merged = mergeCachedIdentity(wallet, cached);
-      if (merged.displayName && merged.avatarUrl) {
-        identities[wallet] = {
-          walletAddress: wallet,
-          displayName: merged.displayName,
-          avatarUrl: merged.avatarUrl,
-          handle: merged.handle ?? null,
-          basename: null,
-          source: merged.source ?? 'lens',
-        };
-        return;
-      }
-      identities[wallet] = await resolvePlayerIdentity(wallet, cached);
-    }),
-  );
+  for (const wallet of wallets) {
+    const cached = spacetimeCache.get(wallet);
+    const merged = mergeCachedIdentity(wallet, cached);
+    if (merged.displayName && merged.avatarUrl) {
+      identities[wallet] = {
+        walletAddress: wallet,
+        displayName: merged.displayName,
+        avatarUrl: merged.avatarUrl,
+        handle: merged.handle ?? null,
+        basename: null,
+        source: merged.source ?? 'lens',
+      };
+      continue;
+    }
+    identities[wallet] = await resolvePlayerIdentity(wallet, cached);
+  }
 
   return NextResponse.json({ identities });
 }

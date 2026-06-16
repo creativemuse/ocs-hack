@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyMessage } from 'viem';
+import { createPublicClient, http } from 'viem';
+import { base } from 'viem/chains';
 import { verifyOrbAccessToken } from '@/lib/orb/lensProfile.server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 
 export const runtime = 'nodejs';
+
+const baseClient = createPublicClient({
+  chain: base,
+  transport: http(
+    process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
+  ),
+});
 
 type LinkBody = {
   accessToken?: string;
@@ -29,7 +37,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Invalid wallet address' }, { status: 400 });
     }
 
-    const isValidSig = await verifyMessage({
+    const isValidSig = await baseClient.verifyMessage({
       address: wallet as `0x${string}`,
       message,
       signature: signature as `0x${string}`,
@@ -40,7 +48,7 @@ export async function POST(request: NextRequest) {
     }
 
     const siweAddressMatch = message.match(
-      /wants you to sign in with your Ethereum account:\n(0x[a-fA-F0-9]{40})/,
+      /wants you to sign in with your Ethereum account:\r?\n(0x[a-fA-F0-9]{40})/,
     );
     const signedAddress = siweAddressMatch?.[1]?.toLowerCase();
     if (signedAddress && signedAddress !== wallet) {

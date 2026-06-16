@@ -44,7 +44,7 @@ export default function OrbConnectButton({
   const handleOpenDialog = () => {
     clearError();
     setDialogOpen(true);
-    if (!session) {
+    if (!session && !isConnecting) {
       handleConnect();
     }
   };

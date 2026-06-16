@@ -9,12 +9,22 @@ import { formatWalletAddress } from '@/lib/identity/resolveBaseProfile';
 import { Timestamp } from 'spacetimedb';
 
 const timestampToIso = (ts: unknown): string => {
+  if (!ts) {
+    return new Date().toISOString();
+  }
+
+  let micros: bigint | undefined;
   if (ts instanceof Timestamp) {
-    return new Date(Number(ts.microsSinceUnixEpoch / BigInt(1000))).toISOString();
+    micros = ts.microsSinceUnixEpoch;
+  } else if (typeof ts === 'object' && ts !== null && 'microsSinceUnixEpoch' in ts) {
+    const raw = (ts as { microsSinceUnixEpoch: unknown }).microsSinceUnixEpoch;
+    micros = typeof raw === 'bigint' ? raw : BigInt(String(raw));
   }
-  if (typeof ts === 'object' && ts !== null && 'microsSinceUnixEpoch' in ts) {
-    return new Date(Number((ts as Timestamp).microsSinceUnixEpoch / BigInt(1000))).toISOString();
+
+  if (micros !== undefined) {
+    return new Date(Number(micros / BigInt(1000))).toISOString();
   }
+
   return new Date().toISOString();
 };
 

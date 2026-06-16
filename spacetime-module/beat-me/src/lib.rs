@@ -1315,7 +1315,6 @@ pub fn set_verified_social_identity(
             if ctx.db.social_identity().handle().find(&handle_owned).is_some() {
                 return Err(format!("Handle '@{}' is already linked to another wallet", handle_owned));
             }
-            ctx.db.social_identity().handle().delete(&existing.handle);
         }
         let updated = SocialIdentity {
             wallet_address: wallet.clone(),
