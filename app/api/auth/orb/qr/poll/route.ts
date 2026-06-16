@@ -13,14 +13,20 @@ type PollBody = {
 };
 
 export async function POST(request: NextRequest) {
+  let secret: string | undefined;
+
   try {
     const body = (await request.json()) as PollBody;
-    const secret = body.secret?.trim();
+    secret = body.secret?.trim();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
+  }
 
-    if (!secret) {
-      return NextResponse.json({ error: 'Missing secret' }, { status: 400 });
-    }
+  if (!secret) {
+    return NextResponse.json({ error: 'Missing secret' }, { status: 400 });
+  }
 
+  try {
     const response = await orbQrFetch(ORB_QR_POLL_URL, {
       method: 'POST',
       headers: {

@@ -14,16 +14,19 @@ const defaultOrbLoginConfig: OrbLoginConfig = {
 };
 
 export const getOrbLogin = (config?: OrbLoginConfig) => {
-  if (!orbLoginSingleton) {
+  if (config) {
     orbLoginSingleton = createOrbLogin({
       ...defaultOrbLoginConfig,
       ...config,
       qr: {
         ...defaultOrbLoginConfig.qr,
-        ...config?.qr,
+        ...config.qr,
       },
     });
+  } else if (!orbLoginSingleton) {
+    orbLoginSingleton = createOrbLogin(defaultOrbLoginConfig);
   }
+
   return orbLoginSingleton;
 };
 
