@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWeeklyLeaderboardEntries } from '@/lib/game/weeklyLeaderboardServer';
-import { computeRankForScore } from '@/lib/game/weeklyLeaderboard';
+import { computeRankForScore, isNewWeeklyLeader } from '@/lib/game/weeklyLeaderboard';
 
 interface HighScore {
   id: string;
@@ -85,14 +85,14 @@ export async function POST(req: NextRequest) {
       id: `weekly_${walletAddress.toLowerCase()}`,
       playerName: playerName || matched?.username || walletAddress,
       walletAddress: walletAddress.toLowerCase(),
-      score: matched ? Math.max(matched.bestScore, score) : score,
+      score,
       timestamp: Date.now(),
       isGuest: false,
       playerType: 'paid',
       username: playerName || matched?.username,
     };
 
-    const isNewHighScore = rank === 1;
+    const isNewHighScore = isNewWeeklyLeader(entries, walletAddress, score);
 
     return NextResponse.json({
       success: true,

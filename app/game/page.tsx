@@ -60,6 +60,7 @@ export default function Game() {
   const [sessionIsTrial, setSessionIsTrial] = useState(false);
   const { address } = useBaseAccount();
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
   const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -314,6 +315,7 @@ export default function Game() {
       await joinGame(!isTrial, paidTxHash, { playerMode: playerMode ?? 'paid_solo' });
       setSessionIsTrial(isTrial);
       paidScoreSavedRef.current = false;
+      setPaidScoreSaved(false);
       setGameStarted(true);
       loadRandomQuestion();
     } catch (err) {
@@ -363,6 +365,7 @@ export default function Game() {
     if (!gameCompleted || isGuestMode || sessionIsTrial || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     const wallet = address;
     const finalScore = totalScore;
     void (async () => {
@@ -372,9 +375,15 @@ export default function Game() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken }),
         });
-        if (!res.ok) paidScoreSavedRef.current = false;
+        if (!res.ok) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          return;
+        }
+        setPaidScoreSaved(true);
       } catch {
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
       }
     })();
   }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken]);
@@ -457,6 +466,7 @@ export default function Game() {
               walletAddress={
                 !isGuestMode && !sessionIsTrial && address ? address : undefined
               }
+              scoreSaved={!isGuestMode && !sessionIsTrial && paidScoreSaved}
               className="w-full"
             />
           </div>
@@ -501,6 +511,7 @@ export default function Game() {
                 setTotalScore(0);
                 setGameCompleted(false);
                 paidScoreSavedRef.current = false;
+      setPaidScoreSaved(false);
                 setGameStarted(false); // Reset to entry screen
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
