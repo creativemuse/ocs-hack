@@ -15,6 +15,10 @@ import {
   type LensProfile,
   type OrbSession,
 } from '@/lib/orb/types';
+import {
+  toUserFriendlyOrbLinkError,
+  type OrbLinkStep,
+} from '@/lib/orb/linkErrors';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { signInWithBase } from '@/lib/base-account/auth';
 
@@ -59,6 +63,35 @@ const loadStoredProfile = (): LensProfile | null => {
     return JSON.parse(raw) as LensProfile;
   } catch {
     return null;
+  }
+};
+
+const refreshSessionAccessToken = async (
+  session: OrbSession,
+): Promise<OrbSession> => {
+  if (!session.refreshToken) {
+    return session;
+  }
+
+  try {
+    const orb = getOrbLogin();
+    const refreshed = await orb.refresh({ refreshToken: session.refreshToken });
+    if (!refreshed.accessToken) {
+      return session;
+    }
+
+    return enrichSessionWithAccount({
+      ...session,
+      accessToken: refreshed.accessToken,
+      refreshToken: refreshed.refreshToken ?? session.refreshToken,
+      idToken: refreshed.idToken ?? session.idToken,
+      authenticationId:
+        typeof refreshed.authenticationId === 'string'
+          ? refreshed.authenticationId
+          : session.authenticationId,
+    });
+  } catch {
+    return session;
   }
 };
 
@@ -138,12 +171,17 @@ export const OrbAuthProvider = ({ children }: { children: ReactNode }) => {
     setIsLinking(true);
     setError(null);
     try {
+      const refreshedSession = await refreshSessionAccessToken(session);
+      if (refreshedSession.accessToken !== session.accessToken) {
+        persistSession(refreshedSession);
+      }
+
       const { message, signature } = await signInWithBase(address);
       const response = await fetch('/api/auth/orb/link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          accessToken: session.accessToken,
+          accessToken: refreshedSession.accessToken,
           walletAddress: address,
           message,
           signature,
@@ -152,11 +190,16 @@ export const OrbAuthProvider = ({ children }: { children: ReactNode }) => {
 
       const data = (await response.json()) as {
         error?: string;
+        step?: OrbLinkStep;
         profile?: LensProfile & { displayName?: string };
       };
 
       if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to link Orb profile');
+        const friendly = toUserFriendlyOrbLinkError(
+          data.error ?? 'Failed to link Orb profile',
+          data.step,
+        );
+        throw new Error(friendly);
       }
 
       const profile: LensProfile = {
@@ -173,7 +216,7 @@ export const OrbAuthProvider = ({ children }: { children: ReactNode }) => {
     } finally {
       setIsLinking(false);
     }
-  }, [address, isConnected, persistProfile, session?.accessToken]);
+  }, [address, isConnected, persistProfile, persistSession, session]);
 
   const disconnect = useCallback(() => {
     persistSession(null);

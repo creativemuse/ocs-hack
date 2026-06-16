@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import {
@@ -40,6 +40,7 @@ export default function OrbConnectButton({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [deepLink, setDeepLink] = useState<string | null>(null);
+  const autoLinkAttemptedRef = useRef<string | null>(null);
 
   const handleOpenDialog = () => {
     clearError();
@@ -50,6 +51,7 @@ export default function OrbConnectButton({
   };
 
   const handleConnect = async () => {
+    autoLinkAttemptedRef.current = null;
     try {
       await connectWithQr(({ qrCode: code, deepLink: link }) => {
         setQrCode(code);
@@ -66,6 +68,27 @@ export default function OrbConnectButton({
       setDialogOpen(false);
     }
   };
+
+  useEffect(() => {
+    if (!dialogOpen || !session?.accessToken || linkedProfile || isLinking || isConnecting) {
+      return;
+    }
+
+    if (autoLinkAttemptedRef.current === session.accessToken) {
+      return;
+    }
+
+    autoLinkAttemptedRef.current = session.accessToken;
+
+    const runAutoLink = async () => {
+      const profile = await linkToWallet();
+      if (profile) {
+        setDialogOpen(false);
+      }
+    };
+
+    void runAutoLink();
+  }, [dialogOpen, session?.accessToken, linkedProfile, isLinking, isConnecting, linkToWallet]);
 
   if (!isConnected) {
     return null;
@@ -96,6 +119,8 @@ export default function OrbConnectButton({
       </div>
     );
   }
+
+  const showManualLink = session && !linkedProfile && !isLinking && error;
 
   return (
     <>
@@ -150,21 +175,21 @@ export default function OrbConnectButton({
               </a>
             )}
 
-            {session && !linkedProfile && (
+            {isLinking && (
+              <p className="text-sm text-purple-200 text-center">
+                Linking your Orb profile to your Base wallet…
+              </p>
+            )}
+
+            {showManualLink && (
               <Button
                 type="button"
                 onClick={handleLink}
                 disabled={isLinking}
                 className="w-full bg-gradient-to-r from-purple-500 to-pink-500"
+                aria-label="Retry linking Orb profile to Base wallet"
               >
-                {isLinking ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin mr-2" />
-                    Linking to wallet…
-                  </>
-                ) : (
-                  'Link to Base wallet'
-                )}
+                Retry link to Base wallet
               </Button>
             )}
 
