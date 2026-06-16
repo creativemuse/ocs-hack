@@ -15,6 +15,36 @@ export type GroveFileEntry = {
 };
 
 export const GROVE_FILES: Record<string, GroveFileEntry> = {
+  '21 Savage - a lot.mp3': {
+    name: '21 Savage - a lot.mp3',
+    path: 'Global_Top_100/21 Savage - a lot.mp3',
+    artistName: '21 Savage',
+    songTitle: 'a lot',
+  },
+  'ABBA - Dancing Queen.mp3': {
+    name: 'ABBA - Dancing Queen.mp3',
+    path: 'Global_Top_100/ABBA - Dancing Queen.mp3',
+    artistName: 'ABBA',
+    songTitle: 'Dancing Queen',
+  },
+  'AC-DC - Back In Black.mp3': {
+    name: 'AC-DC - Back In Black.mp3',
+    path: 'Global_Top_100/AC-DC - Back In Black.mp3',
+    artistName: 'AC/DC',
+    songTitle: 'Back In Black',
+  },
+  'Adele - Hello.mp3': {
+    name: 'Adele - Hello.mp3',
+    path: 'Global_Top_100/Adele - Hello.mp3',
+    artistName: 'Adele',
+    songTitle: 'Hello',
+  },
+  'Adele - Rolling in the Deep.mp3': {
+    name: 'Adele - Rolling in the Deep.mp3',
+    path: 'Global_Top_100/Adele - Rolling in the Deep.mp3',
+    artistName: 'Adele',
+    songTitle: 'Rolling in the Deep',
+  },
   'Alex Warren - Ordinary.mp3': {
     name: 'Alex Warren - Ordinary.mp3',
     path: 'Global_Top_100/Alex Warren - Ordinary.mp3',
@@ -23,6 +53,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: '80132a48620caf8e5260b7d20435f510ebb41fd46b7f34be6248c3006f93c794',
     gatewayUrl: 'https://api.grove.storage/80132a48620caf8e5260b7d20435f510ebb41fd46b7f34be6248c3006f93c794',
     uri: 'lens://80132a48620caf8e5260b7d20435f510ebb41fd46b7f34be6248c3006f93c794',
+  },
+  'Ariana Grande - 7 rings.mp3': {
+    name: 'Ariana Grande - 7 rings.mp3',
+    path: 'Global_Top_100/Ariana Grande - 7 rings.mp3',
+    artistName: 'Ariana Grande',
+    songTitle: '7 rings',
+  },
+  'Ariana Grande - thank u, next.mp3': {
+    name: 'Ariana Grande - thank u, next.mp3',
+    path: 'Global_Top_100/Ariana Grande - thank u, next.mp3',
+    artistName: 'Ariana Grande',
+    songTitle: 'thank u, next',
   },
   'Bad Bunny - DtMF.mp3': {
     name: 'Bad Bunny - DtMF.mp3',
@@ -41,6 +83,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: '39931dbfea7a104461fa2fa125a329b612ceec3ad33a3283d573f297d27f6c3b',
     gatewayUrl: 'https://api.grove.storage/39931dbfea7a104461fa2fa125a329b612ceec3ad33a3283d573f297d27f6c3b',
     uri: 'lens://39931dbfea7a104461fa2fa125a329b612ceec3ad33a3283d573f297d27f6c3b',
+  },
+  'Beyoncé - Crazy In Love.mp3': {
+    name: 'Beyoncé - Crazy In Love.mp3',
+    path: 'Global_Top_100/Beyoncé - Crazy In Love.mp3',
+    artistName: 'Beyoncé',
+    songTitle: 'Crazy In Love',
+  },
+  'Beyoncé - TEXAS HOLD EM.mp3': {
+    name: 'Beyoncé - TEXAS HOLD EM.mp3',
+    path: 'Global_Top_100/Beyoncé - TEXAS HOLD EM.mp3',
+    artistName: 'Beyoncé',
+    songTitle: 'TEXAS HOLD EM',
   },
   'Billie Eilish - BIRDS OF A FEATHER.mp3': {
     name: 'Billie Eilish - BIRDS OF A FEATHER.mp3',
@@ -69,6 +123,24 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/4e0cec99f026e89e50e492037dc244a76d919802957115d7cb2903e3df93570a',
     uri: 'lens://4e0cec99f026e89e50e492037dc244a76d919802957115d7cb2903e3df93570a',
   },
+  'Bruno Mars - Locked Out of Heaven.mp3': {
+    name: 'Bruno Mars - Locked Out of Heaven.mp3',
+    path: 'Global_Top_100/Bruno Mars - Locked Out of Heaven.mp3',
+    artistName: 'Bruno Mars',
+    songTitle: 'Locked Out of Heaven',
+  },
+  'Bruno Mars - Uptown Funk.mp3': {
+    name: 'Bruno Mars - Uptown Funk.mp3',
+    path: 'Global_Top_100/Bruno Mars - Uptown Funk.mp3',
+    artistName: 'Bruno Mars',
+    songTitle: 'Uptown Funk',
+  },
+  'Cardi B - WAP.mp3': {
+    name: 'Cardi B - WAP.mp3',
+    path: 'Global_Top_100/Cardi B - WAP.mp3',
+    artistName: 'Cardi B',
+    songTitle: 'WAP',
+  },
   'Chappell Roan - Pink Pony Club.mp3': {
     name: 'Chappell Roan - Pink Pony Club.mp3',
     path: 'Global_Top_100/Chappell Roan - Pink Pony Club.mp3',
@@ -82,7 +154,7 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     name: 'Chris Brown - It Depends (Audio) ft. Bryson Tiller.mp3',
     path: 'Global_Top_100/Chris Brown - It Depends (Audio) ft. Bryson Tiller.mp3',
     artistName: 'Chris Brown',
-    songTitle: 'It Depends (Audio) ft. Bryson Tiller',
+    songTitle: 'It Depends',
     storageKey: 'f4a8b9907b5491ba681eb37337c8ba2da226263ea2dec2daf37eae10490fe549',
     gatewayUrl: 'https://api.grove.storage/f4a8b9907b5491ba681eb37337c8ba2da226263ea2dec2daf37eae10490fe549',
     uri: 'lens://f4a8b9907b5491ba681eb37337c8ba2da226263ea2dec2daf37eae10490fe549',
@@ -96,6 +168,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/77430d401eac015d463b5455882c23082a08a8645f4b4ac740403b34df07dad9',
     uri: 'lens://77430d401eac015d463b5455882c23082a08a8645f4b4ac740403b34df07dad9',
   },
+  'Coldplay - Viva La Vida.mp3': {
+    name: 'Coldplay - Viva La Vida.mp3',
+    path: 'Global_Top_100/Coldplay - Viva La Vida.mp3',
+    artistName: 'Coldplay',
+    songTitle: 'Viva La Vida',
+  },
   'ComputerBits_mastered.mp3': {
     name: 'ComputerBits_mastered.mp3',
     path: 'lobby/ComputerBits_mastered.mp3',
@@ -105,6 +183,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/39143946d8fdbfdedd12b7b1fb508cfb9d39701e81a24dde5841cf87a6bab967',
     uri: 'lens://39143946d8fdbfdedd12b7b1fb508cfb9d39701e81a24dde5841cf87a6bab967',
   },
+  'DaBaby - ROCKSTAR.mp3': {
+    name: 'DaBaby - ROCKSTAR.mp3',
+    path: 'Global_Top_100/DaBaby - ROCKSTAR.mp3',
+    artistName: 'DaBaby',
+    songTitle: 'ROCKSTAR',
+  },
+  'Doja Cat - Paint The Town Red.mp3': {
+    name: 'Doja Cat - Paint The Town Red.mp3',
+    path: 'Global_Top_100/Doja Cat - Paint The Town Red.mp3',
+    artistName: 'Doja Cat',
+    songTitle: 'Paint The Town Red',
+  },
   'Drake - One Dance.mp3': {
     name: 'Drake - One Dance.mp3',
     path: 'Global_Top_100/Drake - One Dance.mp3',
@@ -113,6 +203,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: '54904cb2418096d7d846307c7135d674f86b83d1e462e2e8242316316755a0a3',
     gatewayUrl: 'https://api.grove.storage/54904cb2418096d7d846307c7135d674f86b83d1e462e2e8242316316755a0a3',
     uri: 'lens://54904cb2418096d7d846307c7135d674f86b83d1e462e2e8242316316755a0a3',
+  },
+  'Dua Lipa - Levitating.mp3': {
+    name: 'Dua Lipa - Levitating.mp3',
+    path: 'Global_Top_100/Dua Lipa - Levitating.mp3',
+    artistName: 'Dua Lipa',
+    songTitle: 'Levitating',
   },
   'Ed Sheeran - Perfect.mp3': {
     name: 'Ed Sheeran - Perfect.mp3',
@@ -132,6 +228,30 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/c9ffb6806862d00b9994a04417cd13094d224f96c59969064a33cb1276ba4fa2',
     uri: 'lens://c9ffb6806862d00b9994a04417cd13094d224f96c59969064a33cb1276ba4fa2',
   },
+  'Eminem - Lose Yourself.mp3': {
+    name: 'Eminem - Lose Yourself.mp3',
+    path: 'Global_Top_100/Eminem - Lose Yourself.mp3',
+    artistName: 'Eminem',
+    songTitle: 'Lose Yourself',
+  },
+  'Eminem - Without Me.mp3': {
+    name: 'Eminem - Without Me.mp3',
+    path: 'Global_Top_100/Eminem - Without Me.mp3',
+    artistName: 'Eminem',
+    songTitle: 'Without Me',
+  },
+  'Fleetwood Mac - Dreams.mp3': {
+    name: 'Fleetwood Mac - Dreams.mp3',
+    path: 'Global_Top_100/Fleetwood Mac - Dreams.mp3',
+    artistName: 'Fleetwood Mac',
+    songTitle: 'Dreams',
+  },
+  'Frank Ocean - Thinkin Bout You.mp3': {
+    name: 'Frank Ocean - Thinkin Bout You.mp3',
+    path: 'Global_Top_100/Frank Ocean - Thinkin Bout You.mp3',
+    artistName: 'Frank Ocean',
+    songTitle: 'Thinkin Bout You',
+  },
   'Fuerza Regida - TU SANCHO.mp3': {
     name: 'Fuerza Regida - TU SANCHO.mp3',
     path: 'Global_Top_100/Fuerza Regida - TU SANCHO.mp3',
@@ -150,6 +270,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/da1315537ee952809755208235cb7914c86a397c28004866f0b6047be5f0ed27',
     uri: 'lens://da1315537ee952809755208235cb7914c86a397c28004866f0b6047be5f0ed27',
   },
+  'Glass Animals - Heat Waves.mp3': {
+    name: 'Glass Animals - Heat Waves.mp3',
+    path: 'Global_Top_100/Glass Animals - Heat Waves.mp3',
+    artistName: 'Glass Animals',
+    songTitle: 'Heat Waves',
+  },
   'Gunna - wgft.mp3': {
     name: 'Gunna - wgft.mp3',
     path: 'Global_Top_100/Gunna - wgft.mp3',
@@ -158,6 +284,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: 'fcb02ef6fd373da091c46746a9a5af1d64cd96f63316926bf193aac052fc52a5',
     gatewayUrl: 'https://api.grove.storage/fcb02ef6fd373da091c46746a9a5af1d64cd96f63316926bf193aac052fc52a5',
     uri: 'lens://fcb02ef6fd373da091c46746a9a5af1d64cd96f63316926bf193aac052fc52a5',
+  },
+  'Guns N\' Roses - Sweet Child O\' Mine.mp3': {
+    name: 'Guns N\' Roses - Sweet Child O\' Mine.mp3',
+    path: 'Global_Top_100/Guns N\' Roses - Sweet Child O\' Mine.mp3',
+    artistName: 'Guns N\' Roses',
+    songTitle: 'Sweet Child O\' Mine',
+  },
+  'Harry Styles - As It Was.mp3': {
+    name: 'Harry Styles - As It Was.mp3',
+    path: 'Global_Top_100/Harry Styles - As It Was.mp3',
+    artistName: 'Harry Styles',
+    songTitle: 'As It Was',
   },
   'Huntrix - Golden.mp3': {
     name: 'Huntrix - Golden.mp3',
@@ -168,11 +306,35 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/cff627ff4c042997f16e68b7585c15b11d164170a02f9917964831d56dc38f0e',
     uri: 'lens://cff627ff4c042997f16e68b7585c15b11d164170a02f9917964831d56dc38f0e',
   },
+  'Imagine Dragons - Believer.mp3': {
+    name: 'Imagine Dragons - Believer.mp3',
+    path: 'Global_Top_100/Imagine Dragons - Believer.mp3',
+    artistName: 'Imagine Dragons',
+    songTitle: 'Believer',
+  },
+  'Imagine Dragons - Radioactive.mp3': {
+    name: 'Imagine Dragons - Radioactive.mp3',
+    path: 'Global_Top_100/Imagine Dragons - Radioactive.mp3',
+    artistName: 'Imagine Dragons',
+    songTitle: 'Radioactive',
+  },
+  'Jay-Z - Empire State of Mind.mp3': {
+    name: 'Jay-Z - Empire State of Mind.mp3',
+    path: 'Global_Top_100/Jay-Z - Empire State of Mind.mp3',
+    artistName: 'Jay-Z',
+    songTitle: 'Empire State of Mind',
+  },
+  'Juice WRLD - Lucid Dreams.mp3': {
+    name: 'Juice WRLD - Lucid Dreams.mp3',
+    path: 'Global_Top_100/Juice WRLD - Lucid Dreams.mp3',
+    artistName: 'Juice WRLD',
+    songTitle: 'Lucid Dreams',
+  },
   'Justin Beiber-DAISIES.mp3': {
     name: 'Justin Beiber-DAISIES.mp3',
     path: 'Global_Top_100/Justin Beiber-DAISIES.mp3',
-    artistName: 'Unknown',
-    songTitle: 'Justin Beiber-DAISIES',
+    artistName: 'Justin Bieber',
+    songTitle: 'DAISIES',
     storageKey: 'f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
     gatewayUrl: 'https://api.grove.storage/f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
     uri: 'lens://f87909d747f4f192240633387f86988ee51d66c5e423ce9a475b87d4412fe5c6',
@@ -180,11 +342,17 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
   'Justin Beiber-YUKON.mp3': {
     name: 'Justin Beiber-YUKON.mp3',
     path: 'Global_Top_100/Justin Beiber-YUKON.mp3',
-    artistName: 'Unknown',
-    songTitle: 'Justin Beiber-YUKON',
+    artistName: 'Justin Bieber',
+    songTitle: 'YUKON',
     storageKey: '553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',
     gatewayUrl: 'https://api.grove.storage/553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',
     uri: 'lens://553760e5d882edba8fc8202f780cda92a70bdc412d19486a06d1d4855d83437a',
+  },
+  'Kanye West - Stronger.mp3': {
+    name: 'Kanye West - Stronger.mp3',
+    path: 'Global_Top_100/Kanye West - Stronger.mp3',
+    artistName: 'Kanye West',
+    songTitle: 'Stronger',
   },
   'Kehlani - Folded.mp3': {
     name: 'Kehlani - Folded.mp3',
@@ -213,6 +381,36 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/608b89fa041e22af514bad5940b3982060d9edfcd85fe251d4b473907f9a671f',
     uri: 'lens://608b89fa041e22af514bad5940b3982060d9edfcd85fe251d4b473907f9a671f',
   },
+  'Lil Baby - Drip Too Hard.mp3': {
+    name: 'Lil Baby - Drip Too Hard.mp3',
+    path: 'Global_Top_100/Lil Baby - Drip Too Hard.mp3',
+    artistName: 'Lil Baby',
+    songTitle: 'Drip Too Hard',
+  },
+  'Lil Nas X - Industry Baby.mp3': {
+    name: 'Lil Nas X - Industry Baby.mp3',
+    path: 'Global_Top_100/Lil Nas X - Industry Baby.mp3',
+    artistName: 'Lil Nas X',
+    songTitle: 'Industry Baby',
+  },
+  'Lil Uzi Vert - XO Tour Llif3.mp3': {
+    name: 'Lil Uzi Vert - XO Tour Llif3.mp3',
+    path: 'Global_Top_100/Lil Uzi Vert - XO Tour Llif3.mp3',
+    artistName: 'Lil Uzi Vert',
+    songTitle: 'XO Tour Llif3',
+  },
+  'Lizzo - About Damn Time.mp3': {
+    name: 'Lizzo - About Damn Time.mp3',
+    path: 'Global_Top_100/Lizzo - About Damn Time.mp3',
+    artistName: 'Lizzo',
+    songTitle: 'About Damn Time',
+  },
+  'Luke Combs - Beautiful Crazy.mp3': {
+    name: 'Luke Combs - Beautiful Crazy.mp3',
+    path: 'Global_Top_100/Luke Combs - Beautiful Crazy.mp3',
+    artistName: 'Luke Combs',
+    songTitle: 'Beautiful Crazy',
+  },
   'Luke Combs - Fast Car.mp3': {
     name: 'Luke Combs - Fast Car.mp3',
     path: 'Global_Top_100/Luke Combs - Fast Car.mp3',
@@ -221,6 +419,42 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: '257f1bf20c490a9054ce5e6fcbd0b163dbded787f11ef3f77a1658aa533f2ba1',
     gatewayUrl: 'https://api.grove.storage/257f1bf20c490a9054ce5e6fcbd0b163dbded787f11ef3f77a1658aa533f2ba1',
     uri: 'lens://257f1bf20c490a9054ce5e6fcbd0b163dbded787f11ef3f77a1658aa533f2ba1',
+  },
+  'Maroon 5 - Sugar.mp3': {
+    name: 'Maroon 5 - Sugar.mp3',
+    path: 'Global_Top_100/Maroon 5 - Sugar.mp3',
+    artistName: 'Maroon 5',
+    songTitle: 'Sugar',
+  },
+  'Megan Thee Stallion - Savage.mp3': {
+    name: 'Megan Thee Stallion - Savage.mp3',
+    path: 'Global_Top_100/Megan Thee Stallion - Savage.mp3',
+    artistName: 'Megan Thee Stallion',
+    songTitle: 'Savage',
+  },
+  'Michael Jackson - Billie Jean.mp3': {
+    name: 'Michael Jackson - Billie Jean.mp3',
+    path: 'Global_Top_100/Michael Jackson - Billie Jean.mp3',
+    artistName: 'Michael Jackson',
+    songTitle: 'Billie Jean',
+  },
+  'Miley Cyrus - Flowers.mp3': {
+    name: 'Miley Cyrus - Flowers.mp3',
+    path: 'Global_Top_100/Miley Cyrus - Flowers.mp3',
+    artistName: 'Miley Cyrus',
+    songTitle: 'Flowers',
+  },
+  'Morgan Wallen - Last Night.mp3': {
+    name: 'Morgan Wallen - Last Night.mp3',
+    path: 'Global_Top_100/Morgan Wallen - Last Night.mp3',
+    artistName: 'Morgan Wallen',
+    songTitle: 'Last Night',
+  },
+  'Morgan Wallen - Whiskey Glasses.mp3': {
+    name: 'Morgan Wallen - Whiskey Glasses.mp3',
+    path: 'Global_Top_100/Morgan Wallen - Whiskey Glasses.mp3',
+    artistName: 'Morgan Wallen',
+    songTitle: 'Whiskey Glasses',
   },
   'Morgan Wallen, Tate McRae - What I Want.mp3': {
     name: 'Morgan Wallen, Tate McRae - What I Want.mp3',
@@ -231,10 +465,22 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/af2a2733b6c1e679c4226cd58983039b9abf794549bd6dd97ff3f4ead7c90645',
     uri: 'lens://af2a2733b6c1e679c4226cd58983039b9abf794549bd6dd97ff3f4ead7c90645',
   },
+  'Nirvana - Smells Like Teen Spirit.mp3': {
+    name: 'Nirvana - Smells Like Teen Spirit.mp3',
+    path: 'Global_Top_100/Nirvana - Smells Like Teen Spirit.mp3',
+    artistName: 'Nirvana',
+    songTitle: 'Smells Like Teen Spirit',
+  },
+  'Noah Kahan - Stick Season.mp3': {
+    name: 'Noah Kahan - Stick Season.mp3',
+    path: 'Global_Top_100/Noah Kahan - Stick Season.mp3',
+    artistName: 'Noah Kahan',
+    songTitle: 'Stick Season',
+  },
   'NOKIA.mp3': {
     name: 'NOKIA.mp3',
     path: 'Global_Top_100/NOKIA.mp3',
-    artistName: 'Unknown',
+    artistName: 'Unknown Artist',
     songTitle: 'NOKIA',
     storageKey: '3807063ef9d9365583801774c241b15e886776d36cc5d3d2cd3aaa578d92a763',
     gatewayUrl: 'https://api.grove.storage/3807063ef9d9365583801774c241b15e886776d36cc5d3d2cd3aaa578d92a763',
@@ -243,11 +489,23 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
   'Not Like Us.mp3': {
     name: 'Not Like Us.mp3',
     path: 'Global_Top_100/Not Like Us.mp3',
-    artistName: 'Unknown',
+    artistName: 'Kendrick Lamar',
     songTitle: 'Not Like Us',
     storageKey: '26e6a7c0279cbcebc4c1a5b57fee338795a12ad5ac60ba64ff797e41cbcd4bfc',
     gatewayUrl: 'https://api.grove.storage/26e6a7c0279cbcebc4c1a5b57fee338795a12ad5ac60ba64ff797e41cbcd4bfc',
     uri: 'lens://26e6a7c0279cbcebc4c1a5b57fee338795a12ad5ac60ba64ff797e41cbcd4bfc',
+  },
+  'Olivia Rodrigo - drivers license.mp3': {
+    name: 'Olivia Rodrigo - drivers license.mp3',
+    path: 'Global_Top_100/Olivia Rodrigo - drivers license.mp3',
+    artistName: 'Olivia Rodrigo',
+    songTitle: 'drivers license',
+  },
+  'Olivia Rodrigo - good 4 u.mp3': {
+    name: 'Olivia Rodrigo - good 4 u.mp3',
+    path: 'Global_Top_100/Olivia Rodrigo - good 4 u.mp3',
+    artistName: 'Olivia Rodrigo',
+    songTitle: 'good 4 u',
   },
   'Pierce The Veil - So Far So Fake.mp3': {
     name: 'Pierce The Veil - So Far So Fake.mp3',
@@ -258,6 +516,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/feb2fdc8c3c1eb517b8c89aa87bf1ba0acd0d081933fe24ac5f1a89396862511',
     uri: 'lens://feb2fdc8c3c1eb517b8c89aa87bf1ba0acd0d081933fe24ac5f1a89396862511',
   },
+  'Pop Smoke - Dior.mp3': {
+    name: 'Pop Smoke - Dior.mp3',
+    path: 'Global_Top_100/Pop Smoke - Dior.mp3',
+    artistName: 'Pop Smoke',
+    songTitle: 'Dior',
+  },
   'Post Malone - I Had Some Help.mp3': {
     name: 'Post Malone - I Had Some Help.mp3',
     path: 'Global_Top_100/Post Malone - I Had Some Help.mp3',
@@ -267,6 +531,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/56b1162d8700077aaae7cb5b482a8a9da1c5f84235ae8a174aa7aad8c33422ce',
     uri: 'lens://56b1162d8700077aaae7cb5b482a8a9da1c5f84235ae8a174aa7aad8c33422ce',
   },
+  'Prince - Purple Rain.mp3': {
+    name: 'Prince - Purple Rain.mp3',
+    path: 'Global_Top_100/Prince - Purple Rain.mp3',
+    artistName: 'Prince',
+    songTitle: 'Purple Rain',
+  },
+  'Queen - Bohemian Rhapsody.mp3': {
+    name: 'Queen - Bohemian Rhapsody.mp3',
+    path: 'Global_Top_100/Queen - Bohemian Rhapsody.mp3',
+    artistName: 'Queen',
+    songTitle: 'Bohemian Rhapsody',
+  },
   'Radiohead - Creep.mp3': {
     name: 'Radiohead - Creep.mp3',
     path: 'Global_Top_100/Radiohead - Creep.mp3',
@@ -275,6 +551,24 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: 'ba48b38379ee099f45ea675e6b41a4571bd2acaf1665b73edf6dfcb0fd92a396',
     gatewayUrl: 'https://api.grove.storage/ba48b38379ee099f45ea675e6b41a4571bd2acaf1665b73edf6dfcb0fd92a396',
     uri: 'lens://ba48b38379ee099f45ea675e6b41a4571bd2acaf1665b73edf6dfcb0fd92a396',
+  },
+  'Rihanna - Umbrella.mp3': {
+    name: 'Rihanna - Umbrella.mp3',
+    path: 'Global_Top_100/Rihanna - Umbrella.mp3',
+    artistName: 'Rihanna',
+    songTitle: 'Umbrella',
+  },
+  'Rihanna - We Found Love.mp3': {
+    name: 'Rihanna - We Found Love.mp3',
+    path: 'Global_Top_100/Rihanna - We Found Love.mp3',
+    artistName: 'Rihanna',
+    songTitle: 'We Found Love',
+  },
+  'Rod Wave - Heart On Ice.mp3': {
+    name: 'Rod Wave - Heart On Ice.mp3',
+    path: 'Global_Top_100/Rod Wave - Heart On Ice.mp3',
+    artistName: 'Rod Wave',
+    songTitle: 'Heart On Ice',
   },
   'ROSÉ & Bruno Mars - APT.mp3': {
     name: 'ROSÉ & Bruno Mars - APT.mp3',
@@ -321,6 +615,24 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/86369b6f1b185e40eb2a59e63f9e5fc428f2353d2365a2ea0acd89b0673bf28d',
     uri: 'lens://86369b6f1b185e40eb2a59e63f9e5fc428f2353d2365a2ea0acd89b0673bf28d',
   },
+  'SZA - Kill Bill.mp3': {
+    name: 'SZA - Kill Bill.mp3',
+    path: 'Global_Top_100/SZA - Kill Bill.mp3',
+    artistName: 'SZA',
+    songTitle: 'Kill Bill',
+  },
+  'SZA - Snooze.mp3': {
+    name: 'SZA - Snooze.mp3',
+    path: 'Global_Top_100/SZA - Snooze.mp3',
+    artistName: 'SZA',
+    songTitle: 'Snooze',
+  },
+  'Taylor Swift - Anti-Hero.mp3': {
+    name: 'Taylor Swift - Anti-Hero.mp3',
+    path: 'Global_Top_100/Taylor Swift - Anti-Hero.mp3',
+    artistName: 'Taylor Swift',
+    songTitle: 'Anti-Hero',
+  },
   'Taylor Swift - Cruel Summer.mp3': {
     name: 'Taylor Swift - Cruel Summer.mp3',
     path: 'Global_Top_100/Taylor Swift - Cruel Summer.mp3',
@@ -329,6 +641,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: '3f651a70e499f7616c70a50433567736975bdb319c71fa444c3814bd1bf52f4f',
     gatewayUrl: 'https://api.grove.storage/3f651a70e499f7616c70a50433567736975bdb319c71fa444c3814bd1bf52f4f',
     uri: 'lens://3f651a70e499f7616c70a50433567736975bdb319c71fa444c3814bd1bf52f4f',
+  },
+  'Taylor Swift - Shake It Off.mp3': {
+    name: 'Taylor Swift - Shake It Off.mp3',
+    path: 'Global_Top_100/Taylor Swift - Shake It Off.mp3',
+    artistName: 'Taylor Swift',
+    songTitle: 'Shake It Off',
   },
   'Teddy Swims - Lose Control.mp3': {
     name: 'Teddy Swims - Lose Control.mp3',
@@ -348,10 +666,16 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/299ad7d9399ce6793f16809538d4e4733fefefff6922c0d776a8bdff22f18235',
     uri: 'lens://299ad7d9399ce6793f16809538d4e4733fefefff6922c0d776a8bdff22f18235',
   },
+  'The Kid LAROI - STAY.mp3': {
+    name: 'The Kid LAROI - STAY.mp3',
+    path: 'Global_Top_100/The Kid LAROI - STAY.mp3',
+    artistName: 'The Kid LAROI',
+    songTitle: 'STAY',
+  },
   'The Spins.mp3': {
     name: 'The Spins.mp3',
     path: 'Global_Top_100/The Spins.mp3',
-    artistName: 'Unknown',
+    artistName: 'Mac Miller',
     songTitle: 'The Spins',
     storageKey: 'b3490c1ad383daa8d7668a875f332d939107ed4eef0133ab445be3c50e075039',
     gatewayUrl: 'https://api.grove.storage/b3490c1ad383daa8d7668a875f332d939107ed4eef0133ab445be3c50e075039',
@@ -365,6 +689,12 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: 'c7acee17bd3277b77ffdf8fc5aac06e7db22747b254860e8c4929319a23253da',
     gatewayUrl: 'https://api.grove.storage/c7acee17bd3277b77ffdf8fc5aac06e7db22747b254860e8c4929319a23253da',
     uri: 'lens://c7acee17bd3277b77ffdf8fc5aac06e7db22747b254860e8c4929319a23253da',
+  },
+  'Tones and I - Dance Monkey.mp3': {
+    name: 'Tones and I - Dance Monkey.mp3',
+    path: 'Global_Top_100/Tones and I - Dance Monkey.mp3',
+    artistName: 'Tones and I',
+    songTitle: 'Dance Monkey',
   },
   'Travis Scott - goosebumps  ft. Kendrick Lamar.mp3': {
     name: 'Travis Scott - goosebumps  ft. Kendrick Lamar.mp3',
@@ -384,6 +714,18 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     gatewayUrl: 'https://api.grove.storage/6a51066cc8bcc43e6c304578506d56353cb0eb74aed3936b757d32577043434d',
     uri: 'lens://6a51066cc8bcc43e6c304578506d56353cb0eb74aed3936b757d32577043434d',
   },
+  'Tyler, The Creator - See You Again.mp3': {
+    name: 'Tyler, The Creator - See You Again.mp3',
+    path: 'Global_Top_100/Tyler, The Creator - See You Again.mp3',
+    artistName: 'Tyler, The Creator',
+    songTitle: 'See You Again',
+  },
+  'Whitney Houston - I Wanna Dance with Somebody.mp3': {
+    name: 'Whitney Houston - I Wanna Dance with Somebody.mp3',
+    path: 'Global_Top_100/Whitney Houston - I Wanna Dance with Somebody.mp3',
+    artistName: 'Whitney Houston',
+    songTitle: 'I Wanna Dance with Somebody',
+  },
   'will.i.am - Scream & Shout.mp3': {
     name: 'will.i.am - Scream & Shout.mp3',
     path: 'Global_Top_100/will.i.am - Scream & Shout.mp3',
@@ -392,5 +734,17 @@ export const GROVE_FILES: Record<string, GroveFileEntry> = {
     storageKey: 'd25f39f339a0ffee66542619f47eed987b086050cdfebfbe09bbd262721a4578',
     gatewayUrl: 'https://api.grove.storage/d25f39f339a0ffee66542619f47eed987b086050cdfebfbe09bbd262721a4578',
     uri: 'lens://d25f39f339a0ffee66542619f47eed987b086050cdfebfbe09bbd262721a4578',
+  },
+  'XXXTENTACION - SAD!.mp3': {
+    name: 'XXXTENTACION - SAD!.mp3',
+    path: 'Global_Top_100/XXXTENTACION - SAD!.mp3',
+    artistName: 'XXXTENTACION',
+    songTitle: 'SAD!',
+  },
+  'Zach Bryan - Something in the Orange.mp3': {
+    name: 'Zach Bryan - Something in the Orange.mp3',
+    path: 'Global_Top_100/Zach Bryan - Something in the Orange.mp3',
+    artistName: 'Zach Bryan',
+    songTitle: 'Something in the Orange',
   }
 };
