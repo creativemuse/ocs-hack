@@ -1,13 +1,16 @@
 import { createPublicClient, http } from 'viem';
 import { normalize } from 'viem/ens';
 import { mainnet } from 'viem/chains';
-import { getBasename, getBasenameWithFallback } from '@/lib/base-account/basename';
+import { getBasenameWithFallback } from '@/lib/base-account/basenameServer';
 
 const getMainnetClient = () => {
-  const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-  const rpcUrl = apiKey
-    ? `https://eth-mainnet.g.alchemy.com/v2/${apiKey}`
-    : process.env.MAINNET_RPC_URL ?? 'https://eth.llamarpc.com';
+  const rpcUrl =
+    process.env.MAINNET_RPC_URL?.trim() ??
+    (process.env.ALCHEMY_API_KEY
+      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
+      : process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
+        ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
+        : 'https://eth.llamarpc.com');
 
   return createPublicClient({
     chain: mainnet,

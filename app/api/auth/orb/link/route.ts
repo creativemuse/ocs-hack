@@ -4,13 +4,16 @@ import { base } from 'viem/chains';
 import { verifyOrbAccessToken } from '@/lib/orb/lensProfile.server';
 import { classifyOrbLinkError, type OrbLinkStep } from '@/lib/orb/linkErrors';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { tryInitializeSpacetime } from '@/lib/apis/tryInitializeSpacetime';
 
 export const runtime = 'nodejs';
 
 const baseClient = createPublicClient({
   chain: base,
   transport: http(
-    process.env.NEXT_PUBLIC_BASE_RPC_URL ?? 'https://mainnet.base.org',
+    process.env.BASE_RPC_URL ??
+      process.env.NEXT_PUBLIC_BASE_RPC_URL ??
+      'https://mainnet.base.org',
   ),
 });
 
@@ -87,13 +90,18 @@ export async function POST(request: NextRequest) {
       return linkErrorResponse(messageText, step, status);
     }
 
-    try {
-      await spacetimeClient.initialize();
-    } catch (initError) {
-      const messageText =
-        initError instanceof Error
-          ? initError.message
-          : 'SpacetimeDB connection failed';
+    if (!process.env.SPACETIME_TOKEN?.trim()) {
+      console.error('❌ Orb link blocked: SPACETIME_TOKEN is not configured');
+      return linkErrorResponse(
+        'Server not configured for profile linking',
+        'spacetime_config',
+        503,
+      );
+    }
+
+    const initResult = await tryInitializeSpacetime();
+    if (!initResult.configured) {
+      const messageText = initResult.error ?? 'SpacetimeDB connection failed';
       console.error('❌ Orb link failed at spacetime_config step:', messageText);
       return linkErrorResponse(messageText, 'spacetime_config', 503);
     }

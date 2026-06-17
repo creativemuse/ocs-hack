@@ -115,6 +115,9 @@ const tablesSchema = __schema({
       { accessor: 'session_id', name: 'active_game_sessions_session_id_idx_btree', algorithm: 'btree', columns: [
         'sessionId',
       ] },
+      { accessor: 'idx_active_game_sessions_status', name: 'active_game_sessions_status_idx_btree', algorithm: 'btree', columns: [
+        'status',
+      ] },
     ],
     constraints: [
       { name: 'active_game_sessions_id_key', constraint: 'unique', columns: ['id'] },

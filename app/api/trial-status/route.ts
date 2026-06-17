@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
+import { ensureTrialDataReady, tryInitializeSpacetime } from '@/lib/apis/tryInitializeSpacetime';
 import { getPlayerInfoFromToken, validatePlayerAccess } from '@/lib/utils/jwt';
 
 // Cookie name for anonymous user identification
@@ -28,8 +29,10 @@ export async function GET(req: NextRequest) {
 
     console.log('Trial status request:', { walletAddress, sessionId, token: !!token });
 
-    // Initialize SpacetimeDB connection
-    await spacetimeClient.initialize();
+    const initResult = await ensureTrialDataReady();
+    if (!initResult.configured) {
+      console.warn('SpacetimeDB unavailable for trial status, using defaults:', initResult.error);
+    }
 
     // Check trial status using JWT token (preferred method)
     if (token) {
@@ -219,10 +222,14 @@ export async function GET(req: NextRequest) {
     console.error('Error checking trial status:', error);
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error details:', errorMessage);
-    return NextResponse.json(
-      { error: 'Failed to check trial status', details: errorMessage },
-      { status: 500 }
-    );
+    return NextResponse.json({
+      trialGamesRemaining: 1,
+      trialCompleted: false,
+      gamesPlayed: 0,
+      totalScore: 0,
+      bestScore: 0,
+      fallback: true,
+    });
   }
 }
 
@@ -231,8 +238,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { walletAddress, sessionId } = body;
 
-    // Initialize SpacetimeDB connection
-    await spacetimeClient.initialize();
+    const initResult = await tryInitializeSpacetime({ syncTrialData: true });
+    if (!initResult.configured) {
+      return NextResponse.json(
+        { error: 'SpacetimeDB unavailable', details: initResult.error },
+        { status: 503 },
+      );
+    }
 
     if (walletAddress) {
       // Update wallet player trial games in SpaceTimeDB
