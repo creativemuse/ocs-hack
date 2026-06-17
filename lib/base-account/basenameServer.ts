@@ -1,4 +1,4 @@
-import { createPublicClient, http, toCoinType } from 'viem';
+import { createPublicClient, http, toCoinType, type PublicClient } from 'viem';
 import { mainnet, base } from 'viem/chains';
 
 /** Server-only mainnet RPC — never call from browser (CORS). */
@@ -17,18 +17,23 @@ const getMainnetRpcUrl = (): string => {
   return 'https://eth.llamarpc.com';
 };
 
-const createBasenameClient = () =>
-  createPublicClient({
-    chain: mainnet,
-    transport: http(getMainnetRpcUrl()),
-  });
+let basenameClient: PublicClient | null = null;
+
+const getBasenameClient = (): PublicClient => {
+  if (!basenameClient) {
+    basenameClient = createPublicClient({
+      chain: mainnet,
+      transport: http(getMainnetRpcUrl()),
+    });
+  }
+  return basenameClient;
+};
 
 export const getBasename = async (
   address: `0x${string}`,
 ): Promise<string | null> => {
   try {
-    const client = createBasenameClient();
-    return await client.getEnsName({
+    return await getBasenameClient().getEnsName({
       address,
       coinType: toCoinType(base.id),
     });

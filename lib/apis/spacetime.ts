@@ -147,22 +147,16 @@ class SpacetimeDBClient {
    */
   async ensureTrialDataReady(): Promise<void> {
     await this.initialize({ syncTrialData: true });
-    await this.waitForSync();
   }
 
   private async subscribeToQuerySet(
     label: string,
-    buildQueries: (
-      t: AppSubscriptionTables,
-    ) => ReturnType<typeof buildTrialStatusSubscriptionQueries>,
+    buildQueries: (t: AppSubscriptionTables) => unknown[],
     onSubscribed: () => void,
   ): Promise<void> {
     if (!this.connection) {
       return;
     }
-
-    this.resetSyncState();
-    this.beginSyncWait();
 
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
@@ -173,7 +167,6 @@ class SpacetimeDBClient {
         .onApplied(() => {
           clearTimeout(timeout);
           onSubscribed();
-          this.markSubscriptionApplied();
           resolve();
         })
         .onError((errorContext) => {
@@ -188,7 +181,9 @@ class SpacetimeDBClient {
         })
         .subscribe((t) => {
           const tbl = t as unknown as AppSubscriptionTables;
-          return buildQueries(tbl);
+          return buildQueries(tbl) as ReturnType<
+            typeof buildTrialStatusSubscriptionQueries
+          >;
         });
     });
   }

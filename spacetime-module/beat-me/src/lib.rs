@@ -756,7 +756,6 @@ fn latest_session_with_statuses(
         .iter()
         .flat_map(|status| handle.idx_active_game_sessions_status().filter(*status))
         .max_by_key(|s| s.created_at)
-        .map(|s| s.clone())
 }
 
 fn reconcile_lobbies_to_active(ctx: &ReducerContext) {

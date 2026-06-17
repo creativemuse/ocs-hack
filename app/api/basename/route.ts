@@ -7,7 +7,7 @@ const ADDRESS_RE = /^0x[a-fA-F0-9]{40}$/;
 
 export async function GET(request: NextRequest) {
   const address = request.nextUrl.searchParams.get('address')?.trim();
-  const universal = request.nextUrl.searchParams.get('universal')?.trim() ?? undefined;
+  const universal = request.nextUrl.searchParams.get('universal')?.trim() || undefined;
 
   if (!address || !ADDRESS_RE.test(address)) {
     return NextResponse.json({ error: 'Invalid address' }, { status: 400 });
