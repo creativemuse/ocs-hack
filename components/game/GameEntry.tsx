@@ -17,7 +17,17 @@ import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet, LogOut } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
 import BaseAccountTransaction, {
@@ -49,6 +59,8 @@ interface GameEntryProps {
   /** Parent shows full-screen overlay while verifying payment + joining */
   isJoiningAfterPayment?: boolean;
   joinProgressMessage?: string;
+  /** Allow wallet switch on gameplay mode selection screen only */
+  allowDisconnect?: boolean;
 }
 
 export default function GameEntry({
@@ -62,10 +74,11 @@ export default function GameEntry({
   sessionTimeRemaining = 0,
   isJoiningAfterPayment = false,
   joinProgressMessage = 'Confirming payment on-chain and joining the session…',
+  allowDisconnect = false,
 }: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
-  const { address, universalAddress, isConnected, connect, isConnecting } = useBaseAccount();
+  const { address, universalAddress, isConnected, connect, disconnect, isConnecting } = useBaseAccount();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -88,6 +101,38 @@ export default function GameEntry({
   const generatingAddressRef = useRef<string | null>(null);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
   const [pendingPaidEntry, setPendingPaidEntry] = useState<PendingPaidEntry | null>(null);
+  const [showSwitchAccountConfirm, setShowSwitchAccountConfirm] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
+
+  const switchAccountDisabled =
+    isJoiningAfterPayment ||
+    isProcessingPayment ||
+    awaitingWalletOpen ||
+    isSwitchingAccount;
+
+  const performSwitchAccount = useCallback(async () => {
+    setIsSwitchingAccount(true);
+    try {
+      await disconnect();
+      setShowSwitchAccountConfirm(false);
+    } catch (err) {
+      console.error('Failed to switch account:', err);
+      setError('Could not switch account. Please try again.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  }, [disconnect]);
+
+  const handleSwitchAccountClick = useCallback(() => {
+    if (switchAccountDisabled) {
+      return;
+    }
+    if (pendingPaidEntry) {
+      setShowSwitchAccountConfirm(true);
+      return;
+    }
+    void performSwitchAccount();
+  }, [pendingPaidEntry, performSwitchAccount, switchAccountDisabled]);
 
   useEffect(() => {
     setPendingPaidEntry(loadPendingPaidEntry(address));
@@ -674,6 +719,26 @@ export default function GameEntry({
                       ethFundingError={ethFundingError}
                       paymasterConfigured={paymasterConfigured}
                     />
+                    {allowDisconnect && (
+                      <div className="mt-3 flex flex-col items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSwitchAccountClick}
+                          disabled={switchAccountDisabled}
+                          className="border-white/20 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-50"
+                          aria-label="Switch Base Account"
+                        >
+                          {isSwitchingAccount ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <LogOut className="h-4 w-4 mr-2" />
+                          )}
+                          Switch account
+                        </Button>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center">
@@ -955,6 +1020,33 @@ export default function GameEntry({
           </div>
         </div>
       ) : null}
+
+      <AlertDialog open={showSwitchAccountConfirm} onOpenChange={setShowSwitchAccountConfirm}>
+        <AlertDialogContent className="bg-zinc-900 border-gray-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Switch account?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              You have a pending paid entry for this wallet. Switching accounts will sign you out
+              and you may need to recover your entry with the new wallet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-gray-600 bg-transparent text-white hover:bg-white/10">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void performSwitchAccount();
+              }}
+              disabled={isSwitchingAccount}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              {isSwitchingAccount ? 'Switching…' : 'Switch account'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

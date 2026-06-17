@@ -45,7 +45,7 @@ export default function WalletConnect({
 
   const handleDisconnect = async () => {
     try {
-      disconnect();
+      await disconnect();
       onDisconnect?.();
     } catch (error) {
       console.error('❌ Wallet disconnect failed:', error);
