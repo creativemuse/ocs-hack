@@ -1,6 +1,7 @@
 import { base } from 'viem/chains';
 import { numberToHex, type Hex } from 'viem';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
+import { PAYMASTER_URL } from '@/lib/base-account/config';
 
 export type BatchCallInput = {
   to: `0x${string}`;
@@ -185,6 +186,16 @@ export const pollBatchCallsStatus = async (
   throw new Error('Batch transaction timed out waiting for confirmation');
 };
 
+const buildSendCallsCapabilities = (): Record<string, unknown> => {
+  const capabilities: Record<string, unknown> = {
+    dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true },
+  };
+  if (PAYMASTER_URL) {
+    capabilities.paymasterService = { url: PAYMASTER_URL };
+  }
+  return capabilities;
+};
+
 export const sendAtomicBatchCalls = async (
   provider: WalletProvider,
   from: string,
@@ -205,9 +216,7 @@ export const sendAtomicBatchCalls = async (
         chainId: numberToHex(base.id),
         atomicRequired: true,
         calls: batchCalls,
-        capabilities: {
-          dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true },
-        },
+        capabilities: buildSendCallsCapabilities(),
       },
     ],
   })) as SendCallsResult;

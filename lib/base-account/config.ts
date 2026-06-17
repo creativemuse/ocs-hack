@@ -18,6 +18,14 @@ export const SPEND_PERMISSION_SPENDER =
 export const PAYMASTER_URL =
   process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT || undefined;
 
+/** CDP Paymaster contract on Base — accepts USDC for gas when sponsorship is unavailable. */
+export const CDP_PAYMASTER_ADDRESS =
+  (process.env.NEXT_PUBLIC_CDP_PAYMASTER_ADDRESS ||
+    '0x2FAEB0760D4230Ef2aC21496Bb4F0b47D634FD4c') as `0x${string}`;
+
+export const ERC20_GAS_MIN_USDC_ALLOWANCE = '1';
+export const ERC20_GAS_APPROVAL_TOP_UP_USDC = '20';
+
 export const BASE_PAY_AMOUNTS = {
   walletFunding: '5.00',
   gamePayment: '10.00',

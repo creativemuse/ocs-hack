@@ -4,7 +4,6 @@ import { useMemo } from 'react';
 import { useSpacetime } from '@/components/providers/SpacetimeProvider';
 import type { Player } from '@/lib/spacetime/database';
 import type { PoolPlayer } from '@/lib/spacetime/types';
-import type { SocialIdentity } from '@/lib/spacetime/types';
 import { formatWalletAddress } from '@/lib/identity/resolveBaseProfile';
 import { Timestamp } from 'spacetimedb';
 
@@ -45,16 +44,7 @@ type UseLobbyPlayersOptions = {
 const resolveDisplayName = (
   wallet: string,
   player?: Player,
-  social?: SocialIdentity,
 ): { username: string; handle: string | null; avatarUrl: string | null } => {
-  if (social?.handle) {
-    return {
-      username: `@${social.handle}`,
-      handle: social.handle,
-      avatarUrl: social.avatarUrl ?? player?.avatarUrl ?? null,
-    };
-  }
-
   if (player?.username) {
     return {
       username: player.username,
@@ -80,13 +70,9 @@ export const useLobbyPlayers = ({ sessionId }: UseLobbyPlayersOptions = {}) => {
 
     const poolRows = Array.from(connection.db.pool_players.iter()) as PoolPlayer[];
     const playerRows = Array.from(connection.db.players.iter()) as Player[];
-    const socialRows = Array.from(connection.db.social_identity.iter()) as SocialIdentity[];
 
     const playersByWallet = new Map(
       playerRows.map((p) => [p.walletAddress.toLowerCase(), p]),
-    );
-    const socialByWallet = new Map(
-      socialRows.map((s) => [s.walletAddress.toLowerCase(), s]),
     );
 
     const filteredPool = sessionId
@@ -98,8 +84,7 @@ export const useLobbyPlayers = ({ sessionId }: UseLobbyPlayersOptions = {}) => {
       .map((row) => {
         const wallet = row.walletAddress!.toLowerCase();
         const player = playersByWallet.get(wallet);
-        const social = socialByWallet.get(wallet);
-        const display = resolveDisplayName(wallet, player, social);
+        const display = resolveDisplayName(wallet, player);
 
         return {
           playerId: row.playerId,

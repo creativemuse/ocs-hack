@@ -8,9 +8,10 @@ export const usePlayerIdentity = (
   cached?: { username?: string | null; avatarUrl?: string | null },
 ) => {
   const normalized = walletAddress?.trim().toLowerCase() ?? '';
+  const cachedUsername = cached?.username?.trim();
 
   return useQuery<ResolvedPlayerIdentity | null>({
-    queryKey: ['player-identity-full', normalized, cached?.username, cached?.avatarUrl],
+    queryKey: ['player-identity-full', normalized, cachedUsername, cached?.avatarUrl],
     queryFn: async () => {
       if (!normalized.startsWith('0x')) {
         return null;
@@ -27,14 +28,14 @@ export const usePlayerIdentity = (
     },
     enabled: normalized.startsWith('0x'),
     staleTime: 5 * 60 * 1000,
-    initialData: cached?.username
+    initialData: cachedUsername
       ? {
           walletAddress: normalized,
-          displayName: cached.username,
-          avatarUrl: cached.avatarUrl ?? null,
-          handle: cached.username.startsWith('@') ? cached.username.slice(1) : null,
+          displayName: cachedUsername,
+          avatarUrl: cached?.avatarUrl ?? null,
+          handle: cachedUsername.startsWith('@') ? cachedUsername.slice(1) : null,
           basename: null,
-          source: 'lens' as const,
+          source: 'spacetime' as const,
         }
       : undefined,
   });

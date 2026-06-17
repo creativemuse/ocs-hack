@@ -5,7 +5,6 @@ import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 import { BaseAccountProvider } from "@/components/providers/BaseAccountProvider";
-import { OrbAuthProvider } from "@/components/providers/OrbAuthProvider";
 import { wagmiConfig } from "@/lib/wagmi";
 
 const queryClient = new QueryClient();
@@ -26,10 +25,8 @@ export function RootProvider({ children }: { children: ReactNode }) {
       <QueryClientProvider client={queryClient}>
         <SpacetimeProvider>
           <BaseAccountProvider>
-            <OrbAuthProvider>
-              <FarcasterReadyEffect />
-              {children}
-            </OrbAuthProvider>
+            <FarcasterReadyEffect />
+            {children}
           </BaseAccountProvider>
         </SpacetimeProvider>
       </QueryClientProvider>

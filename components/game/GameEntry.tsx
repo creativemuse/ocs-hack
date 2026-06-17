@@ -16,7 +16,6 @@ import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
-import OrbConnectButton from '@/components/auth/OrbConnectButton';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet } from 'lucide-react';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
@@ -274,7 +273,7 @@ export default function GameEntry({
           code: 'INSUFFICIENT_ETH_FOR_GAS',
           message: 'Insufficient ETH for gas fees',
           userMessage:
-            'You need a small amount of ETH in your wallet for network fees (~$0.02). Add ETH using the button on your wallet card, then open the wallet again.',
+            'Add USDC to play — gas can be paid in USDC when sponsorship is unavailable. If needed, add a small amount of ETH (~$0.02) using the button on your wallet card.',
           recoverable: true,
           retryable: true,
         };
@@ -675,9 +674,6 @@ export default function GameEntry({
                       ethFundingError={ethFundingError}
                       paymasterConfigured={paymasterConfigured}
                     />
-                    <div className="mt-3 flex justify-center">
-                      <OrbConnectButton />
-                    </div>
                   </>
                 ) : (
                   <div className="text-center">

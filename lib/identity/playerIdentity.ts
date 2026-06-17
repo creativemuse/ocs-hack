@@ -1,4 +1,3 @@
-import { resolveLensMediaUrl } from '@/lib/identity/resolveLensMedia';
 import {
   formatWalletAddress,
   resolveBaseProfile,
@@ -10,7 +9,7 @@ export type PlayerIdentityCache = {
   avatarUrl?: string | null;
   handle?: string | null;
   displayName?: string | null;
-  source?: 'spacetime' | 'lens' | 'base';
+  source?: 'spacetime' | 'base';
   universalWalletAddress?: string | null;
 };
 
@@ -20,7 +19,7 @@ export type ResolvedPlayerIdentity = {
   avatarUrl: string | null;
   handle: string | null;
   basename: string | null;
-  source: 'lens' | 'base' | 'wallet';
+  source: 'base' | 'wallet' | 'spacetime';
 };
 
 export const normalizeWallet = (address: string): string =>
@@ -42,7 +41,12 @@ export const mergeCachedIdentity = (
     displayName: cache.displayName ?? cache.username ?? undefined,
     avatarUrl: cache.avatarUrl ?? null,
     handle: handle ?? null,
-    source: cache.source === 'lens' ? 'lens' : cache.source === 'base' ? 'base' : undefined,
+    source:
+      cache.source === 'base'
+        ? 'base'
+        : cache.source === 'spacetime'
+          ? 'spacetime'
+          : undefined,
   };
 };
 
@@ -60,7 +64,7 @@ export const resolvePlayerIdentity = async (
       avatarUrl: cached.avatarUrl,
       handle: cached.handle ?? null,
       basename: null,
-      source: cached.source ?? 'lens',
+      source: cached.source ?? 'spacetime',
     };
   }
 
@@ -71,7 +75,7 @@ export const resolvePlayerIdentity = async (
       avatarUrl: cached.avatarUrl ?? null,
       handle: cached.handle ?? null,
       basename: null,
-      source: cached.source ?? 'lens',
+      source: cached.source ?? 'spacetime',
     };
   }
 
@@ -98,13 +102,12 @@ export const resolvePlayerIdentity = async (
 };
 
 export const resolveAvatarFromCacheOrBase = (
-  walletAddress: string,
+  _walletAddress: string,
   cache?: PlayerIdentityCache | null,
   baseProfile?: BaseProfile | null,
 ): string | null => {
-  const resolvedCache = cache?.avatarUrl;
-  if (resolvedCache) {
-    return resolveLensMediaUrl(resolvedCache) ?? resolvedCache;
+  if (cache?.avatarUrl) {
+    return cache.avatarUrl;
   }
   return baseProfile?.avatarUrl ?? null;
 };

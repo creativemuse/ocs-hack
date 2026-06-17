@@ -1,9 +1,8 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useBasename } from '@/hooks/useBasename';
-import { resolveLensMediaUrl } from '@/lib/identity/resolveLensMedia';
 import {
   getInitials,
   gradientClassForWallet,
@@ -40,12 +39,7 @@ export const PlayerAvatar = ({
     universalWalletAddress ?? undefined,
   );
 
-  const resolvedAvatar = useMemo(() => {
-    if (avatarUrl) {
-      return resolveLensMediaUrl(avatarUrl) ?? avatarUrl;
-    }
-    return null;
-  }, [avatarUrl]);
+  const resolvedAvatar = avatarUrl ?? null;
 
   const displayLabel = username ?? basename ?? (normalizedWallet ? normalizedWallet.slice(0, 8) : '?');
   const initials = getInitials(displayLabel);
