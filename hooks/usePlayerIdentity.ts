@@ -34,7 +34,7 @@ export const usePlayerIdentity = (
           avatarUrl: cached.avatarUrl ?? null,
           handle: cached.username.startsWith('@') ? cached.username.slice(1) : null,
           basename: null,
-          source: 'lens' as const,
+          source: 'spacetime' as const,
         }
       : undefined,
   });

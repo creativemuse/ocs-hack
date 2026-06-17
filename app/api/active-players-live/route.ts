@@ -38,16 +38,12 @@ export async function GET() {
       seen.add(wallet);
 
       const player = spacetimeClient.getPlayerByWallet(wallet);
-      const social = spacetimeClient.getSocialIdentityByWallet(wallet);
-
-      const username = social?.handle
-        ? `@${social.handle}`
-        : player?.username ?? formatWalletAddress(wallet);
+      const username = player?.username ?? formatWalletAddress(wallet);
 
       players.push({
         address: wallet,
         username,
-        avatarUrl: social?.avatarUrl ?? player?.avatarUrl ?? null,
+        avatarUrl: player?.avatarUrl ?? null,
         totalScore: Math.round(player?.totalEarnings ?? 0),
         gamesPlayed: player?.gamesPlayed ?? 0,
         isWalletUser: true,
@@ -64,13 +60,10 @@ export async function GET() {
         }
         seen.add(wallet);
         const player = spacetimeClient.getPlayerByWallet(wallet);
-        const social = spacetimeClient.getSocialIdentityByWallet(wallet);
         players.push({
           address: wallet,
-          username: social?.handle
-            ? `@${social.handle}`
-            : player?.username ?? formatWalletAddress(wallet),
-          avatarUrl: social?.avatarUrl ?? player?.avatarUrl ?? null,
+          username: player?.username ?? formatWalletAddress(wallet),
+          avatarUrl: player?.avatarUrl ?? null,
           totalScore: Math.round(player?.totalEarnings ?? 0),
           gamesPlayed: player?.gamesPlayed ?? 0,
           isWalletUser: true,

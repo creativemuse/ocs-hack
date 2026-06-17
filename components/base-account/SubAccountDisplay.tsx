@@ -5,6 +5,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { useETHBalance } from '@/hooks/useETHBalance';
+import { useUSDCBalance } from '@/hooks/useUSDCBalance';
+import { isErc20GasPaymentAvailable } from '@/lib/base-account/erc20GasApprovals';
 import { Copy, CheckCircle, Shield, ExternalLink, AlertCircle, Fuel, Loader2 } from 'lucide-react';
 import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 import { useState } from 'react';
@@ -33,6 +35,7 @@ export default function SubAccountDisplay({
 }: SubAccountDisplayProps) {
   const { address, subAccountAddress, universalAddress, isConnected } = useBaseAccount();
   const { balance: ethBalance, hasEnoughForGas, isLoading: ethLoading } = useETHBalance();
+  const { hasEnoughForEntry, isLoading: usdcLoading } = useUSDCBalance();
   const [copied, setCopied] = useState<string | null>(null);
 
   const copyToClipboard = async (text: string | null, type: string) => {
@@ -55,7 +58,10 @@ export default function SubAccountDisplay({
     return null;
   }
 
-  const showGasWarning = !ethLoading && !hasEnoughForGas;
+  const erc20GasAvailable = isErc20GasPaymentAvailable();
+  const canPayGasWithUsdc = erc20GasAvailable && hasEnoughForEntry;
+  const showGasWarning =
+    !ethLoading && !usdcLoading && !hasEnoughForGas && !canPayGasWithUsdc;
 
   return (
     <Card className={`bg-gradient-to-br from-blue-900/20 to-purple-900/20 border-blue-500/30 ${className}`}>
@@ -167,7 +173,7 @@ export default function SubAccountDisplay({
             <div className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-3 py-2 space-y-2">
               <p className="text-xs text-amber-200">
                 {paymasterConfigured
-                  ? 'Gas sponsorship may not apply to your account. Add a small amount of ETH to cover network fees (~$0.02).'
+                  ? 'Gas sponsorship may not apply to your account. Add USDC for entry (gas can be paid in USDC) or a small amount of ETH (~$0.02).'
                   : 'Add a small amount of ETH to your wallet to cover network fees (~$0.02 per transaction).'}
               </p>
               {onFundEth && (
@@ -213,9 +219,19 @@ export default function SubAccountDisplay({
               )}
             </div>
           )}
-          {!showGasWarning && !ethLoading && paymasterConfigured && (
+          {!showGasWarning && !ethLoading && !hasEnoughForGas && canPayGasWithUsdc && (
+            <p className="text-[10px] text-emerald-300/90">
+              Gas can be paid from your USDC balance — no ETH required.
+            </p>
+          )}
+          {!showGasWarning && !ethLoading && hasEnoughForGas && paymasterConfigured && (
             <p className="text-[10px] text-gray-400">
-              Coinbase One members may get sponsored gas. Others use ETH above.
+              Coinbase One members may get sponsored gas. Others can pay gas in USDC or ETH.
+            </p>
+          )}
+          {!showGasWarning && !ethLoading && !hasEnoughForGas && !canPayGasWithUsdc && paymasterConfigured && (
+            <p className="text-[10px] text-gray-400">
+              Add USDC to cover entry and gas, or a small amount of ETH for network fees.
             </p>
           )}
         </div>

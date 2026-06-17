@@ -42,21 +42,8 @@ const loadSpacetimeCache = async (
 
     for (const wallet of wallets) {
       const player = spacetimeClient.getPlayerByWallet(wallet);
-      const social = spacetimeClient.getSocialIdentityByWallet(wallet);
       const universalWalletAddress =
         spacetimeClient.getUniversalWalletForSubAccount(wallet);
-
-      if (social) {
-        cache.set(wallet, {
-          username: `@${social.handle}`,
-          handle: social.handle,
-          displayName: social.displayName ?? `@${social.handle}`,
-          avatarUrl: social.avatarUrl ?? null,
-          source: 'lens',
-          universalWalletAddress,
-        });
-        continue;
-      }
 
       if (player?.username || player?.avatarUrl) {
         cache.set(wallet, {
@@ -106,7 +93,7 @@ export async function GET(request: NextRequest) {
         avatarUrl: merged.avatarUrl,
         handle: merged.handle ?? null,
         basename: null,
-        source: merged.source ?? 'lens',
+        source: merged.source ?? 'spacetime',
       };
       continue;
     }

@@ -27,7 +27,7 @@ import {
   type PrizePool,
   type Admin,
 } from '../spacetime/database';
-import type { PoolPlayer, SocialIdentity } from '../spacetime/types';
+import type { PoolPlayer } from '../spacetime/types';
 import { pickCurrentActiveGameSession } from './mapSpacetimeGameSession';
 
 // Re-export types for convenience
@@ -44,7 +44,7 @@ export type {
   PrizePool,
   Admin,
 };
-export type { PoolPlayer, SocialIdentity };
+export type { PoolPlayer };
 
 export interface TopEarner {
   walletAddress: string;
@@ -275,7 +275,7 @@ class SpacetimeDBClient {
             reject(error);
           });
 
-        // Use server token when available (admin writes for Orb link)
+        // Use server token when available (admin writes)
         const serverToken = process.env.SPACETIME_TOKEN;
         if (serverToken && typeof window === 'undefined') {
           builder.withToken(serverToken);
@@ -763,14 +763,6 @@ class SpacetimeDBClient {
     );
   }
 
-  getSocialIdentityByWallet(walletAddress: string): SocialIdentity | undefined {
-    if (!this.connection) return undefined;
-    const wallet = walletAddress.trim().toLowerCase();
-    return (Array.from(this.connection.db.social_identity.iter()) as SocialIdentity[]).find(
-      (row) => row.walletAddress.toLowerCase() === wallet,
-    );
-  }
-
   getUniversalWalletForSubAccount(walletAddress: string): string | null {
     if (!this.connection) return null;
     const wallet = walletAddress.trim().toLowerCase();
@@ -782,26 +774,6 @@ class SpacetimeDBClient {
     ).find((row) => row.walletAddress.toLowerCase() === wallet);
     const universal = mapping?.universalWalletAddress?.trim().toLowerCase();
     return universal?.startsWith('0x') ? universal : null;
-  }
-
-  async setVerifiedSocialIdentity(input: {
-    walletAddress: string;
-    lensAccountId: string;
-    handle: string;
-    displayName?: string;
-    avatarUrl?: string;
-  }): Promise<void> {
-    if (!this.connection) {
-      throw new Error('Not connected to SpacetimeDB');
-    }
-
-    await this.connection.reducers.setVerifiedSocialIdentity({
-      walletAddress: input.walletAddress.trim().toLowerCase(),
-      lensAccountId: input.lensAccountId,
-      handle: input.handle.trim().replace(/^@/, ''),
-      displayName: input.displayName ?? undefined,
-      avatarUrl: input.avatarUrl ?? undefined,
-    });
   }
 
   getActiveConnections(limit: number = 20): Array<{
