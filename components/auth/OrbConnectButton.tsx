@@ -180,18 +180,20 @@ export default function OrbConnectButton({
                 <Button
                   type="button"
                   variant="outline"
-                  onClick={handleConnect}
-                  disabled={isConnecting}
+                  onClick={session ? handleLink : handleConnect}
+                  disabled={isConnecting || isLinking}
                   className="w-full border-purple-500/50 text-purple-200 hover:bg-purple-500/10"
-                  aria-label="Retry Orb sign-in"
+                  aria-label={session ? 'Retry link to Base wallet' : 'Retry Orb sign-in'}
                 >
-                  {isConnecting ? (
+                  {isConnecting || isLinking ? (
                     <>
                       <Loader2 className="w-4 h-4 animate-spin mr-2" />
                       Retrying…
                     </>
+                  ) : session ? (
+                    'Retry link'
                   ) : (
-                    'Retry'
+                    'Retry sign-in'
                   )}
                 </Button>
               </div>

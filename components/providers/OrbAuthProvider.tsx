@@ -57,6 +57,23 @@ const formatOrbConnectError = (err: unknown): string => {
   return err.message;
 };
 
+const formatOrbLinkError = (
+  status: number,
+  error?: string,
+  code?: string,
+): string => {
+  if (code === 'lens_verify_failed' || status === 401) {
+    return error ?? 'Invalid Orb session — scan QR again';
+  }
+  if (status === 503 || code === 'stdb_token_missing' || code === 'stdb_unavailable') {
+    return error ?? 'Profile linking is temporarily unavailable';
+  }
+  if (status === 409) {
+    return error ?? 'This Lens handle is already linked to another wallet';
+  }
+  return error ?? 'Failed to link Orb profile';
+};
+
 const loadStoredSession = (): OrbSession | null => {
   if (typeof window === 'undefined') {
     return null;
@@ -177,11 +194,12 @@ export const OrbAuthProvider = ({ children }: { children: ReactNode }) => {
 
       const data = (await response.json()) as {
         error?: string;
+        code?: string;
         profile?: LensProfile & { displayName?: string };
       };
 
       if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to link Orb profile');
+        throw new Error(formatOrbLinkError(response.status, data.error, data.code));
       }
 
       const profile: LensProfile = {
