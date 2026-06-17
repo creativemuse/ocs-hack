@@ -115,6 +115,9 @@ const tablesSchema = __schema({
       { accessor: 'session_id', name: 'active_game_sessions_session_id_idx_btree', algorithm: 'btree', columns: [
         'sessionId',
       ] },
+      { accessor: 'idx_active_game_sessions_status', name: 'active_game_sessions_status_idx_btree', algorithm: 'btree', columns: [
+        'status',
+      ] },
     ],
     constraints: [
       { name: 'active_game_sessions_id_key', constraint: 'unique', columns: ['id'] },
@@ -291,21 +294,6 @@ const tablesSchema = __schema({
       { name: 'pool_players_player_id_key', constraint: 'unique', columns: ['playerId'] },
     ],
   }, PoolPlayersRow),
-  social_identity: __table({
-    name: 'social_identity',
-    indexes: [
-      { accessor: 'handle', name: 'social_identity_handle_idx_btree', algorithm: 'btree', columns: [
-        'handle',
-      ] },
-      { accessor: 'wallet_address', name: 'social_identity_wallet_address_idx_btree', algorithm: 'btree', columns: [
-        'walletAddress',
-      ] },
-    ],
-    constraints: [
-      { name: 'social_identity_handle_key', constraint: 'unique', columns: ['handle'] },
-      { name: 'social_identity_wallet_address_key', constraint: 'unique', columns: ['walletAddress'] },
-    ],
-  }, SocialIdentityRow),
   prize_history: __table({
     name: 'prize_history',
     indexes: [
@@ -339,6 +327,21 @@ const tablesSchema = __schema({
       { name: 'question_attempts_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, QuestionAttemptsRow),
+  social_identity: __table({
+    name: 'social_identity',
+    indexes: [
+      { accessor: 'handle', name: 'social_identity_handle_idx_btree', algorithm: 'btree', columns: [
+        'handle',
+      ] },
+      { accessor: 'wallet_address', name: 'social_identity_wallet_address_idx_btree', algorithm: 'btree', columns: [
+        'walletAddress',
+      ] },
+    ],
+    constraints: [
+      { name: 'social_identity_handle_key', constraint: 'unique', columns: ['handle'] },
+      { name: 'social_identity_wallet_address_key', constraint: 'unique', columns: ['walletAddress'] },
+    ],
+  }, SocialIdentityRow),
 });
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */

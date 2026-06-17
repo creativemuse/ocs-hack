@@ -225,17 +225,6 @@ export const PoolPlayer = __t.object("PoolPlayer", {
 });
 export type PoolPlayer = __Infer<typeof PoolPlayer>;
 
-export const SocialIdentity = __t.object("SocialIdentity", {
-  walletAddress: __t.string(),
-  lensAccountId: __t.string(),
-  handle: __t.string(),
-  displayName: __t.option(__t.string()),
-  avatarUrl: __t.option(__t.string()),
-  linkedAt: __t.timestamp(),
-  verifiedAt: __t.timestamp(),
-});
-export type SocialIdentity = __Infer<typeof SocialIdentity>;
-
 export const PrizeHistory = __t.object("PrizeHistory", {
   id: __t.u64(),
   walletAddress: __t.string(),
@@ -287,4 +276,15 @@ export const SessionStatus = __t.enum("SessionStatus", {
   Completed: __t.unit(),
 });
 export type SessionStatus = __Infer<typeof SessionStatus>;
+
+export const SocialIdentity = __t.object("SocialIdentity", {
+  walletAddress: __t.string(),
+  lensAccountId: __t.string(),
+  handle: __t.string(),
+  displayName: __t.option(__t.string()),
+  avatarUrl: __t.option(__t.string()),
+  linkedAt: __t.timestamp(),
+  verifiedAt: __t.timestamp(),
+});
+export type SocialIdentity = __Infer<typeof SocialIdentity>;
 

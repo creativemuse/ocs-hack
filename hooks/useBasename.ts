@@ -1,7 +1,24 @@
 'use client';
 
 import { useQuery } from '@tanstack/react-query';
-import { getBasenameWithFallback } from '@/lib/base-account/basename';
+
+const fetchBasename = async (
+  address: `0x${string}`,
+  universalFallback?: `0x${string}`,
+): Promise<string | null> => {
+  const params = new URLSearchParams({ address });
+  if (universalFallback) {
+    params.set('universal', universalFallback);
+  }
+
+  const response = await fetch(`/api/basename?${params.toString()}`);
+  if (!response.ok) {
+    return null;
+  }
+
+  const data = (await response.json()) as { basename?: string | null };
+  return data.basename ?? null;
+};
 
 export const useBasename = (
   address?: `0x${string}` | string | null,
@@ -16,7 +33,7 @@ export const useBasename = (
       if (!normalizedAddress) {
         return null;
       }
-      return getBasenameWithFallback(normalizedAddress, normalizedFallback);
+      return fetchBasename(normalizedAddress, normalizedFallback);
     },
     enabled: !!normalizedAddress,
     staleTime: 5 * 60 * 1000,

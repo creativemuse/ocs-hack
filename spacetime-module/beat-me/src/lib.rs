@@ -95,7 +95,14 @@ pub struct GameSession {
 }
 
 // Active game sessions for countdown management
-#[spacetimedb::table(accessor = active_game_sessions, public)]
+#[spacetimedb::table(
+    accessor = active_game_sessions,
+    public,
+    index(
+        accessor = idx_active_game_sessions_status,
+        btree(columns = [status])
+    ),
+)]
 #[derive(Clone)]
 pub struct ActiveGameSession {
     #[primary_key]
@@ -740,13 +747,24 @@ pub fn get_trial_leaderboard(ctx: &ReducerContext, limit: u32) {
 // ACTIVE GAME SESSION MANAGEMENT
 // ============================================================================
 
+fn latest_session_with_statuses(
+    ctx: &ReducerContext,
+    statuses: &[SessionStatus],
+) -> Option<ActiveGameSession> {
+    let handle = ctx.db.active_game_sessions();
+    statuses
+        .iter()
+        .flat_map(|status| handle.idx_active_game_sessions_status().filter(*status))
+        .max_by_key(|s| s.created_at)
+}
+
 fn reconcile_lobbies_to_active(ctx: &ReducerContext) {
     let now = ctx.timestamp;
     let lobby_ids: Vec<u64> = ctx
         .db
         .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
+        .idx_active_game_sessions_status()
+        .filter(SessionStatus::Lobby)
         .map(|s| s.id)
         .collect();
     for lid in lobby_ids {
@@ -827,17 +845,14 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
         }
     }
 
-    let active_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| {
-            matches!(
-                s.status,
-                SessionStatus::Active | SessionStatus::Waiting | SessionStatus::Lobby
-            )
-        })
-        .max_by_key(|s| s.created_at);
+    let active_session = latest_session_with_statuses(
+        ctx,
+        &[
+            SessionStatus::Active,
+            SessionStatus::Waiting,
+            SessionStatus::Lobby,
+        ],
+    );
 
     if let Some(session) = active_session {
         log::info!(
@@ -878,17 +893,14 @@ pub fn join_multiplayer_pool(
     let now = ctx.timestamp;
     let lobby_sec = lobby_duration_sec.clamp(1, 600);
 
-    let mut session_opt = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| {
-            matches!(
-                s.status,
-                SessionStatus::Waiting | SessionStatus::Lobby | SessionStatus::Active
-            )
-        })
-        .max_by_key(|s| s.created_at);
+    let mut session_opt = latest_session_with_statuses(
+        ctx,
+        &[
+            SessionStatus::Waiting,
+            SessionStatus::Lobby,
+            SessionStatus::Active,
+        ],
+    );
 
     if session_opt.is_none() {
         let new_session_id = format!("session_{}", ctx.timestamp);
@@ -1026,12 +1038,7 @@ pub fn leave_multiplayer_pool(ctx: &ReducerContext, player_id: String) -> Result
 pub fn end_multiplayer_lobby(ctx: &ReducerContext) -> Result<(), String> {
     reconcile_lobbies_to_active(ctx);
     let now = ctx.timestamp;
-    let lobby_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
-        .max_by_key(|s| s.created_at);
+    let lobby_session = latest_session_with_statuses(ctx, &[SessionStatus::Lobby]);
     let Some(mut s) = lobby_session else {
         return Ok(());
     };
@@ -1049,12 +1056,7 @@ pub fn sync_multiplayer_lobby_ends_after_secs(
 ) -> Result<(), String> {
     reconcile_lobbies_to_active(ctx);
     let sec = duration_sec.clamp(30, 600);
-    let lobby_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
-        .max_by_key(|s| s.created_at);
+    let lobby_session = latest_session_with_statuses(ctx, &[SessionStatus::Lobby]);
     let Some(mut s) = lobby_session else {
         return Ok(());
     };
@@ -1070,9 +1072,10 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
     // Find active or waiting session
-    let active_session = ctx.db.active_game_sessions().iter()
-        .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Waiting))
-        .max_by_key(|s| s.created_at);
+    let active_session = latest_session_with_statuses(
+        ctx,
+        &[SessionStatus::Active, SessionStatus::Waiting],
+    );
     
     if let Some(mut session) = active_session {
         let is_first_player = session.player_count == 0;

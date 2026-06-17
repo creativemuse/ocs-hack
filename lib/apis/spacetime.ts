@@ -10,6 +10,7 @@ import {
   buildAppSubscriptionQueries,
   buildGameSessionOnlySubscriptionQueries,
   buildPlayerLookupSubscriptionQueries,
+  buildTrialStatusSubscriptionQueries,
   type AppSubscriptionTables,
 } from '../spacetime/appSubscriptionQueries';
 
@@ -70,6 +71,8 @@ const SPACETIME_CONFIG = {
 export interface SpacetimeInitOptions {
   /** Subscribe to player rows on the server before reading profiles. */
   syncPlayers?: boolean;
+  /** Subscribe to players + anonymous_sessions for trial-status routes. */
+  syncTrialData?: boolean;
 }
 
 /**
@@ -78,9 +81,11 @@ export interface SpacetimeInitOptions {
 class SpacetimeDBClient {
   private connection: DbConnection | null = null;
   private isConnected = false;
+  private connectedIdentityHex: string | null = null;
   private connectionPromise: Promise<void> | null = null;
   private initOptions: SpacetimeInitOptions = {};
   private playersSubscribed = false;
+  private trialDataSubscribed = false;
   private subscriptionSynced = false;
   private syncPromise: Promise<void> | null = null;
   private syncResolve: (() => void) | null = null;
@@ -137,24 +142,31 @@ class SpacetimeDBClient {
     await this.waitForSync();
   }
 
-  private async subscribeToPlayers(): Promise<void> {
-    if (!this.connection || this.playersSubscribed) {
+  /**
+   * Connect (if needed), subscribe to trial tables on the server, and wait for cache sync.
+   */
+  async ensureTrialDataReady(): Promise<void> {
+    await this.initialize({ syncTrialData: true });
+  }
+
+  private async subscribeToQuerySet(
+    label: string,
+    buildQueries: (t: AppSubscriptionTables) => unknown[],
+    onSubscribed: () => void,
+  ): Promise<void> {
+    if (!this.connection) {
       return;
     }
 
-    this.resetSyncState();
-    this.beginSyncWait();
-
     await new Promise<void>((resolve, reject) => {
       const timeout = setTimeout(() => {
-        reject(new Error('SpacetimeDB player subscription timeout'));
+        reject(new Error(`SpacetimeDB ${label} subscription timeout`));
       }, 15000);
 
       this.connection!.subscriptionBuilder()
         .onApplied(() => {
           clearTimeout(timeout);
-          this.playersSubscribed = true;
-          this.markSubscriptionApplied();
+          onSubscribed();
           resolve();
         })
         .onError((errorContext) => {
@@ -164,14 +176,45 @@ class SpacetimeDBClient {
               ? errorContext
               : errorContext instanceof Error
                 ? errorContext.message
-                : 'SpacetimeDB player subscription failed';
+                : `SpacetimeDB ${label} subscription failed`;
           reject(new Error(message));
         })
         .subscribe((t) => {
           const tbl = t as unknown as AppSubscriptionTables;
-          return buildPlayerLookupSubscriptionQueries(tbl);
+          return buildQueries(tbl) as ReturnType<
+            typeof buildTrialStatusSubscriptionQueries
+          >;
         });
     });
+  }
+
+  private async subscribeToTrialData(): Promise<void> {
+    if (!this.connection || this.trialDataSubscribed) {
+      return;
+    }
+
+    await this.subscribeToQuerySet(
+      'trial data',
+      buildTrialStatusSubscriptionQueries,
+      () => {
+        this.trialDataSubscribed = true;
+        this.playersSubscribed = true;
+      },
+    );
+  }
+
+  private async subscribeToPlayers(): Promise<void> {
+    if (!this.connection || this.playersSubscribed) {
+      return;
+    }
+
+    await this.subscribeToQuerySet(
+      'player',
+      buildPlayerLookupSubscriptionQueries,
+      () => {
+        this.playersSubscribed = true;
+      },
+    );
   }
 
   /**
@@ -181,11 +224,17 @@ class SpacetimeDBClient {
     if (options?.syncPlayers) {
       this.initOptions.syncPlayers = true;
     }
+    if (options?.syncTrialData) {
+      this.initOptions.syncTrialData = true;
+    }
 
     if (this.connectionPromise) {
       await this.connectionPromise;
       if (options?.syncPlayers && !this.playersSubscribed) {
         await this.subscribeToPlayers();
+      }
+      if (options?.syncTrialData && !this.trialDataSubscribed) {
+        await this.subscribeToTrialData();
       }
       return;
     }
@@ -193,6 +242,9 @@ class SpacetimeDBClient {
     if (this.isConnected && this.connection) {
       if (options?.syncPlayers && !this.playersSubscribed) {
         await this.subscribeToPlayers();
+      }
+      if (options?.syncTrialData && !this.trialDataSubscribed) {
+        await this.subscribeToTrialData();
       }
       return;
     }
@@ -202,6 +254,9 @@ class SpacetimeDBClient {
 
     if (options?.syncPlayers && !this.playersSubscribed) {
       await this.subscribeToPlayers();
+    }
+    if (options?.syncTrialData && !this.trialDataSubscribed) {
+      await this.subscribeToTrialData();
     }
   }
 
@@ -241,6 +296,7 @@ class SpacetimeDBClient {
             console.log(`   Identity: ${identity.toHexString()}`);
             console.log(`   Token: ${token ? '***' + token.slice(-8) : 'None'}`);
             this.connection = conn;
+            this.connectedIdentityHex = identity.toHexString();
             this.isConnected = true;
             this.beginSyncWait();
 
@@ -263,7 +319,9 @@ class SpacetimeDBClient {
             console.log('🔌 Disconnected from SpacetimeDB');
             this.isConnected = false;
             this.connection = null;
+            this.connectedIdentityHex = null;
             this.playersSubscribed = false;
+            this.trialDataSubscribed = false;
             this.resetSyncState();
           })
           .onConnectError((error) => {
@@ -307,6 +365,10 @@ class SpacetimeDBClient {
     return this.connection;
   }
 
+  getConnectedIdentityHex(): string | null {
+    return this.connectedIdentityHex;
+  }
+
   /**
    * Disconnect from SpacetimeDB
    */
@@ -315,6 +377,7 @@ class SpacetimeDBClient {
       this.connection.disconnect();
       this.connection = null;
       this.isConnected = false;
+      this.connectedIdentityHex = null;
       console.log('🔌 Disconnected from SpacetimeDB');
     }
   }
