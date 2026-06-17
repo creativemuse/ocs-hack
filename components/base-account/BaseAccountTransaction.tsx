@@ -10,6 +10,7 @@ import {
   sendSequentialTransactions,
   supportsAtomicBatch,
 } from '@/lib/base-account/batchCalls';
+import { withPaymasterApprovalCalls } from '@/lib/base-account/erc20GasApprovals';
 import { base } from 'viem/chains';
 import { createPublicClient, http, type Hex } from 'viem';
 import { Loader2, CheckCircle, XCircle } from 'lucide-react';
@@ -87,19 +88,25 @@ const BaseAccountTransaction = forwardRef<BaseAccountTransactionHandle, BaseAcco
       let lastTxHash: string | undefined;
       let batchPath = false;
 
+      const preparedCalls = await withPaymasterApprovalCalls(address, calls);
+
       const canBatch =
-        calls.length > 1 && (await supportsAtomicBatch(provider, address));
+        preparedCalls.length > 1 && (await supportsAtomicBatch(provider, address));
 
       if (canBatch) {
         batchPath = true;
-        onStatus?.('pending', 'Confirm once in your wallet (approve + join)...');
-        lastTxHash = await sendAtomicBatchCalls(provider, address, calls);
+        const stepLabel =
+          preparedCalls.length > calls.length
+            ? 'Confirm once in your wallet (gas + entry)...'
+            : 'Confirm once in your wallet (approve + join)...';
+        onStatus?.('pending', stepLabel);
+        lastTxHash = await sendAtomicBatchCalls(provider, address, preparedCalls);
       } else {
         onStatus?.('pending', 'Confirm in your wallet (step 1 of 2)...');
         lastTxHash = await sendSequentialTransactions(
           provider,
           address,
-          calls,
+          preparedCalls,
           (hash) =>
             basePublicClient.waitForTransactionReceipt({
               hash,

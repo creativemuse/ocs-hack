@@ -16,8 +16,6 @@ import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
-import OrbConnectButton from '@/components/auth/OrbConnectButton';
-import { useOrbAuth } from '@/components/providers/OrbAuthProvider';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
 import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet, LogOut } from 'lucide-react';
 import {
@@ -81,7 +79,6 @@ export default function GameEntry({
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
   const { address, universalAddress, isConnected, connect, disconnect, isConnecting } = useBaseAccount();
-  const { disconnect: orbDisconnect } = useOrbAuth();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -116,7 +113,6 @@ export default function GameEntry({
   const performSwitchAccount = useCallback(async () => {
     setIsSwitchingAccount(true);
     try {
-      orbDisconnect();
       await disconnect();
       setShowSwitchAccountConfirm(false);
     } catch (err) {
@@ -125,7 +121,7 @@ export default function GameEntry({
     } finally {
       setIsSwitchingAccount(false);
     }
-  }, [disconnect, orbDisconnect]);
+  }, [disconnect]);
 
   const handleSwitchAccountClick = useCallback(() => {
     if (switchAccountDisabled) {
@@ -322,7 +318,7 @@ export default function GameEntry({
           code: 'INSUFFICIENT_ETH_FOR_GAS',
           message: 'Insufficient ETH for gas fees',
           userMessage:
-            'You need a small amount of ETH in your wallet for network fees (~$0.02). Add ETH using the button on your wallet card, then open the wallet again.',
+            'Add USDC to play — gas can be paid in USDC when sponsorship is unavailable. If needed, add a small amount of ETH (~$0.02) using the button on your wallet card.',
           recoverable: true,
           retryable: true,
         };
@@ -723,9 +719,8 @@ export default function GameEntry({
                       ethFundingError={ethFundingError}
                       paymasterConfigured={paymasterConfigured}
                     />
-                    <div className="mt-3 flex flex-col items-center gap-3">
-                      <OrbConnectButton allowDisconnect={allowDisconnect} />
-                      {allowDisconnect && (
+                    {allowDisconnect && (
+                      <div className="mt-3 flex flex-col items-center gap-3">
                         <Button
                           type="button"
                           variant="outline"
@@ -742,8 +737,8 @@ export default function GameEntry({
                           )}
                           Switch account
                         </Button>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </>
                 ) : (
                   <div className="text-center">

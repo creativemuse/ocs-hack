@@ -22,6 +22,30 @@ export async function GET(req: NextRequest) {
       baseUrl: process.env.NEXT_PUBLIC_ASSET_BASE_URL || 'Not set',
       serverBaseUrl: process.env.ASSET_BASE_URL || 'Not set',
     },
+    rpc: {
+      mainnetRpcUrl: !!process.env.MAINNET_RPC_URL,
+      alchemyServerKey: !!process.env.ALCHEMY_API_KEY,
+      baseRpcUrl: !!(
+        process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL
+      ),
+    },
+    spacetime: {
+      host: !!(
+        process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST
+      ),
+      module: !!(
+        process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE
+      ),
+      serverToken: !!process.env.SPACETIME_TOKEN,
+      orbLinkReady: !!(
+        process.env.SPACETIME_TOKEN &&
+        (process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST) &&
+        (process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE)
+      ),
+    },
+    auth: {
+      entryTokenSecret: !!process.env.ENTRY_TOKEN_SECRET,
+    },
   };
 
   return NextResponse.json(envCheck);
