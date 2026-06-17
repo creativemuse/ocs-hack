@@ -46,10 +46,10 @@ export const buildPaymasterApprovalCall = (): BatchCallInput => ({
  * Enables gas payment in USDC when full sponsorship is unavailable.
  */
 export const withPaymasterApprovalCalls = async (
-  owner: string,
+  owner: string | null | undefined,
   calls: BatchCallInput[],
 ): Promise<BatchCallInput[]> => {
-  if (!isErc20GasPaymentAvailable() || !owner.startsWith('0x')) {
+  if (!isErc20GasPaymentAvailable() || !owner?.startsWith('0x')) {
     return calls;
   }
 
