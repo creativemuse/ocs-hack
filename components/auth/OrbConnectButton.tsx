@@ -18,11 +18,14 @@ import { PlayerAvatar } from '@/components/identity/PlayerAvatar';
 type OrbConnectButtonProps = {
   className?: string;
   compact?: boolean;
+  /** When false, hide Orb unlink (wallet disconnect is mode-selection only). */
+  allowDisconnect?: boolean;
 };
 
 export default function OrbConnectButton({
   className = '',
   compact = false,
+  allowDisconnect = false,
 }: OrbConnectButtonProps) {
   const { isConnected } = useBaseAccount();
   const {
@@ -87,16 +90,18 @@ export default function OrbConnectButton({
         {!compact && (
           <span className="text-sm text-white/90">@{linkedProfile.handle}</span>
         )}
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={disconnect}
-          className="text-white/60 hover:text-white"
-          aria-label="Disconnect Orb profile"
-        >
-          <Unlink className="w-4 h-4" />
-        </Button>
+        {allowDisconnect && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={disconnect}
+            className="text-white/60 hover:text-white"
+            aria-label="Disconnect Orb profile"
+          >
+            <Unlink className="w-4 h-4" />
+          </Button>
+        )}
       </div>
     );
   }

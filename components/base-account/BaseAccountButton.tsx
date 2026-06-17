@@ -35,8 +35,8 @@ export default function BaseAccountButton({
     }
   };
 
-  const handleDisconnect = () => {
-    disconnect();
+  const handleDisconnect = async () => {
+    await disconnect();
     onDisconnect?.();
   };
 

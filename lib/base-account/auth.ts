@@ -127,7 +127,33 @@ export const getAuthState = (): {
 };
 
 export const clearAuthState = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
   localStorage.removeItem('base_account_auth');
+};
+
+const MANUAL_DISCONNECT_KEY = 'base_account_manual_disconnect';
+
+export const setManualDisconnect = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  sessionStorage.setItem(MANUAL_DISCONNECT_KEY, '1');
+};
+
+export const clearManualDisconnect = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  sessionStorage.removeItem(MANUAL_DISCONNECT_KEY);
+};
+
+export const isManualDisconnect = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return sessionStorage.getItem(MANUAL_DISCONNECT_KEY) === '1';
 };
 
 export const isAuthenticated = (): boolean => {

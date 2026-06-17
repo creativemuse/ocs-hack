@@ -800,6 +800,7 @@ function HomePage() {
             sessionTimeRemaining={timeRemaining}
             isJoiningAfterPayment={isJoiningAfterPayment}
             joinProgressMessage={joinProgressMessage}
+            allowDisconnect
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">

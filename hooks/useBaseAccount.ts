@@ -4,6 +4,13 @@ import { useState, useEffect, useCallback } from 'react';
 import { base } from 'viem/chains';
 import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
 import {
+  clearAuthState,
+  clearManualDisconnect,
+  isManualDisconnect,
+  setManualDisconnect,
+} from '@/lib/base-account/auth';
+import { revokeProviderPermissions } from '@/lib/base-account/disconnect';
+import {
   connectSubAccountAddresses,
   resolveSubAccountAddresses,
 } from '@/lib/base-account/subAccount';
@@ -20,7 +27,7 @@ export interface BaseAccountState {
 
 export interface UseBaseAccountReturn extends BaseAccountState {
   connect: () => Promise<void>;
-  disconnect: () => void;
+  disconnect: () => Promise<void>;
   signMessage: (message: string) => Promise<string>;
   sendTransaction: (to: string, value: string, data?: string) => Promise<string>;
   getProvider: () => ReturnType<typeof useBaseAccountContext>['provider'];
@@ -64,6 +71,7 @@ export const useBaseAccount = (): UseBaseAccountReturn => {
     }
 
     setState((prev) => ({ ...prev, isConnecting: true, error: null }));
+    clearManualDisconnect();
 
     try {
       const { universalAddress, subAccountAddress } =
@@ -82,9 +90,14 @@ export const useBaseAccount = (): UseBaseAccountReturn => {
     }
   }, [applyAddresses, provider]);
 
-  const disconnect = useCallback(() => {
+  const disconnect = useCallback(async () => {
+    clearAuthState();
+    setManualDisconnect();
+    await revokeProviderPermissions(
+      provider as { request: (args: { method: string; params?: unknown }) => Promise<unknown> } | null
+    );
     setState(disconnectedState);
-  }, []);
+  }, [provider]);
 
   const signMessage = useCallback(
     async (message: string): Promise<string> => {
@@ -131,6 +144,11 @@ export const useBaseAccount = (): UseBaseAccountReturn => {
     }
 
     const checkConnection = async () => {
+      if (isManualDisconnect()) {
+        setState(disconnectedState);
+        return;
+      }
+
       try {
         const resolved = await resolveSubAccountAddresses(provider);
         if (!resolved) {
