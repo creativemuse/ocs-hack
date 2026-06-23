@@ -56,7 +56,9 @@ export async function POST(req: NextRequest) {
       if (!profile) {
         missingProfiles.push(addr);
       }
-      const score = profile ? BigInt(profile.bestScore) : BigInt(0);
+      const score = profile
+        ? BigInt(profile.weeklyBestScore > 0 ? profile.weeklyBestScore : profile.bestScore)
+        : BigInt(0);
       addresses.push(addr);
       scores.push(score);
     }
@@ -89,11 +91,17 @@ export async function POST(req: NextRequest) {
       scores: addresses.map((a, i) => ({ address: a, score: Number(scores[i]) })),
     });
   } catch (error) {
+    const details =
+      error instanceof Error
+        ? error.message
+        : typeof error === 'object' && error !== null
+          ? JSON.stringify(error)
+          : String(error);
     console.error('Error submitting on-chain scores:', error);
     return NextResponse.json(
       {
         error: 'Failed to submit on-chain scores',
-        details: error instanceof Error ? error.message : String(error),
+        details,
       },
       { status: 500 }
     );

@@ -61,6 +61,30 @@ To change the schedule, update the `schedule` field in your config file. Example
 
 Adjust the `gasLimit` in your config file based on your contract's gas requirements. The default is 500,000.
 
+### Pre-distribution score sync (production)
+
+`config.production.json` includes `scoreSyncApiUrl` pointing at `POST /api/submit-onchain-scores`. Before distributing, the workflow attempts to sync SpacetimeDB weekly scores on-chain when none are present.
+
+Store the app admin secret in CRE as **`ADMIN_API_SECRET`** (same value as the Vercel `ADMIN_API_SECRET` env var). Without it, the workflow logs a skip reason when scores are missing.
+
+Workflow results now use `action`: `skipped` | `distributed` | `failed` (in addition to `distributionExecuted`).
+
+## Manual unblock (stuck payout)
+
+From the repo root, after deploying the API fix:
+
+```bash
+npx tsx --env-file=.env.local scripts/unblock-weekly-payout.ts
+# or local Spacetime + owner key:
+npx tsx --env-file=.env.local scripts/unblock-weekly-payout.ts --local
+```
+
+Diagnostics:
+
+```bash
+npx tsx --env-file=.env.local scripts/debug_contract_state.ts
+```
+
 ## Contract Requirements
 
 The TriviaBattle contract must:

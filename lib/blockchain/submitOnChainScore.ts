@@ -39,39 +39,48 @@ const isRetryableOnChainError = (error: string): boolean => {
   );
 };
 
+const INLINE_RETRY_DELAYS_MS = [0, 2000, 5000];
+
 /**
- * Submit with one retry (~2s) on transient RPC / nonce failures.
+ * Submit with inline retries on transient RPC / nonce failures.
  */
 export async function submitOnChainScoreWithRetry(
   walletAddress: string,
   score: number,
   expectedSessionId?: string,
 ): Promise<SubmitOnChainScoreResult> {
-  const first = await submitOnChainScore(walletAddress, score, expectedSessionId);
-  if (first.ok || !isRetryableOnChainError(first.error)) {
-    if (!first.ok) {
+  let lastError = 'Unknown error';
+
+  for (let attempt = 0; attempt < INLINE_RETRY_DELAYS_MS.length; attempt++) {
+    if (attempt > 0) {
+      await sleep(INLINE_RETRY_DELAYS_MS[attempt] ?? 5000);
+      console.warn('[submitOnChainScore] retrying after transient error:', lastError);
+    }
+
+    const result = await submitOnChainScore(walletAddress, score, expectedSessionId);
+    if (result.ok) {
+      return result;
+    }
+
+    lastError = result.error;
+    if (!isRetryableOnChainError(result.error)) {
       console.warn('[submitOnChainScore] failed', {
         walletAddress,
         score,
         expectedSessionId,
-        error: first.error,
+        error: result.error,
       });
+      return result;
     }
-    return first;
   }
 
-  console.warn('[submitOnChainScore] retrying after transient error:', first.error);
-  await sleep(2000);
-  const second = await submitOnChainScore(walletAddress, score, expectedSessionId);
-  if (!second.ok) {
-    console.warn('[submitOnChainScore] retry failed', {
-      walletAddress,
-      score,
-      expectedSessionId,
-      error: second.error,
-    });
-  }
-  return second;
+  console.warn('[submitOnChainScore] inline retries exhausted', {
+    walletAddress,
+    score,
+    expectedSessionId,
+    error: lastError,
+  });
+  return { ok: false, error: lastError };
 }
 
 /**
