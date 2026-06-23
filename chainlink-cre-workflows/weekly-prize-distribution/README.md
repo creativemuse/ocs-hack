@@ -67,6 +67,8 @@ Adjust the `gasLimit` in your config file based on your contract's gas requireme
 
 Store the app admin secret in CRE as **`ADMIN_API_SECRET`** (same value as the Vercel `ADMIN_API_SECRET` env var). Without it, the workflow logs a skip reason when scores are missing.
 
+The score-sync API is **idempotent**: concurrent DON node calls return HTTP 200 without a second owner transaction when scores are already on-chain.
+
 Workflow results now use `action`: `skipped` | `distributed` | `failed` (in addition to `distributionExecuted`).
 
 ## Manual unblock (stuck payout)

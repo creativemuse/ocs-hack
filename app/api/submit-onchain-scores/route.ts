@@ -4,7 +4,13 @@ import { base } from 'viem/chains';
 import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { submitScoresOnChain } from '@/lib/blockchain/submitScoresOnChain';
+import {
+  readOnChainPlayerScores,
+  scoresAlreadySyncedOnChain,
+  waitForNonZeroOnChainScores,
+} from '@/lib/blockchain/onChainScoreSync';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import { safeErrorMessage } from '@/lib/utils/safeErrorMessage';
 
 /**
  * POST /api/submit-onchain-scores
@@ -45,6 +51,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'No players in current session', submitted: 0 });
     }
 
+    if (await scoresAlreadySyncedOnChain(publicClient, players)) {
+      const onChain = await readOnChainPlayerScores(publicClient, players);
+      return NextResponse.json({
+        success: true,
+        message: 'Scores already on-chain; sync skipped (idempotent)',
+        submitted: 0,
+        skipped: true,
+        scores: onChain.map((entry) => ({
+          address: entry.address,
+          score: Number(entry.score),
+        })),
+      });
+    }
+
     await spacetimeClient.ensurePlayerDataReady();
 
     const addresses: `0x${string}`[] = [];
@@ -73,6 +93,21 @@ export async function POST(req: NextRequest) {
     const txHash = (await submitScoresOnChain(addresses, scores)) as Hash | null;
 
     if (!txHash) {
+      const syncedAfterRace = await waitForNonZeroOnChainScores(publicClient, players);
+      if (syncedAfterRace) {
+        const onChain = await readOnChainPlayerScores(publicClient, players);
+        return NextResponse.json({
+          success: true,
+          message: 'Scores synced by concurrent request; no new tx required',
+          submitted: 0,
+          skipped: true,
+          scores: onChain.map((entry) => ({
+            address: entry.address,
+            score: Number(entry.score),
+          })),
+        });
+      }
+
       return NextResponse.json({
         success: true,
         message: 'No active on-chain session — scores not submitted',
@@ -81,6 +116,7 @@ export async function POST(req: NextRequest) {
     }
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });
+    await waitForNonZeroOnChainScores(publicClient, players, { attempts: 4, delayMs: 1000 });
 
     return NextResponse.json({
       success: receipt.status === 'success',
@@ -91,12 +127,7 @@ export async function POST(req: NextRequest) {
       scores: addresses.map((a, i) => ({ address: a, score: Number(scores[i]) })),
     });
   } catch (error) {
-    const details =
-      error instanceof Error
-        ? error.message
-        : typeof error === 'object' && error !== null
-          ? JSON.stringify(error)
-          : String(error);
+    const details = safeErrorMessage(error);
     console.error('Error submitting on-chain scores:', error);
     return NextResponse.json(
       {

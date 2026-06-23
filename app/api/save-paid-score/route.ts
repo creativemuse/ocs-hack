@@ -4,7 +4,7 @@ import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
 import { submitOnChainScoreWithRetry } from '@/lib/blockchain/submitOnChainScore';
-import { schedulePendingOnChainScoreRetry } from '@/lib/blockchain/pendingOnChainScoreRetry';
+import { retryOnChainScoreBeforeResponse } from '@/lib/blockchain/pendingOnChainScoreRetry';
 
 const MAX_GAME_SCORE = 3000;
 
@@ -136,11 +136,25 @@ export async function POST(req: NextRequest) {
         sessionId: onChainSessionId,
         error: onChainResult.error,
       });
-      schedulePendingOnChainScoreRetry({
+
+      const extendedRetry = await retryOnChainScoreBeforeResponse({
         walletAddress: normalizedWallet,
         score: authoritativeScore,
         sessionId: onChainSessionId || undefined,
       });
+
+      if (extendedRetry.ok) {
+        return NextResponse.json({
+          success: true,
+          authoritativeScore,
+          onChainSessionId,
+          spacetimeUpdated,
+          onChainSubmitted: true,
+          transactionHash: extendedRetry.transactionHash,
+          retried: true,
+        });
+      }
+
       return NextResponse.json(
         {
           success: true,

@@ -218,6 +218,8 @@ function syncScoresFromApp(runtime: Runtime<Config>): boolean {
     return false
   }
 
+  // DON nodes each invoke this HTTP call; the API is idempotent and skips owner
+  // writes when scores are already on-chain to avoid nonce collisions.
   const syncScore = (nodeRuntime: NodeRuntime<Config>): number => {
     const httpClient = new cre.capabilities.HTTPClient()
     const resp = httpClient
@@ -241,6 +243,30 @@ function syncScoresFromApp(runtime: Runtime<Config>): boolean {
   return result >= 1
 }
 
+const RECEIPT_POLL_ATTEMPTS = 12
+
+function readFinalizedBlockNumber(
+  runtime: Runtime<Config>,
+  chainSelector: bigint
+): bigint | null {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  try {
+    const header = evmClient
+      .headerByNumber(runtime, {
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      })
+      .result() as { header?: { number?: string | number | bigint }; number?: string | number | bigint }
+
+    const raw = header.header?.number ?? header.number
+    if (raw === undefined || raw === null) {
+      return null
+    }
+    return typeof raw === "bigint" ? raw : BigInt(raw)
+  } catch {
+    return null
+  }
+}
+
 function verifyDistributionReceipt(
   runtime: Runtime<Config>,
   chainSelector: bigint,
@@ -248,9 +274,25 @@ function verifyDistributionReceipt(
   txHash: string
 ): { status: "success" | "reverted" | "pending" | "unknown" } {
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
-  const maxAttempts = 8
+  let lastSeenBlock = BigInt(0)
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+  for (let attempt = 1; attempt <= RECEIPT_POLL_ATTEMPTS; attempt++) {
+    const blockNumber = readFinalizedBlockNumber(runtime, chainSelector)
+    if (blockNumber !== null && blockNumber > lastSeenBlock) {
+      lastSeenBlock = blockNumber
+      runtime.log(
+        `Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} at finalized block ${blockNumber}`
+      )
+    } else {
+      runtime.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} (awaiting new block)`)
+    }
+
+    const poolBeforeReceipt = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
+    if (poolBeforeReceipt === BigInt(0)) {
+      runtime.log("Prize pool cleared — distribution confirmed via state")
+      return { status: "success" }
+    }
+
     try {
       const receiptReply = evmClient
         .getTransactionReceipt(runtime, {
@@ -265,7 +307,6 @@ function verifyDistributionReceipt(
 
       const rawStatus = receipt.receipt?.status ?? receipt.status
       if (rawStatus === undefined || rawStatus === null) {
-        runtime.log(`Receipt pending (attempt ${attempt}/${maxAttempts})`)
         continue
       }
 
@@ -273,11 +314,6 @@ function verifyDistributionReceipt(
         typeof rawStatus === "string" ? parseInt(rawStatus, 16) : Number(rawStatus)
 
       if (statusNum === 1) {
-        const after = readSessionInfo(runtime, chainSelector, evmConfig)
-        if (after.prizePool === BigInt(0)) {
-          return { status: "success" }
-        }
-        runtime.log("Tx succeeded but prize pool not yet zero; treating as success")
         return { status: "success" }
       }
 
@@ -291,8 +327,8 @@ function verifyDistributionReceipt(
     }
   }
 
-  const poolAfter = readSessionInfo(runtime, chainSelector, evmConfig)
-  if (poolAfter.prizePool === BigInt(0)) {
+  const poolAfter = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
+  if (poolAfter === BigInt(0)) {
     return { status: "success" }
   }
 
