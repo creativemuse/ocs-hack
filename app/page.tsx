@@ -20,6 +20,7 @@ import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
 import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
+import { getWeeklyPayoutStatus } from '@/lib/game/weeklyPayoutStatus';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
@@ -112,7 +113,17 @@ function HomePage() {
     onChainLastSessionTime > 0 ? BigInt(onChainLastSessionTime) : undefined,
     onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
   );
-  const { refresh: refreshWeeklyLeaderboard } = useWeeklyLeaderboard(10);
+  const { refresh: refreshWeeklyLeaderboard, entries: weeklyLeaderboardEntries, sessionCounter: weeklySessionCounter } = useWeeklyLeaderboard(10);
+
+  const hasOnChainScores = weeklyLeaderboardEntries.some((entry) => entry.bestScore > 0);
+  const weeklyPayoutStatus = getWeeklyPayoutStatus({
+    isLoading: contractBalanceLoading,
+    isSessionActive: onChainSessionActive,
+    sessionPrizePool,
+    countdownExpired: settlementCountdown?.isExpired ?? false,
+    hasOnChainScores,
+    sessionCounter: weeklySessionCounter,
+  });
 
   // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
@@ -592,10 +603,12 @@ function HomePage() {
   // Determine what to display in the timer area (weekly on-chain settlement)
   const getTimerDisplay = () => {
     if (contractBalanceLoading) return 'Loading...';
-    if (onChainSessionActive && settlementCountdown && !settlementCountdown.isExpired) {
+    if (weeklyPayoutStatus.phase === 'counting_down' && settlementCountdown && !settlementCountdown.isExpired) {
       return formatSettlementCountdown();
     }
-    if (onChainSessionActive) return 'WEEKLY PAYOUT PENDING';
+    if (weeklyPayoutStatus.timerLabel) {
+      return weeklyPayoutStatus.timerLabel;
+    }
     return 'NEXT SESSION OPENS SOON';
   };
 

@@ -67,7 +67,7 @@ export default function TopEarners({
     <div className={`w-full ${className}`}>
       {sessionCounter > 0 && (
         <p className="text-gray-500 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-2 text-center">
-          Week {sessionCounter} — resets after payout
+          Week {sessionCounter} — new week starts when the next player joins
           {isRefreshing && entries.length > 0 && (
             <span className="ml-1 text-purple-300">· updating</span>
           )}

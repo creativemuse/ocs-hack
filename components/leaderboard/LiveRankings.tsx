@@ -116,7 +116,7 @@ export default function LiveRankings({
           </div>
           {sessionCounter > 0 && (
             <span className="text-xs text-gray-500 font-normal">
-              Week {sessionCounter}
+              Week {sessionCounter} — new week on next join
             </span>
           )}
           {isLoading && !entriesProp && (
