@@ -739,15 +739,15 @@ export default function GameEntry({
                           size="sm"
                           onClick={handleSwitchAccountClick}
                           disabled={switchAccountDisabled}
-                          className="border-white/20 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-50"
-                          aria-label="Switch Base Account"
+                          className="border-red-500/30 bg-red-950/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                          aria-label="Disconnect Base Account"
                         >
                           {isSwitchingAccount ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <LogOut className="h-4 w-4 mr-2" />
                           )}
-                          Switch account
+                          {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
                         </Button>
                       </div>
                     )}
@@ -1053,9 +1053,9 @@ export default function GameEntry({
       <AlertDialog open={showSwitchAccountConfirm} onOpenChange={setShowSwitchAccountConfirm}>
         <AlertDialogContent className="bg-zinc-900 border-gray-700 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>Switch account?</AlertDialogTitle>
+            <AlertDialogTitle>Disconnect?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              You have a pending paid entry for this wallet. Switching accounts will sign you out
+              You have a pending paid entry for this wallet. Disconnecting will sign you out
               and you may need to recover your entry with the new wallet.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1071,7 +1071,7 @@ export default function GameEntry({
               disabled={isSwitchingAccount}
               className="bg-amber-600 hover:bg-amber-500 text-white"
             >
-              {isSwitchingAccount ? 'Switching…' : 'Switch account'}
+              {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
