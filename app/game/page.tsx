@@ -369,6 +369,7 @@ export default function Game() {
     setPaidScoreSaved(false);
     const wallet = address;
     const finalScore = totalScore;
+    let cancelled = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -376,6 +377,7 @@ export default function Game() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken }),
         });
+        if (cancelled) return;
         if (!res.ok) {
           paidScoreSavedRef.current = false;
           setPaidScoreSaved(false);
@@ -385,6 +387,7 @@ export default function Game() {
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
         const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
         if (!persisted) {
           paidScoreSavedRef.current = false;
@@ -406,17 +409,22 @@ export default function Game() {
           setPaidScoreWarning(null);
         }
         for (let attempt = 0; attempt < 5; attempt++) {
+          if (cancelled) return;
           refreshWeeklyLeaderboard();
           if (attempt < 4) {
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         }
       } catch {
+        if (cancelled) return;
         paidScoreSavedRef.current = false;
         setPaidScoreSaved(false);
         setPaidScoreWarning('Score could not be saved to the leaderboard.');
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken, refreshWeeklyLeaderboard]);
 
   // Show guest mode entry screen first

@@ -159,6 +159,7 @@ function HomePage() {
     setPaidScoreSaved(false);
     const finalScore = totalScore;
     const wallet = address.toLowerCase();
+    let cancelled = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -172,6 +173,7 @@ function HomePage() {
             username: basename ?? undefined,
           }),
         });
+        if (cancelled) return;
         if (!res.ok) {
           paidScoreSavedRef.current = false;
           setPaidScoreSaved(false);
@@ -180,6 +182,7 @@ function HomePage() {
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
         const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
         if (!persisted) {
           paidScoreSavedRef.current = false;
@@ -205,17 +208,22 @@ function HomePage() {
         }
         refreshContractUsdcBalance();
         for (let attempt = 0; attempt < 5; attempt++) {
+          if (cancelled) return;
           refreshWeeklyLeaderboard();
           if (attempt < 4) {
             await new Promise((resolve) => setTimeout(resolve, 2000));
           }
         }
       } catch (e) {
+        if (cancelled) return;
         paidScoreSavedRef.current = false;
         setPaidScoreSaved(false);
         console.error('save-paid-score error', e);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
   }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 
   const loadRandomQuestion = useCallback(async () => {

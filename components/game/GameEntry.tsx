@@ -99,7 +99,6 @@ export default function GameEntry({
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
-  const walletPanelRef = useRef<HTMLDivElement>(null);
   const generatingAddressRef = useRef<string | null>(null);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
   const [pendingPaidEntry, setPendingPaidEntry] = useState<PendingPaidEntry | null>(null);
@@ -478,7 +477,6 @@ export default function GameEntry({
   useEffect(() => {
     if (!isProcessingPayment || !awaitingWalletOpen) return;
     toast.info('Tap Open wallet to approve USDC and join');
-    walletPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }, [isProcessingPayment, awaitingWalletOpen]);
 
   const handleFundEth = async () => {
@@ -904,7 +902,6 @@ export default function GameEntry({
 
                   {isProcessingPayment ? (
                     <div
-                      ref={walletPanelRef}
                       className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-3 text-center"
                       role="status"
                       aria-live="polite"

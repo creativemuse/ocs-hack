@@ -120,8 +120,10 @@ export default function HighScoreDisplay({
     if (!scoreSaved || isTrialGame || !normalizedWallet) return;
     if (walletOnLiveBoard) return;
 
+    let cancelled = false;
     let attempts = 0;
     const interval = setInterval(() => {
+      if (cancelled) return;
       attempts += 1;
       void refresh();
       if (attempts >= LEADERBOARD_POLL_ATTEMPTS) {
@@ -129,7 +131,10 @@ export default function HighScoreDisplay({
       }
     }, LEADERBOARD_POLL_INTERVAL_MS);
 
-    return () => clearInterval(interval);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
   }, [scoreSaved, isTrialGame, normalizedWallet, walletOnLiveBoard, refresh]);
 
   useEffect(() => {
@@ -182,7 +187,7 @@ export default function HighScoreDisplay({
     !isTrialGame &&
     currentScore > 0 &&
     normalizedWallet &&
-    isNewWeeklyLeader(leaderboardEntries, normalizedWallet, currentScore);
+    isNewWeeklyLeader(topEarners, normalizedWallet, currentScore);
   const isFirstOnBoard =
     !isTrialGame && !leaderboardLoading && isFirstScoreOnEmptyBoard(topEarners);
   const rankReady = !isTrialGame && (scoreSaved || hasSubmitted) && !leaderboardLoading;

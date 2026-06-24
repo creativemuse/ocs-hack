@@ -101,7 +101,15 @@ export async function POST(req: NextRequest) {
       onChainSessionId = finalized.onChainSessionId;
     }
 
-    const liveSessionCounter = Number(await readOnChainSessionCounter());
+    let liveSessionCounter = 0;
+    try {
+      liveSessionCounter = Number(await readOnChainSessionCounter());
+    } catch (rpcErr) {
+      console.warn(
+        'Could not read live sessionCounter; falling back to entry token session id:',
+        rpcErr,
+      );
+    }
     const authoritativeSessionId = resolveAuthoritativeSessionId(
       onChainSessionId,
       liveSessionCounter,
