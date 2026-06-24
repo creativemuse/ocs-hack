@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createPublicClient, http, type Hash } from 'viem';
-import { base } from 'viem/chains';
+import { type Hash } from 'viem';
 import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
 import { spacetimeClient } from '@/lib/apis/spacetime';
 import { submitScoresOnChain } from '@/lib/blockchain/submitScoresOnChain';
 import {
+  createBasePublicClient,
   readOnChainPlayerScores,
   scoresAlreadySyncedOnChain,
   waitForNonZeroOnChainScores,
@@ -24,8 +24,6 @@ import { safeErrorMessage } from '@/lib/utils/safeErrorMessage';
  *   - CONTRACT_OWNER_PRIVATE_KEY env var (or PRIVATE_KEY fallback)
  */
 
-const BASE_RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
-
 export async function POST(req: NextRequest) {
   const authError = checkAdminAuth(req);
   if (authError) return authError;
@@ -39,7 +37,7 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const publicClient = createPublicClient({ chain: base, transport: http(BASE_RPC) });
+    const publicClient = createBasePublicClient();
 
     const players = (await publicClient.readContract({
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,

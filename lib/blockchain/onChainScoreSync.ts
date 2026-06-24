@@ -4,16 +4,20 @@ import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts'
 
 const BASE_RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
 
+type ReadContractClient = Pick<PublicClient, 'readContract'>;
+
 export type OnChainPlayerScore = {
   address: `0x${string}`;
   score: bigint;
 };
 
-export const createBasePublicClient = (): PublicClient =>
+export const createBasePublicClient = () =>
   createPublicClient({ chain: base, transport: http(BASE_RPC) });
 
+export type BasePublicClient = ReturnType<typeof createBasePublicClient>;
+
 export const readOnChainPlayerScores = async (
-  publicClient: PublicClient,
+  publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
 ): Promise<OnChainPlayerScore[]> => {
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
@@ -41,7 +45,7 @@ export const hasNonZeroOnChainScores = (scores: readonly OnChainPlayerScore[]): 
  * Skips owner writes when scores are already present on-chain.
  */
 export const scoresAlreadySyncedOnChain = async (
-  publicClient: PublicClient,
+  publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
 ): Promise<boolean> => {
   if (players.length === 0) {
@@ -55,7 +59,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /** Poll until on-chain scores appear or timeout (used after a sync tx). */
 export const waitForNonZeroOnChainScores = async (
-  publicClient: PublicClient,
+  publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
   options: { attempts?: number; delayMs?: number } = {},
 ): Promise<boolean> => {
