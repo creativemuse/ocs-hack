@@ -310,19 +310,45 @@ class SpacetimeDBClient {
     const { token, connectTimeoutMs, useServerCompressionNone } = options;
 
     return new Promise<void>((resolve, reject) => {
+      let connectionResolved = false;
+      let pendingConnection: DbConnection | null = null;
+
+      const abortPendingConnection = () => {
+        if (!pendingConnection) {
+          return;
+        }
+
+        try {
+          pendingConnection.disconnect();
+        } catch {
+          // Best-effort cleanup after timeout or failed init.
+        }
+        pendingConnection = null;
+      };
+
       const timeout = setTimeout(() => {
+        if (connectionResolved) {
+          return;
+        }
+        connectionResolved = true;
+        abortPendingConnection();
+        this.isConnected = false;
+        this.connection = null;
+        this.connectedIdentityHex = null;
         reject(new Error('SpaceTimeDB connection timeout'));
       }, connectTimeoutMs);
-
-      let connectionResolved = false;
 
       const builder = DbConnection.builder()
         .withUri(SPACETIME_CONFIG.host)
         .withDatabaseName(SPACETIME_CONFIG.module)
         .onConnect((conn, identity, authToken) => {
-          if (connectionResolved) return;
+          if (connectionResolved) {
+            conn.disconnect();
+            return;
+          }
           connectionResolved = true;
           clearTimeout(timeout);
+          pendingConnection = null;
 
           console.log('✅ Connected to SpacetimeDB');
           console.log(`   Identity: ${identity.toHexString()}`);
@@ -361,9 +387,13 @@ class SpacetimeDBClient {
           this.resetSyncState();
         })
         .onConnectError((_ctx, error) => {
-          if (connectionResolved) return;
+          if (connectionResolved) {
+            abortPendingConnection();
+            return;
+          }
           connectionResolved = true;
           clearTimeout(timeout);
+          pendingConnection = null;
           const formatted = formatSpacetimeConnectError(error);
           console.error('❌ SpacetimeDB connection error:', formatted.message);
           this.isConnected = false;
@@ -378,7 +408,7 @@ class SpacetimeDBClient {
         builder.withToken(token);
       }
 
-      builder.build();
+      pendingConnection = builder.build();
     });
   }
 

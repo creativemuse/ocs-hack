@@ -12,11 +12,5 @@ export const formatSpacetimeConnectError = (error: unknown): Error => {
 
 export const isSpacetimeTokenVerificationError = (error: unknown): boolean => {
   const message = formatSpacetimeConnectError(error).message.toLowerCase();
-  return (
-    message.includes('verify token') ||
-    message.includes('failed to verify token') ||
-    message.includes('401') ||
-    message.includes('403') ||
-    message.includes('unauthorized')
-  );
+  return message.includes('verify token');
 };

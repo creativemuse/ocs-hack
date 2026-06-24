@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-import { tryInitializeSpacetime } from '@/lib/apis/tryInitializeSpacetime';
+import { probeSpacetimeConnection } from '@/lib/apis/tryInitializeSpacetime';
 import { hasMainnetRpc } from '@/lib/rpc/getMainnetRpcUrl';
 
 export async function GET(_req: NextRequest) {
-  const spacetimeInit = await tryInitializeSpacetime();
+  const spacetimeInit = await probeSpacetimeConnection();
 
   const envCheck = {
     supabase: {
