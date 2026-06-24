@@ -180,11 +180,22 @@ function HomePage() {
           return;
         }
         const data = await res.json();
+        const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
+        if (!persisted) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          setPaidScoreWarning(
+            data.warning ??
+              data.error ??
+              'Score could not be saved to the leaderboard. Please try again.',
+          );
+          return;
+        }
         setPaidScoreSaved(true);
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
-        if (data.onChainSubmitted === false) {
+        if (data.onChainSubmitted === false || data.leaderboardReady === false) {
           setPaidScoreWarning(
             data.warning ??
               'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
@@ -193,7 +204,12 @@ function HomePage() {
           setPaidScoreWarning(null);
         }
         refreshContractUsdcBalance();
-        refreshWeeklyLeaderboard();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          refreshWeeklyLeaderboard();
+          if (attempt < 4) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
       } catch (e) {
         paidScoreSavedRef.current = false;
         setPaidScoreSaved(false);
@@ -712,7 +728,7 @@ function HomePage() {
   // Show game entry screen with player mode choice
   if (showGameEntry) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
           <button
             type="button"

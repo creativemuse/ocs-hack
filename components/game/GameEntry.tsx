@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -98,6 +99,7 @@ export default function GameEntry({
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+  const walletPanelRef = useRef<HTMLDivElement>(null);
   const generatingAddressRef = useRef<string | null>(null);
   const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
   const [pendingPaidEntry, setPendingPaidEntry] = useState<PendingPaidEntry | null>(null);
@@ -466,6 +468,18 @@ export default function GameEntry({
     setError(null);
     paidTxRef.current?.submit();
   };
+
+  const handleCancelPayment = () => {
+    setIsProcessingPayment(false);
+    setAwaitingWalletOpen(false);
+    setIsStartingGame(false);
+  };
+
+  useEffect(() => {
+    if (!isProcessingPayment || !awaitingWalletOpen) return;
+    toast.info('Tap Open wallet to approve USDC and join');
+    walletPanelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }, [isProcessingPayment, awaitingWalletOpen]);
 
   const handleFundEth = async () => {
     if (!address || ethFundingLoading) return;
@@ -889,58 +903,15 @@ export default function GameEntry({
                   )}
 
                   {isProcessingPayment ? (
-                    <div className="space-y-4">
-                      <BaseAccountTransaction
-                        ref={paidTxRef}
-                        calls={paidGameCalls}
-                        onStatus={handleTransactionStatus}
-                        className="w-full"
-                        showSubmitButton={false}
-                        connectedAddress={address}
-                      />
-                      {awaitingWalletOpen ? (
-                        <div
-                          className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-5 text-center space-y-4"
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <p className="text-sm font-medium text-blue-200">Ready to sign</p>
-                          <p className="text-sm text-zinc-200">
-                            Tap below to open your Base wallet and approve USDC, then confirm join.
-                          </p>
-                          <Button
-                            type="button"
-                            onClick={handleOpenWallet}
-                            className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
-                          >
-                            <Wallet className="h-4 w-4 mr-2" />
-                            Open wallet
-                          </Button>
-                        </div>
-                      ) : (
-                        <div
-                          className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <p className="text-sm font-medium text-amber-200">Processing entry</p>
-                          <p className="mt-2 text-sm text-zinc-200">
-                            Confirm in your wallet, then wait for on-chain confirmation…
-                          </p>
-                        </div>
-                      )}
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setIsProcessingPayment(false);
-                          setAwaitingWalletOpen(false);
-                          setIsStartingGame(false);
-                        }}
-                        variant="outline"
-                        className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
-                      >
-                        Cancel
-                      </Button>
+                    <div
+                      ref={walletPanelRef}
+                      className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-3 text-center"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-sm text-blue-200">
+                        Confirm in your wallet — see the overlay above.
+                      </p>
                     </div>
                   ) : (
                     <Button
@@ -1002,6 +973,67 @@ export default function GameEntry({
           )}
         </CardContent>
       </Card>
+
+      {isProcessingPayment && !isJoiningAfterPayment ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wallet-overlay-title"
+          aria-live="polite"
+        >
+          <div className="max-w-sm w-full rounded-xl border border-blue-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl space-y-4">
+            <BaseAccountTransaction
+              ref={paidTxRef}
+              key={paymentFlowId}
+              calls={paidGameCalls}
+              onStatus={handleTransactionStatus}
+              className="sr-only"
+              showSubmitButton={false}
+              connectedAddress={address}
+            />
+            {awaitingWalletOpen ? (
+              <>
+                <Wallet className="mx-auto h-10 w-10 text-blue-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Confirm in your wallet
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Step 1: Approve USDC spending. Step 2: Confirm join to start your game.
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleOpenWallet}
+                  className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
+                  aria-label="Open wallet to sign transaction"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Open wallet
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Waiting for wallet confirmation
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Confirm in your wallet, then wait for on-chain confirmation…
+                </p>
+              </>
+            )}
+            <Button
+              type="button"
+              onClick={handleCancelPayment}
+              variant="outline"
+              className="w-full border-white/20 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              aria-label="Cancel payment"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       {isJoiningAfterPayment ? (
         <div

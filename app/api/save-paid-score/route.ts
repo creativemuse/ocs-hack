@@ -3,8 +3,9 @@ import { spacetimeClient } from '@/lib/apis/spacetime';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
-import { submitOnChainScoreWithRetry } from '@/lib/blockchain/submitOnChainScore';
+import { submitOnChainScoreWithRetry, readOnChainSessionCounter } from '@/lib/blockchain/submitOnChainScore';
 import { retryOnChainScoreBeforeResponse } from '@/lib/blockchain/pendingOnChainScoreRetry';
+import { resolveAuthoritativeSessionId } from '@/lib/game/weeklyLeaderboard';
 
 const MAX_GAME_SCORE = 3000;
 
@@ -100,6 +101,13 @@ export async function POST(req: NextRequest) {
       onChainSessionId = finalized.onChainSessionId;
     }
 
+    const liveSessionCounter = Number(await readOnChainSessionCounter());
+    const authoritativeSessionId = resolveAuthoritativeSessionId(
+      onChainSessionId,
+      liveSessionCounter,
+    );
+    onChainSessionId = authoritativeSessionId;
+
     let spacetimeUpdated = false;
 
     await spacetimeClient.ensurePlayerDataReady();
@@ -150,6 +158,7 @@ export async function POST(req: NextRequest) {
           onChainSessionId,
           spacetimeUpdated,
           onChainSubmitted: true,
+          leaderboardReady: true,
           transactionHash: extendedRetry.transactionHash,
           retried: true,
         });
@@ -162,6 +171,7 @@ export async function POST(req: NextRequest) {
           onChainSessionId,
           spacetimeUpdated,
           onChainSubmitted: false,
+          leaderboardReady: false,
           onChainError: onChainResult.error,
           warning:
             'Score saved but the weekly leaderboard update failed. Your score may not appear until retried.',
@@ -176,6 +186,7 @@ export async function POST(req: NextRequest) {
       onChainSessionId,
       spacetimeUpdated,
       onChainSubmitted: true,
+      leaderboardReady: true,
       transactionHash: onChainResult.transactionHash,
       sessionCounter: onChainResult.sessionCounter.toString(),
     });

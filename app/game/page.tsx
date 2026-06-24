@@ -50,7 +50,7 @@ export default function Game() {
   const [showGuestMode, setShowGuestMode] = useState(true);
   const [pendingGuestSync, setPendingGuestSync] = useState<{score: number, gameData: any} | null>(null);
   const timerTriggeredRef = useRef(false);
-  const { entries: weeklyLeaderboardEntries } = useWeeklyLeaderboard(10);
+  const { entries: weeklyLeaderboardEntries, refresh: refreshWeeklyLeaderboard } = useWeeklyLeaderboard(10);
   const weeklyHighScore =
     weeklyLeaderboardEntries.length > 0
       ? Math.max(...weeklyLeaderboardEntries.map((e) => e.bestScore))
@@ -61,6 +61,7 @@ export default function Game() {
   const { address } = useBaseAccount();
   const paidScoreSavedRef = useRef(false);
   const [paidScoreSaved, setPaidScoreSaved] = useState(false);
+  const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
 
@@ -378,20 +379,50 @@ export default function Game() {
         if (!res.ok) {
           paidScoreSavedRef.current = false;
           setPaidScoreSaved(false);
+          const errText = await res.text();
+          setPaidScoreWarning('Score could not be saved to the leaderboard.');
+          console.error('save-paid-score failed', errText);
+          return;
+        }
+        const data = await res.json();
+        const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
+        if (!persisted) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          setPaidScoreWarning(
+            data.warning ??
+              data.error ??
+              'Score could not be saved to the leaderboard. Please try again.',
+          );
           return;
         }
         setPaidScoreSaved(true);
+        if (data.onChainSubmitted === false || data.leaderboardReady === false) {
+          setPaidScoreWarning(
+            data.warning ??
+              'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
+          );
+        } else {
+          setPaidScoreWarning(null);
+        }
+        for (let attempt = 0; attempt < 5; attempt++) {
+          refreshWeeklyLeaderboard();
+          if (attempt < 4) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
       } catch {
         paidScoreSavedRef.current = false;
         setPaidScoreSaved(false);
+        setPaidScoreWarning('Score could not be saved to the leaderboard.');
       }
     })();
-  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken]);
+  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken, refreshWeeklyLeaderboard]);
 
   // Show guest mode entry screen first
   if (showGuestMode) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
           <GuestModeEntry 
             onGuestStart={handleGuestStart}
@@ -405,7 +436,7 @@ export default function Game() {
   // Show regular game entry screen if wallet connect was chosen
   if (!gameStarted && !showGuestMode) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
           <GameEntry
             onGameStart={handleGameStart}
@@ -453,6 +484,12 @@ export default function Game() {
               <p className="text-sm text-green-400 mb-2">Playing as {guestName}</p>
             )}
             <p className="text-lg font-bold text-yellow-400 mb-4">Total Score: {totalScore} USDC</p>
+            {paidScoreWarning && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4 text-left">
+                <p className="text-amber-300 text-sm font-medium mb-1">Leaderboard update pending</p>
+                <p className="text-amber-200/80 text-sm">{paidScoreWarning}</p>
+              </div>
+            )}
           </div>
           
           {/* High Score Display */}
