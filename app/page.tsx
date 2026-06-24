@@ -160,6 +160,7 @@ function HomePage() {
     const finalScore = totalScore;
     const wallet = address.toLowerCase();
     let cancelled = false;
+    let completed = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -195,6 +196,7 @@ function HomePage() {
           return;
         }
         setPaidScoreSaved(true);
+        completed = true;
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
@@ -223,6 +225,9 @@ function HomePage() {
     })();
     return () => {
       cancelled = true;
+      if (!completed) {
+        paidScoreSavedRef.current = false;
+      }
     };
   }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 

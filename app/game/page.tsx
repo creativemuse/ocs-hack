@@ -370,6 +370,7 @@ export default function Game() {
     const wallet = address;
     const finalScore = totalScore;
     let cancelled = false;
+    let completed = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -400,6 +401,7 @@ export default function Game() {
           return;
         }
         setPaidScoreSaved(true);
+        completed = true;
         if (data.onChainSubmitted === false || data.leaderboardReady === false) {
           setPaidScoreWarning(
             data.warning ??
@@ -424,6 +426,9 @@ export default function Game() {
     })();
     return () => {
       cancelled = true;
+      if (!completed) {
+        paidScoreSavedRef.current = false;
+      }
     };
   }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken, refreshWeeklyLeaderboard]);
 

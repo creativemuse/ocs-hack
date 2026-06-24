@@ -103,22 +103,27 @@ export default function HighScoreDisplay({
 
   const normalizedWallet = walletAddress?.toLowerCase();
 
-  const walletOnLiveBoard = useMemo(() => {
-    if (!normalizedWallet) return false;
-    return topEarners.some(
+  const liveBoardReflectsCurrentScore = useMemo(() => {
+    if (!normalizedWallet || currentScore <= 0) return false;
+    const liveEntry = topEarners.find(
       (entry) => entry.walletAddress.toLowerCase() === normalizedWallet,
     );
-  }, [topEarners, normalizedWallet]);
+    return liveEntry != null && liveEntry.bestScore === currentScore;
+  }, [topEarners, normalizedWallet, currentScore]);
 
   useEffect(() => {
-    if (walletOnLiveBoard) {
+    setConfirmedOnLeaderboard(false);
+  }, [currentScore, normalizedWallet]);
+
+  useEffect(() => {
+    if (liveBoardReflectsCurrentScore) {
       setConfirmedOnLeaderboard(true);
     }
-  }, [walletOnLiveBoard]);
+  }, [liveBoardReflectsCurrentScore]);
 
   useEffect(() => {
     if (!scoreSaved || isTrialGame || !normalizedWallet) return;
-    if (walletOnLiveBoard) return;
+    if (liveBoardReflectsCurrentScore) return;
 
     let cancelled = false;
     let attempts = 0;
@@ -135,7 +140,7 @@ export default function HighScoreDisplay({
       cancelled = true;
       clearInterval(interval);
     };
-  }, [scoreSaved, isTrialGame, normalizedWallet, walletOnLiveBoard, refresh]);
+  }, [scoreSaved, isTrialGame, normalizedWallet, liveBoardReflectsCurrentScore, refresh]);
 
   useEffect(() => {
     const updateStageSize = () => {
