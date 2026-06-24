@@ -30,6 +30,10 @@ import {
 } from '../spacetime/database';
 import type { PoolPlayer } from '../spacetime/types';
 import { pickCurrentActiveGameSession } from './mapSpacetimeGameSession';
+import {
+  formatSpacetimeConnectError,
+  isSpacetimeTokenVerificationError,
+} from '../spacetime/connectErrors';
 
 // Re-export types for convenience
 export type {
@@ -270,84 +274,134 @@ class SpacetimeDBClient {
       return;
     }
 
+    const serverToken =
+      typeof window === 'undefined' ? process.env.SPACETIME_TOKEN?.trim() : undefined;
+    const useServerCompressionNone = typeof window === 'undefined';
+    const connectTimeoutMs = 25000;
+
     try {
       console.log('🚀 Initializing SpacetimeDB client...');
       console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
       console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
 
-      // Wait for connection to be established
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          reject(new Error('SpaceTimeDB connection timeout'));
-        }, 10000);
-
-        let connectionResolved = false;
-
-        // Create connection builder with event handlers
-        const builder = DbConnection.builder()
-          .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-          .withDatabaseName(SPACETIME_CONFIG.module)
-          .onConnect((conn, identity, token) => {
-            if (connectionResolved) return;
-            connectionResolved = true;
-            clearTimeout(timeout);
-            
-            console.log('✅ Connected to SpacetimeDB');
-            console.log(`   Identity: ${identity.toHexString()}`);
-            console.log(`   Token: ${token ? '***' + token.slice(-8) : 'None'}`);
-            this.connection = conn;
-            this.connectedIdentityHex = identity.toHexString();
-            this.isConnected = true;
-            this.beginSyncWait();
-
-            conn.subscriptionBuilder()
-              .onApplied(() => {
-                this.markSubscriptionApplied();
-              })
-              .subscribe((t) => {
-                const tbl = t as unknown as AppSubscriptionTables;
-                if (typeof window !== 'undefined') {
-                  this.playersSubscribed = true;
-                  return buildAppSubscriptionQueries(tbl);
-                }
-                return buildGameSessionOnlySubscriptionQueries(tbl);
-              });
-
-            resolve();
-          })
-          .onDisconnect(() => {
-            console.log('🔌 Disconnected from SpacetimeDB');
-            this.isConnected = false;
-            this.connection = null;
-            this.connectedIdentityHex = null;
-            this.playersSubscribed = false;
-            this.trialDataSubscribed = false;
-            this.resetSyncState();
-          })
-          .onConnectError((error) => {
-            if (connectionResolved) return;
-            connectionResolved = true;
-            clearTimeout(timeout);
-            console.error('❌ SpacetimeDB connection error:', error);
-            this.isConnected = false;
-            reject(error);
-          });
-
-        // Use server token when available (admin writes)
-        const serverToken = process.env.SPACETIME_TOKEN;
-        if (serverToken && typeof window === 'undefined') {
-          builder.withToken(serverToken);
-        }
-        builder.build();
+      await this.connectWithOptionalTokenRetry(serverToken, {
+        connectTimeoutMs,
+        useServerCompressionNone,
       });
 
       console.log('✅ SpacetimeDB client initialized successfully');
     } catch (error) {
-      console.warn('⚠️ SpacetimeDB connection failed - using fallback mode:', error);
+      console.warn(
+        '⚠️ SpacetimeDB connection failed - using fallback mode:',
+        formatSpacetimeConnectError(error).message,
+      );
       this.isConnected = false;
       throw error;
     } finally {
       this.connectionPromise = null;
+    }
+  }
+
+  private connectOnce(options: {
+    token?: string;
+    connectTimeoutMs: number;
+    useServerCompressionNone: boolean;
+  }): Promise<void> {
+    const { token, connectTimeoutMs, useServerCompressionNone } = options;
+
+    return new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        reject(new Error('SpaceTimeDB connection timeout'));
+      }, connectTimeoutMs);
+
+      let connectionResolved = false;
+
+      const builder = DbConnection.builder()
+        .withUri(SPACETIME_CONFIG.host)
+        .withDatabaseName(SPACETIME_CONFIG.module)
+        .onConnect((conn, identity, authToken) => {
+          if (connectionResolved) return;
+          connectionResolved = true;
+          clearTimeout(timeout);
+
+          console.log('✅ Connected to SpacetimeDB');
+          console.log(`   Identity: ${identity.toHexString()}`);
+          console.log(`   Token: ${authToken ? '***' + authToken.slice(-8) : 'None'}`);
+          this.connection = conn;
+          this.connectedIdentityHex = identity.toHexString();
+          this.isConnected = true;
+          this.beginSyncWait();
+
+          conn
+            .subscriptionBuilder()
+            .onApplied(() => {
+              this.markSubscriptionApplied();
+            })
+            .subscribe((t) => {
+              const tbl = t as unknown as AppSubscriptionTables;
+              if (typeof window !== 'undefined') {
+                this.playersSubscribed = true;
+                return buildAppSubscriptionQueries(tbl);
+              }
+              return buildGameSessionOnlySubscriptionQueries(tbl);
+            });
+
+          resolve();
+        })
+        .onDisconnect((_ctx, error) => {
+          console.log(
+            '🔌 Disconnected from SpacetimeDB',
+            error ? formatSpacetimeConnectError(error).message : '',
+          );
+          this.isConnected = false;
+          this.connection = null;
+          this.connectedIdentityHex = null;
+          this.playersSubscribed = false;
+          this.trialDataSubscribed = false;
+          this.resetSyncState();
+        })
+        .onConnectError((_ctx, error) => {
+          if (connectionResolved) return;
+          connectionResolved = true;
+          clearTimeout(timeout);
+          const formatted = formatSpacetimeConnectError(error);
+          console.error('❌ SpacetimeDB connection error:', formatted.message);
+          this.isConnected = false;
+          reject(formatted);
+        });
+
+      if (useServerCompressionNone) {
+        builder.withCompression('none');
+      }
+
+      if (token) {
+        builder.withToken(token);
+      }
+
+      builder.build();
+    });
+  }
+
+  private async connectWithOptionalTokenRetry(
+    serverToken: string | undefined,
+    options: { connectTimeoutMs: number; useServerCompressionNone: boolean },
+  ): Promise<void> {
+    if (!serverToken) {
+      await this.connectOnce(options);
+      return;
+    }
+
+    try {
+      await this.connectOnce({ ...options, token: serverToken });
+    } catch (error) {
+      if (!isSpacetimeTokenVerificationError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        '⚠️ SpacetimeDB token verification failed; retrying without SPACETIME_TOKEN',
+      );
+      await this.connectOnce(options);
     }
   }
 
@@ -1118,10 +1172,3 @@ class SpacetimeDBClient {
 
 // Export singleton instance
 export const spacetimeClient = new SpacetimeDBClient();
-
-// Initialize on module load (only in production runtime, not during build)
-if (typeof window === 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PHASE) {
-  spacetimeClient.initialize().catch((error) => {
-    console.warn('⚠️ SpacetimeDB initialization failed during startup:', error.message);
-  });
-}

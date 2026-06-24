@@ -4,6 +4,7 @@
  * This module manages the connection to SpacetimeDB using the new SDK
  */
 
+import { formatSpacetimeConnectError } from './connectErrors';
 import { DbConnection } from './index';
 
 // Configuration
@@ -39,8 +40,8 @@ export function createConnectionBuilder() {
     .onDisconnect(() => {
       console.log('🔌 Disconnected from SpacetimeDB');
     })
-    .onConnectError((error) => {
-      console.error('❌ SpacetimeDB connection error:', error);
+    .onConnectError((_ctx, error) => {
+      console.error('❌ SpacetimeDB connection error:', formatSpacetimeConnectError(error).message);
     });
 
   // Pass saved token if available for persistent identity
@@ -78,10 +79,11 @@ export async function createConnection(): Promise<DbConnection> {
         }
         resolve(conn);
       })
-      .onConnectError((error) => {
+      .onConnectError((_ctx, error) => {
         clearTimeout(timeout);
-        console.error('❌ SpacetimeDB connection error:', error);
-        reject(error);
+        const formatted = formatSpacetimeConnectError(error);
+        console.error('❌ SpacetimeDB connection error:', formatted.message);
+        reject(formatted);
       });
 
     // Pass saved token if available for persistent identity

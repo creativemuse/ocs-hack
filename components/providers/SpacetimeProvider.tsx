@@ -8,6 +8,7 @@
  */
 
 import React, { useEffect, useState } from 'react';
+import { formatSpacetimeConnectError } from '@/lib/spacetime/connectErrors';
 import { DbConnection } from '@/lib/spacetime/database';
 import {
   buildAppSubscriptionQueries,
@@ -117,10 +118,11 @@ export const SpacetimeProvider: React.FC<SpacetimeProviderProps> = ({ children }
             console.log('🔌 Disconnected from SpacetimeDB');
             setIsConnected(false);
           })
-          .onConnectError((err) => {
+          .onConnectError((_ctx, err) => {
             if (!mounted) return;
-            console.error('❌ SpacetimeDB connection error:', err);
-            setError(err instanceof Error ? err : new Error(String(err)));
+            const formatted = formatSpacetimeConnectError(err);
+            console.error('❌ SpacetimeDB connection error:', formatted.message);
+            setError(formatted);
             setIsConnected(false);
           });
 
