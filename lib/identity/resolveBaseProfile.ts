@@ -1,16 +1,15 @@
 import { createPublicClient, http } from 'viem';
 import { normalize } from 'viem/ens';
 import { mainnet } from 'viem/chains';
+
 import { getBasenameWithFallback } from '@/lib/base-account/basenameServer';
+import { getMainnetRpcUrl } from '@/lib/rpc/getMainnetRpcUrl';
 
 const getMainnetClient = () => {
-  const rpcUrl =
-    process.env.MAINNET_RPC_URL?.trim() ??
-    (process.env.ALCHEMY_API_KEY
-      ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.ALCHEMY_API_KEY}`
-      : process.env.NEXT_PUBLIC_ALCHEMY_API_KEY
-        ? `https://eth-mainnet.g.alchemy.com/v2/${process.env.NEXT_PUBLIC_ALCHEMY_API_KEY}`
-        : 'https://eth.llamarpc.com');
+  const rpcUrl = getMainnetRpcUrl();
+  if (!rpcUrl) {
+    return null;
+  }
 
   return createPublicClient({
     chain: mainnet,
@@ -34,6 +33,10 @@ export const resolveBaseProfile = async (
 
   try {
     const client = getMainnetClient();
+    if (!client) {
+      return { basename, avatarUrl: null };
+    }
+
     const avatarUrl = await client.getEnsAvatar({
       name: normalize(basename),
     });

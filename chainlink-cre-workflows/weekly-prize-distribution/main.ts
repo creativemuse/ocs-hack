@@ -2,12 +2,14 @@ import {
   cre,
   Runner,
   type Runtime,
+  type NodeRuntime,
   type CronPayload,
   getNetwork,
   LAST_FINALIZED_BLOCK_NUMBER,
   encodeCallMsg,
   bytesToHex,
   hexToBase64,
+  consensusMedianAggregation,
 } from "@chainlink/cre-sdk"
 import { encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem"
 
@@ -19,10 +21,11 @@ type EvmConfig = {
 
 type Config = {
   schedule: string
+  /** Optional app URL for pre-distribution score sync (POST /api/submit-onchain-scores). */
+  scoreSyncApiUrl?: string
   evms: EvmConfig[]
 }
 
-// Session info struct matching the contract
 type SessionInfo = {
   startTime: bigint
   endTime: bigint
@@ -31,17 +34,22 @@ type SessionInfo = {
   trialPlayerCount: bigint
   isActive: boolean
   prizesDistributed: boolean
-  sessionCounter: bigint // Added to track if session was actually started
+  sessionCounter: bigint
 }
 
+type DistributionAction = "skipped" | "distributed" | "failed"
+
 type DistributionResult = {
+  action: DistributionAction
   distributionExecuted: boolean
   reason: string
   txHash?: string
+  receiptStatus?: string
+  scoreSyncAttempted?: boolean
+  scoreSyncSucceeded?: boolean
 }
 
 const initWorkflow = (config: Config) => {
-  // Weekly cron: Every Sunday at 00:00 UTC
   const cronTrigger = new cre.capabilities.CronCapability().trigger({
     schedule: config.schedule,
   })
@@ -55,7 +63,6 @@ const onWeeklyDistribution = (
 ): DistributionResult => {
   const evmConfig = runtime.config.evms[0]
 
-  // Convert the human-readable chain name to a chain selector
   const network = getNetwork({
     chainFamily: "evm",
     chainSelectorName: evmConfig.chainName,
@@ -68,70 +75,75 @@ const onWeeklyDistribution = (
 
   runtime.log(`Weekly distribution check triggered for contract: ${evmConfig.contractAddress}`)
 
-  // Step 1: Read current session state
   const sessionInfo = readSessionInfo(runtime, network.chainSelector.selector, evmConfig)
 
   runtime.log(
     `Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}, Session Counter: ${sessionInfo.sessionCounter}, Players: ${sessionInfo.paidPlayerCount}`
   )
 
-  // Step 2: Check if distribution is needed
   const currentTime = BigInt(Math.floor(Date.now() / 1000))
   const isSessionEnded = !sessionInfo.isActive || currentTime > sessionInfo.endTime
 
-  // Early check: If no session was ever started, skip distribution
-  if (sessionInfo.sessionCounter === BigInt(0)) {
-    const reason = `No session has been started yet (sessionCounter = 0). This is expected for a new contract. Skipping distribution.`
+  const skip = (reason: string): DistributionResult => {
     runtime.log(reason)
     return {
+      action: "skipped",
       distributionExecuted: false,
       reason,
     }
+  }
+
+  if (sessionInfo.sessionCounter === BigInt(0)) {
+    return skip(
+      `No session has been started yet (sessionCounter = 0). Skipping distribution.`
+    )
   }
 
   if (!isSessionEnded) {
-    const reason = `Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`
-    runtime.log(reason)
-    return {
-      distributionExecuted: false,
-      reason,
-    }
+    return skip(
+      `Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`
+    )
   }
 
   if (sessionInfo.prizesDistributed) {
-    const reason = `Prizes already distributed for session ${sessionInfo.sessionCounter}`
-    runtime.log(reason)
-    return {
-      distributionExecuted: false,
-      reason,
-    }
+    return skip(`Prizes already distributed for session ${sessionInfo.sessionCounter}`)
   }
 
   if (sessionInfo.prizePool === BigInt(0)) {
-    const reason = `No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}). This may mean prizes were already distributed or no players joined.`
-    runtime.log(reason)
-    return {
-      distributionExecuted: false,
-      reason,
-    }
+    return skip(
+      `No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}).`
+    )
   }
 
-  // Step 3: Verify player scores exist before distribution
-  // The contract's _findTopPlayers() sorts by playerScores mapping.
-  // If no scores have been submitted, distribution would give prizes to arbitrary players.
-  const hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
+  let scoreSyncAttempted = false
+  let scoreSyncSucceeded = false
+  let hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
 
   if (!hasScores) {
-    const reason = `No player scores submitted for session ${sessionInfo.sessionCounter}. Scores must be set via submitScores() before distribution. Skipping to prevent incorrect prize allocation.`
-    runtime.log(reason)
-    return {
-      distributionExecuted: false,
-      reason,
+    runtime.log(
+      `No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting pre-distribution score sync...`
+    )
+    scoreSyncAttempted = true
+    scoreSyncSucceeded = syncScoresFromApp(runtime)
+    if (scoreSyncSucceeded) {
+      runtime.log("Pre-distribution score sync succeeded; re-checking on-chain scores")
+      hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
+    } else {
+      runtime.log("Pre-distribution score sync skipped or failed")
     }
   }
 
-  // Step 4: Call distributePrizes()
-  runtime.log("All conditions met including score verification. Executing distributePrizes()...")
+  if (!hasScores) {
+    return {
+      action: "skipped",
+      distributionExecuted: false,
+      scoreSyncAttempted,
+      scoreSyncSucceeded,
+      reason: `No player scores on-chain for session ${sessionInfo.sessionCounter}. Sync scores via /api/submit-onchain-scores before distribution.`,
+    }
+  }
+
+  runtime.log("All conditions met. Executing distributePrizes()...")
 
   try {
     const txHash = callDistributePrizes(
@@ -140,25 +152,189 @@ const onWeeklyDistribution = (
       evmConfig
     )
 
-    runtime.log(`Distribution transaction successful: ${txHash}`)
+    const receipt = verifyDistributionReceipt(
+      runtime,
+      network.chainSelector.selector,
+      evmConfig,
+      txHash
+    )
+
+    if (receipt.status === "success") {
+      runtime.log(`Distribution confirmed on-chain: ${txHash}`)
+      return {
+        action: "distributed",
+        distributionExecuted: true,
+        reason: "Prizes distributed successfully",
+        txHash,
+        receiptStatus: receipt.status,
+        scoreSyncAttempted,
+        scoreSyncSucceeded,
+      }
+    }
 
     return {
-      distributionExecuted: true,
-      reason: "Prizes distributed successfully",
+      action: "failed",
+      distributionExecuted: false,
+      reason: `Distribution tx ${txHash} did not succeed on-chain (${receipt.status})`,
       txHash,
+      receiptStatus: receipt.status,
+      scoreSyncAttempted,
+      scoreSyncSucceeded,
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     runtime.log(`Distribution failed: ${errorMessage}`)
     return {
+      action: "failed",
       distributionExecuted: false,
       reason: `Distribution failed: ${errorMessage}`,
+      scoreSyncAttempted,
+      scoreSyncSucceeded,
     }
   }
 }
 
-// Read session info from the contract
-// Note: The contract doesn't have getSessionInfo(), so we read individual state variables
+function syncScoresFromApp(runtime: Runtime<Config>): boolean {
+  const apiUrl = runtime.config.scoreSyncApiUrl?.trim()
+  if (!apiUrl) {
+    runtime.log("scoreSyncApiUrl not configured; cannot auto-sync scores")
+    return false
+  }
+
+  let adminSecret = ""
+  try {
+    const secretValue = runtime.getSecret({ key: "ADMIN_API_SECRET" }).result()
+    adminSecret =
+      typeof secretValue === "string"
+        ? secretValue
+        : new TextDecoder().decode(secretValue as Uint8Array)
+  } catch {
+    runtime.log("ADMIN_API_SECRET not available in CRE secrets; cannot auto-sync scores")
+    return false
+  }
+
+  if (!adminSecret) {
+    runtime.log("ADMIN_API_SECRET is empty")
+    return false
+  }
+
+  // DON nodes each invoke this HTTP call; the API is idempotent and skips owner
+  // writes when scores are already on-chain to avoid nonce collisions.
+  const syncScore = (nodeRuntime: NodeRuntime<Config>): number => {
+    const httpClient = new cre.capabilities.HTTPClient()
+    const resp = httpClient
+      .sendRequest(nodeRuntime, {
+        url: apiUrl,
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${adminSecret}`,
+          "Content-Type": "application/json",
+        },
+        body: new TextEncoder().encode("{}"),
+      })
+      .result()
+
+    const status = resp.statusCode ?? 0
+    nodeRuntime.log(`Score sync HTTP status: ${status}`)
+    return status >= 200 && status < 300 ? 1 : 0
+  }
+
+  const result = runtime.runInNodeMode(syncScore, consensusMedianAggregation())().result()
+  return result >= 1
+}
+
+const RECEIPT_POLL_ATTEMPTS = 12
+
+function readFinalizedBlockNumber(
+  runtime: Runtime<Config>,
+  chainSelector: bigint
+): bigint | null {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  try {
+    const header = evmClient
+      .headerByNumber(runtime, {
+        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+      })
+      .result() as { header?: { number?: string | number | bigint }; number?: string | number | bigint }
+
+    const raw = header.header?.number ?? header.number
+    if (raw === undefined || raw === null) {
+      return null
+    }
+    return typeof raw === "bigint" ? raw : BigInt(raw)
+  } catch {
+    return null
+  }
+}
+
+function verifyDistributionReceipt(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig,
+  txHash: string
+): { status: "success" | "reverted" | "pending" | "unknown" } {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  let lastSeenBlock = BigInt(0)
+
+  for (let attempt = 1; attempt <= RECEIPT_POLL_ATTEMPTS; attempt++) {
+    const blockNumber = readFinalizedBlockNumber(runtime, chainSelector)
+    if (blockNumber !== null && blockNumber > lastSeenBlock) {
+      lastSeenBlock = blockNumber
+      runtime.log(
+        `Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} at finalized block ${blockNumber}`
+      )
+    } else {
+      runtime.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} (awaiting new block)`)
+    }
+
+    const poolBeforeReceipt = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
+    if (poolBeforeReceipt === BigInt(0)) {
+      runtime.log("Prize pool cleared — distribution confirmed via state")
+      return { status: "success" }
+    }
+
+    try {
+      const receiptReply = evmClient
+        .getTransactionReceipt(runtime, {
+          hash: txHash,
+        })
+        .result()
+
+      const receipt = receiptReply as {
+        receipt?: { status?: number | string }
+        status?: number | string
+      }
+
+      const rawStatus = receipt.receipt?.status ?? receipt.status
+      if (rawStatus === undefined || rawStatus === null) {
+        continue
+      }
+
+      const statusNum =
+        typeof rawStatus === "string" ? parseInt(rawStatus, 16) : Number(rawStatus)
+
+      if (statusNum === 1) {
+        return { status: "success" }
+      }
+
+      if (statusNum === 0) {
+        return { status: "reverted" }
+      }
+    } catch (error) {
+      runtime.log(
+        `Receipt poll attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`
+      )
+    }
+  }
+
+  const poolAfter = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
+  if (poolAfter === BigInt(0)) {
+    return { status: "success" }
+  }
+
+  return { status: "pending" }
+}
+
 function readSessionInfo(
   runtime: Runtime<Config>,
   chainSelector: bigint,
@@ -166,10 +342,8 @@ function readSessionInfo(
 ): SessionInfo {
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
 
-  // Read individual public state variables
   const contractAddress = evmConfig.contractAddress as `0x${string}`
-  
-  // Read isSessionActive (bool)
+
   const isActiveCall = encodeFunctionData({
     abi: [{ inputs: [], name: "isSessionActive", outputs: [{ type: "bool" }], stateMutability: "view", type: "function" }],
     functionName: "isSessionActive",
@@ -186,7 +360,6 @@ function readSessionInfo(
     data: bytesToHex(isActiveResult.data),
   }) as boolean
 
-  // Read lastSessionTime (uint256)
   const lastSessionTimeCall = encodeFunctionData({
     abi: [{ inputs: [], name: "lastSessionTime", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
     functionName: "lastSessionTime",
@@ -203,7 +376,6 @@ function readSessionInfo(
     data: bytesToHex(lastSessionTimeResult.data),
   }) as bigint
 
-  // Read sessionInterval (uint256)
   const sessionIntervalCall = encodeFunctionData({
     abi: [{ inputs: [], name: "sessionInterval", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
     functionName: "sessionInterval",
@@ -220,8 +392,6 @@ function readSessionInfo(
     data: bytesToHex(sessionIntervalResult.data),
   }) as bigint
 
-  // Read prize pool from the session-specific state variable (not total USDC balance,
-  // which includes pending withdrawals and platform fees)
   const currentSessionPrizePoolCall = encodeFunctionData({
     abi: [{ inputs: [], name: "currentSessionPrizePool", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
     functionName: "currentSessionPrizePool",
@@ -238,7 +408,6 @@ function readSessionInfo(
     data: bytesToHex(prizePoolResult.data),
   }) as bigint
 
-  // Read player counts
   const getCurrentPlayersCall = encodeFunctionData({
     abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
     functionName: "getCurrentPlayers",
@@ -255,7 +424,6 @@ function readSessionInfo(
     data: bytesToHex(playersResult.data),
   }) as `0x${string}`[]
 
-  // Read sessionCounter to verify if a session was actually started
   const sessionCounterCall = encodeFunctionData({
     abi: [{ inputs: [], name: "sessionCounter", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
     functionName: "sessionCounter",
@@ -272,17 +440,11 @@ function readSessionInfo(
     data: bytesToHex(sessionCounterResult.data),
   }) as bigint
 
-  // Calculate session times
   const startTime = lastSessionTime
   const endTime = lastSessionTime + sessionInterval
   const paidPlayerCount = BigInt(players.length)
-  const trialPlayerCount = BigInt(0) // Not tracked separately in this contract version
-  
-  // Improved heuristic: Only assume prizes distributed if:
-  // 1. A session was actually started (sessionCounter > 0)
-  // 2. Session has ended (not active)
-  // 3. Prize pool is empty
-  // This distinguishes between "no activity yet" vs "prizes already distributed"
+  const trialPlayerCount = BigInt(0)
+
   const prizesDistributed = sessionCounter > BigInt(0) && !isActive && prizePool === BigInt(0)
 
   return {
@@ -293,12 +455,10 @@ function readSessionInfo(
     trialPlayerCount,
     isActive,
     prizesDistributed,
-    sessionCounter, // Include sessionCounter in return value
+    sessionCounter,
   }
 }
 
-// Verify that at least one player has a non-zero score submitted on-chain.
-// Without scores, _findTopPlayers() would return players in arbitrary order.
 function verifyScoresExist(
   runtime: Runtime<Config>,
   chainSelector: bigint,
@@ -307,7 +467,6 @@ function verifyScoresExist(
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
   const contractAddress = evmConfig.contractAddress as `0x${string}`
 
-  // First get the current players list
   const getCurrentPlayersCall = encodeFunctionData({
     abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
     functionName: "getCurrentPlayers",
@@ -329,13 +488,7 @@ function verifyScoresExist(
     return false
   }
 
-  // Check all players for scores. The contract caps at MAX_PLAYERS (100),
-  // and submitScores() sets all scores atomically, so if any player has a
-  // score they all should. We check all to be safe.
-  const playersToCheck = players
-  let hasAnyScore = false
-
-  for (const player of playersToCheck) {
+  for (const player of players) {
     const getScoreCall = encodeFunctionData({
       abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
       functionName: "getPlayerScore",
@@ -354,22 +507,15 @@ function verifyScoresExist(
     }) as bigint
 
     if (score > BigInt(0)) {
-      hasAnyScore = true
       runtime.log(`Player ${player} has score: ${score}`)
-      break
+      return true
     }
   }
 
-  if (!hasAnyScore) {
-    runtime.log(`Checked ${playersToCheck.length} players - no scores found`)
-  }
-
-  return hasAnyScore
+  runtime.log(`Checked ${players.length} players - no scores found`)
+  return false
 }
 
-// Call distributePrizes() on the contract
-// Note: This function uses onlyOwnerOrChainlink modifier, allowing Chainlink CRE to call it
-// The contract must have chainlinkOracle set to the CRE forwarder address
 function callDistributePrizes(
   runtime: Runtime<Config>,
   chainSelector: bigint,
@@ -377,7 +523,6 @@ function callDistributePrizes(
 ): string {
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
 
-  // Encode the distributePrizes() function call
   const callData = encodeFunctionData({
     abi: [
       {
@@ -391,7 +536,6 @@ function callDistributePrizes(
     functionName: "distributePrizes",
   })
 
-  // Generate a signed report for the transaction
   const reportResponse = runtime
     .report({
       encodedPayload: hexToBase64(callData),
@@ -401,8 +545,6 @@ function callDistributePrizes(
     })
     .result()
 
-  // Submit the report to the contract
-  // The contract must have chainlinkOracle set to the CRE forwarder address
   const writeResult = evmClient
     .writeReport(runtime, {
       receiver: evmConfig.contractAddress,
