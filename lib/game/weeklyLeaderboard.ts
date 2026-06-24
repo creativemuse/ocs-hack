@@ -250,3 +250,28 @@ export const isNewWeeklyLeader = (
 
   return rank === 1 && score >= previousLeaderScore;
 };
+
+/** True when the weekly board has no entries yet (first score of the week). */
+export const isFirstScoreOnEmptyBoard = (
+  entries: WeeklyLeaderboardEntry[],
+): boolean => entries.length === 0;
+
+/** Parse on-chain session id strings safely. */
+export const parseSessionIdNumeric = (id: string | undefined): number => {
+  if (!id?.trim()) return 0;
+  const parsed = Number(id.trim());
+  if (!Number.isFinite(parsed) || parsed < 0) return 0;
+  return Math.floor(parsed);
+};
+
+/**
+ * Resolve the session id to use for weekly score persistence.
+ * Prefers the live on-chain counter when it exceeds token/receipt values (new-week edge case).
+ */
+export const resolveAuthoritativeSessionId = (
+  tokenSessionId: string,
+  liveSessionCounter: number,
+): string => {
+  const tokenNumeric = parseSessionIdNumeric(tokenSessionId);
+  return String(Math.max(tokenNumeric, liveSessionCounter));
+};

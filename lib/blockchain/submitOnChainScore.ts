@@ -124,17 +124,24 @@ export async function submitOnChainScore(
       return { ok: false, error: 'On-chain session is not active' };
     }
 
-    if (expectedSessionId && sessionCounter.toString() !== expectedSessionId) {
-      return {
-        ok: false,
-        error: `Session mismatch: expected ${expectedSessionId}, on-chain ${sessionCounter.toString()}`,
-      };
-    }
-
     const normalized = wallet.toLowerCase();
     const registered = (players as `0x${string}`[]).some(
       (p) => p.toLowerCase() === normalized
     );
+
+    if (expectedSessionId && sessionCounter.toString() !== expectedSessionId) {
+      if (registered) {
+        console.warn(
+          `[submitOnChainScore] session mismatch: expected ${expectedSessionId}, using live ${sessionCounter.toString()}`,
+        );
+      } else {
+        return {
+          ok: false,
+          error: `Session mismatch: expected ${expectedSessionId}, on-chain ${sessionCounter.toString()}`,
+        };
+      }
+    }
+
     if (!registered) {
       return { ok: false, error: 'Wallet is not registered in the current on-chain session' };
     }

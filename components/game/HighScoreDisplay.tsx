@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Trophy, Medal, Award, Crown, Coins, CheckCircle } from 'lucide-react';
 import { useHighScores } from '@/hooks/useHighScores';
 import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
@@ -16,12 +17,15 @@ import ComposeCastButton from '@/components/social/ComposeCastButton';
 import { Confetti } from '@neoconfetti/react';
 import {
   computeRankForScore,
+  isFirstScoreOnEmptyBoard,
   isNewWeeklyLeader,
   type WeeklyLeaderboardEntry,
 } from '@/lib/game/weeklyLeaderboard';
 
 const LEADERBOARD_LIMIT = 10;
-const CONFETTI_DURATION_MS = 8000;
+const CONFETTI_DURATION_MS = 10000;
+const LEADERBOARD_POLL_ATTEMPTS = 5;
+const LEADERBOARD_POLL_INTERVAL_MS = 2000;
 
 interface HighScoreDisplayProps {
   currentScore: number;
@@ -93,9 +97,62 @@ export default function HighScoreDisplay({
   const [backendRank, setBackendRank] = useState<number | null>(null);
   const [backendIsNewLeader, setBackendIsNewLeader] = useState(false);
   const [showConfetti, setShowConfetti] = useState(false);
+  const [confirmedOnLeaderboard, setConfirmedOnLeaderboard] = useState(false);
+  const [confettiStageSize, setConfettiStageSize] = useState({ width: 1200, height: 900 });
   const confettiLockedRef = useRef(false);
 
   const normalizedWallet = walletAddress?.toLowerCase();
+
+  const liveBoardReflectsCurrentScore = useMemo(() => {
+    if (!normalizedWallet || currentScore <= 0) return false;
+    const liveEntry = topEarners.find(
+      (entry) => entry.walletAddress.toLowerCase() === normalizedWallet,
+    );
+    return liveEntry != null && liveEntry.bestScore === currentScore;
+  }, [topEarners, normalizedWallet, currentScore]);
+
+  useEffect(() => {
+    setConfirmedOnLeaderboard(false);
+  }, [currentScore, normalizedWallet]);
+
+  useEffect(() => {
+    if (liveBoardReflectsCurrentScore) {
+      setConfirmedOnLeaderboard(true);
+    }
+  }, [liveBoardReflectsCurrentScore]);
+
+  useEffect(() => {
+    if (!scoreSaved || isTrialGame || !normalizedWallet) return;
+    if (liveBoardReflectsCurrentScore) return;
+
+    let cancelled = false;
+    let attempts = 0;
+    const interval = setInterval(() => {
+      if (cancelled) return;
+      attempts += 1;
+      void refresh();
+      if (attempts >= LEADERBOARD_POLL_ATTEMPTS) {
+        clearInterval(interval);
+      }
+    }, LEADERBOARD_POLL_INTERVAL_MS);
+
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [scoreSaved, isTrialGame, normalizedWallet, liveBoardReflectsCurrentScore, refresh]);
+
+  useEffect(() => {
+    const updateStageSize = () => {
+      setConfettiStageSize({
+        width: Math.max(window.innerWidth, 320),
+        height: Math.max(window.innerHeight, 600),
+      });
+    };
+    updateStageSize();
+    window.addEventListener('resize', updateStageSize);
+    return () => window.removeEventListener('resize', updateStageSize);
+  }, []);
 
   const leaderboardEntries = useMemo(() => {
     if (isTrialGame) return [];
@@ -104,8 +161,19 @@ export default function HighScoreDisplay({
       return topEarners.slice(0, LEADERBOARD_LIMIT);
     }
 
+    if (confirmedOnLeaderboard) {
+      return topEarners.slice(0, LEADERBOARD_LIMIT);
+    }
+
     return mergeLatestPlayerScore(topEarners, normalizedWallet, currentScore, playerName);
-  }, [isTrialGame, topEarners, normalizedWallet, currentScore, playerName]);
+  }, [
+    isTrialGame,
+    topEarners,
+    normalizedWallet,
+    currentScore,
+    playerName,
+    confirmedOnLeaderboard,
+  ]);
 
   const playerRank = useMemo(() => {
     if (isTrialGame || currentScore <= 0 || !normalizedWallet) return null;
@@ -125,7 +193,11 @@ export default function HighScoreDisplay({
     currentScore > 0 &&
     normalizedWallet &&
     isNewWeeklyLeader(topEarners, normalizedWallet, currentScore);
+  const isFirstOnBoard =
+    !isTrialGame && !leaderboardLoading && isFirstScoreOnEmptyBoard(topEarners);
   const rankReady = !isTrialGame && (scoreSaved || hasSubmitted) && !leaderboardLoading;
+  const isPostingToLeaderboard =
+    scoreSaved && !confirmedOnLeaderboard && !isTrialGame && currentScore > 0;
 
   const handleClaimSuccess = () => {
     markAsClaimed();
@@ -175,9 +247,16 @@ export default function HighScoreDisplay({
     refresh,
   ]);
 
+  const displayRank = rankReady ? (playerRank ?? backendRank) : null;
+  const showNewLeaderBanner =
+    rankReady &&
+    displayRank === 1 &&
+    currentScore > 0 &&
+    (isNewLeader || isFirstOnBoard || backendIsNewLeader);
+  const shouldShowConfetti = rankReady && currentScore > 0;
+
   useEffect(() => {
-    if (!rankReady || confettiLockedRef.current) return;
-    if (!isNewLeader && !backendIsNewLeader) return;
+    if (!shouldShowConfetti || confettiLockedRef.current) return;
 
     confettiLockedRef.current = true;
     const startDelay = setTimeout(() => {
@@ -192,7 +271,7 @@ export default function HighScoreDisplay({
       clearTimeout(startDelay);
       clearTimeout(hideTimer);
     };
-  }, [rankReady, isNewLeader, backendIsNewLeader]);
+  }, [shouldShowConfetti]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -232,30 +311,33 @@ export default function HighScoreDisplay({
     return <span>Unknown Player</span>;
   };
 
-  const displayRank = rankReady ? (playerRank ?? backendRank) : null;
-  const showNewLeaderBanner =
-    rankReady && (backendIsNewLeader || isNewLeader) && displayRank === 1;
   const showLeaderboardSkeleton =
     (leaderboardLoading || isRefreshing) && leaderboardEntries.length === 0;
 
+  const confettiPortal =
+    showConfetti && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            className="fixed inset-0 z-[100] pointer-events-none flex items-start justify-center"
+            aria-hidden="true"
+          >
+            <Confetti
+              particleCount={400}
+              force={0.75}
+              duration={CONFETTI_DURATION_MS - 500}
+              colors={['#FFC700', '#FFD700', '#FF0000', '#A855F7', '#EC4899', '#10B981', '#FFFFFF']}
+              particleShape="mix"
+              stageHeight={confettiStageSize.height}
+              stageWidth={confettiStageSize.width}
+            />
+          </div>,
+          document.body,
+        )
+      : null;
+
   return (
     <div className={`bg-white rounded-lg p-4 shadow-lg border ${className} relative overflow-visible`}>
-      {showConfetti && (
-        <div
-          className="fixed inset-0 z-[100] pointer-events-none flex items-start justify-center"
-          aria-hidden="true"
-        >
-          <Confetti
-            particleCount={400}
-            force={0.75}
-            duration={CONFETTI_DURATION_MS - 500}
-            colors={['#FFC700', '#FFD700', '#FF0000', '#A855F7', '#EC4899', '#10B981', '#FFFFFF']}
-            particleShape="mix"
-            stageHeight={900}
-            stageWidth={1200}
-          />
-        </div>
-      )}
+      {confettiPortal}
 
       <div className="mb-4">
         <h3 className="text-lg font-bold text-gray-800 mb-2">High Scores</h3>
@@ -263,6 +345,12 @@ export default function HighScoreDisplay({
         {isTrialGame && currentScore > 0 && (
           <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5 mb-3">
             Practice run — this score is not added to the paid leaderboard.
+          </p>
+        )}
+
+        {isPostingToLeaderboard && (
+          <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-md px-2 py-1.5 mb-3">
+            Posting score to leaderboard…
           </p>
         )}
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -467,6 +468,17 @@ export default function GameEntry({
     paidTxRef.current?.submit();
   };
 
+  const handleCancelPayment = () => {
+    setIsProcessingPayment(false);
+    setAwaitingWalletOpen(false);
+    setIsStartingGame(false);
+  };
+
+  useEffect(() => {
+    if (!isProcessingPayment || !awaitingWalletOpen) return;
+    toast.info('Tap Open wallet to approve USDC and join');
+  }, [isProcessingPayment, awaitingWalletOpen]);
+
   const handleFundEth = async () => {
     if (!address || ethFundingLoading) return;
 
@@ -727,15 +739,15 @@ export default function GameEntry({
                           size="sm"
                           onClick={handleSwitchAccountClick}
                           disabled={switchAccountDisabled}
-                          className="border-white/20 bg-white/5 text-white/80 hover:bg-white/10 hover:text-white disabled:opacity-50"
-                          aria-label="Switch Base Account"
+                          className="border-red-500/30 bg-red-950/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                          aria-label="Disconnect Base Account"
                         >
                           {isSwitchingAccount ? (
                             <Loader2 className="h-4 w-4 mr-2 animate-spin" />
                           ) : (
                             <LogOut className="h-4 w-4 mr-2" />
                           )}
-                          Switch account
+                          {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
                         </Button>
                       </div>
                     )}
@@ -889,58 +901,14 @@ export default function GameEntry({
                   )}
 
                   {isProcessingPayment ? (
-                    <div className="space-y-4">
-                      <BaseAccountTransaction
-                        ref={paidTxRef}
-                        calls={paidGameCalls}
-                        onStatus={handleTransactionStatus}
-                        className="w-full"
-                        showSubmitButton={false}
-                        connectedAddress={address}
-                      />
-                      {awaitingWalletOpen ? (
-                        <div
-                          className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-5 text-center space-y-4"
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <p className="text-sm font-medium text-blue-200">Ready to sign</p>
-                          <p className="text-sm text-zinc-200">
-                            Tap below to open your Base wallet and approve USDC, then confirm join.
-                          </p>
-                          <Button
-                            type="button"
-                            onClick={handleOpenWallet}
-                            className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
-                          >
-                            <Wallet className="h-4 w-4 mr-2" />
-                            Open wallet
-                          </Button>
-                        </div>
-                      ) : (
-                        <div
-                          className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
-                          role="status"
-                          aria-live="polite"
-                        >
-                          <p className="text-sm font-medium text-amber-200">Processing entry</p>
-                          <p className="mt-2 text-sm text-zinc-200">
-                            Confirm in your wallet, then wait for on-chain confirmation…
-                          </p>
-                        </div>
-                      )}
-                      <Button
-                        type="button"
-                        onClick={() => {
-                          setIsProcessingPayment(false);
-                          setAwaitingWalletOpen(false);
-                          setIsStartingGame(false);
-                        }}
-                        variant="outline"
-                        className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
-                      >
-                        Cancel
-                      </Button>
+                    <div
+                      className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-3 text-center"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-sm text-blue-200">
+                        Confirm in your wallet — see the overlay above.
+                      </p>
                     </div>
                   ) : (
                     <Button
@@ -1003,6 +971,67 @@ export default function GameEntry({
         </CardContent>
       </Card>
 
+      {isProcessingPayment && !isJoiningAfterPayment ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wallet-overlay-title"
+          aria-live="polite"
+        >
+          <div className="max-w-sm w-full rounded-xl border border-blue-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl space-y-4">
+            <BaseAccountTransaction
+              ref={paidTxRef}
+              key={paymentFlowId}
+              calls={paidGameCalls}
+              onStatus={handleTransactionStatus}
+              className="sr-only"
+              showSubmitButton={false}
+              connectedAddress={address}
+            />
+            {awaitingWalletOpen ? (
+              <>
+                <Wallet className="mx-auto h-10 w-10 text-blue-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Confirm in your wallet
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Step 1: Approve USDC spending. Step 2: Confirm join to start your game.
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleOpenWallet}
+                  className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
+                  aria-label="Open wallet to sign transaction"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Open wallet
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Waiting for wallet confirmation
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Confirm in your wallet, then wait for on-chain confirmation…
+                </p>
+              </>
+            )}
+            <Button
+              type="button"
+              onClick={handleCancelPayment}
+              variant="outline"
+              className="w-full border-white/20 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              aria-label="Cancel payment"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
       {isJoiningAfterPayment ? (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
@@ -1024,9 +1053,9 @@ export default function GameEntry({
       <AlertDialog open={showSwitchAccountConfirm} onOpenChange={setShowSwitchAccountConfirm}>
         <AlertDialogContent className="bg-zinc-900 border-gray-700 text-white">
           <AlertDialogHeader>
-            <AlertDialogTitle>Switch account?</AlertDialogTitle>
+            <AlertDialogTitle>Disconnect?</AlertDialogTitle>
             <AlertDialogDescription className="text-gray-400">
-              You have a pending paid entry for this wallet. Switching accounts will sign you out
+              You have a pending paid entry for this wallet. Disconnecting will sign you out
               and you may need to recover your entry with the new wallet.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -1042,7 +1071,7 @@ export default function GameEntry({
               disabled={isSwitchingAccount}
               className="bg-amber-600 hover:bg-amber-500 text-white"
             >
-              {isSwitchingAccount ? 'Switching…' : 'Switch account'}
+              {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

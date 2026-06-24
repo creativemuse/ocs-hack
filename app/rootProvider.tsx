@@ -5,6 +5,7 @@ import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { SpacetimeProvider } from "@/components/providers/SpacetimeProvider";
 import { BaseAccountProvider } from "@/components/providers/BaseAccountProvider";
+import { Toaster } from "@/components/ui/sonner";
 import { wagmiConfig } from "@/lib/wagmi";
 
 const queryClient = new QueryClient();
@@ -26,6 +27,7 @@ export function RootProvider({ children }: { children: ReactNode }) {
         <SpacetimeProvider>
           <BaseAccountProvider>
             <FarcasterReadyEffect />
+            <Toaster position="top-center" richColors closeButton />
             {children}
           </BaseAccountProvider>
         </SpacetimeProvider>

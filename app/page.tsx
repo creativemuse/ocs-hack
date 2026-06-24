@@ -159,6 +159,8 @@ function HomePage() {
     setPaidScoreSaved(false);
     const finalScore = totalScore;
     const wallet = address.toLowerCase();
+    let cancelled = false;
+    let completed = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -172,6 +174,7 @@ function HomePage() {
             username: basename ?? undefined,
           }),
         });
+        if (cancelled) return;
         if (!res.ok) {
           paidScoreSavedRef.current = false;
           setPaidScoreSaved(false);
@@ -180,11 +183,24 @@ function HomePage() {
           return;
         }
         const data = await res.json();
+        if (cancelled) return;
+        const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
+        if (!persisted) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          setPaidScoreWarning(
+            data.warning ??
+              data.error ??
+              'Score could not be saved to the leaderboard. Please try again.',
+          );
+          return;
+        }
         setPaidScoreSaved(true);
+        completed = true;
         if (data.authoritativeScore != null) {
           console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
         }
-        if (data.onChainSubmitted === false) {
+        if (data.onChainSubmitted === false || data.leaderboardReady === false) {
           setPaidScoreWarning(
             data.warning ??
               'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
@@ -193,13 +209,26 @@ function HomePage() {
           setPaidScoreWarning(null);
         }
         refreshContractUsdcBalance();
-        refreshWeeklyLeaderboard();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          if (cancelled) return;
+          refreshWeeklyLeaderboard();
+          if (attempt < 4) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
       } catch (e) {
+        if (cancelled) return;
         paidScoreSavedRef.current = false;
         setPaidScoreSaved(false);
         console.error('save-paid-score error', e);
       }
     })();
+    return () => {
+      cancelled = true;
+      if (!completed) {
+        paidScoreSavedRef.current = false;
+      }
+    };
   }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 
   const loadRandomQuestion = useCallback(async () => {
@@ -712,7 +741,7 @@ function HomePage() {
   // Show game entry screen with player mode choice
   if (showGameEntry) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
           <button
             type="button"

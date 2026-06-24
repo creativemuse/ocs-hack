@@ -8,6 +8,9 @@ import {
   mergeWeeklyLeaderboardEntries,
   computeRankForScore,
   isNewWeeklyLeader,
+  isFirstScoreOnEmptyBoard,
+  resolveAuthoritativeSessionId,
+  parseSessionIdNumeric,
   type WeeklyLeaderboardEntry,
 } from '../lib/game/weeklyLeaderboard';
 
@@ -95,5 +98,57 @@ describe('weekly leaderboard latest-score semantics', () => {
 
     assert.equal(computeRankForScore(entries, walletA, 1800), 1);
     assert.equal(isNewWeeklyLeader(entries, walletA, 1800), false);
+  });
+});
+
+describe('weekly session transitions', () => {
+  it('includes spacetime scores for the current week', () => {
+    const merged = mergeWeeklyLeaderboardEntries(
+      2,
+      new Map(),
+      [
+        {
+          walletAddress: walletA,
+          weeklySessionId: BigInt(2),
+          weeklyBestScore: 1500,
+        },
+      ],
+      10,
+    );
+
+    assert.equal(merged.length, 1);
+    assert.equal(merged[0]?.bestScore, 1500);
+    assert.equal(merged[0]?.sessionCounter, 2);
+  });
+
+  it('excludes spacetime scores from a prior week', () => {
+    const merged = mergeWeeklyLeaderboardEntries(
+      2,
+      new Map(),
+      [
+        {
+          walletAddress: walletA,
+          weeklySessionId: BigInt(1),
+          weeklyBestScore: 2500,
+        },
+      ],
+      10,
+    );
+
+    assert.equal(merged.length, 0);
+  });
+
+  it('resolves authoritative session id using live counter', () => {
+    assert.equal(resolveAuthoritativeSessionId('1', 2), '2');
+    assert.equal(resolveAuthoritativeSessionId('3', 2), '3');
+    assert.equal(parseSessionIdNumeric(''), 0);
+  });
+
+  it('detects first score on an empty board', () => {
+    assert.equal(isFirstScoreOnEmptyBoard([]), true);
+    assert.equal(
+      isFirstScoreOnEmptyBoard([{ walletAddress: walletA, bestScore: 100, sessionCounter: 2 }]),
+      false,
+    );
   });
 });
