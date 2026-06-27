@@ -184,7 +184,7 @@ function HomePage() {
         }
         const data = await res.json();
         if (cancelled) return;
-        const persisted = Boolean(data.spacetimeUpdated || data.onChainSubmitted);
+        const persisted = Boolean(data.leaderboardReady);
         if (!persisted) {
           paidScoreSavedRef.current = false;
           setPaidScoreSaved(false);
