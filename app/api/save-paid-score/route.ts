@@ -117,27 +117,48 @@ export async function POST(req: NextRequest) {
     onChainSessionId = authoritativeSessionId;
 
     let spacetimeUpdated = false;
+    let spacetimeError: string | undefined;
 
-    await spacetimeClient.ensurePlayerDataReady();
+    const isSpacetimeConfigured = Boolean(
+      process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST,
+    ) && Boolean(
+      process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE,
+    );
 
-    if (spacetimeClient.isConfigured()) {
-      const sessionIdNumeric = onChainSessionId
-        ? Number(onChainSessionId)
-        : 0;
-      await spacetimeClient.recordPaidGameScore(
-        normalizedWallet,
-        authoritativeScore,
-        sessionIdNumeric,
-        displayUsername,
-      );
-      spacetimeUpdated = true;
-
-      try {
-        await spacetimeClient.endGameSession(payload.entryId);
-      } catch (endErr) {
-        console.warn('Spacetime endGameSession failed (non-fatal):', endErr);
+    try {
+      if (isSpacetimeConfigured) {
+        await spacetimeClient.ensurePlayerDataReady();
       }
+
+      if (isSpacetimeConfigured && spacetimeClient.isConfigured()) {
+        const sessionIdNumeric = onChainSessionId
+          ? Number(onChainSessionId)
+          : 0;
+        await spacetimeClient.recordPaidGameScore(
+          normalizedWallet,
+          authoritativeScore,
+          sessionIdNumeric,
+          displayUsername,
+        );
+        spacetimeUpdated = true;
+
+        try {
+          await spacetimeClient.endGameSession(payload.entryId);
+        } catch (endErr) {
+          console.warn('Spacetime endGameSession failed (non-fatal):', endErr);
+        }
+      } else {
+        spacetimeError = 'SpacetimeDB is not connected; leaderboard update deferred.';
+      }
+    } catch (spacetimeErr) {
+      console.error('❌ SpacetimeDB paid score update failed:', spacetimeErr);
+      spacetimeError =
+        spacetimeErr instanceof Error ? spacetimeErr.message : 'SpacetimeDB leaderboard update failed';
     }
+
+    // Leaderboard visibility depends on SpacetimeDB. If SpacetimeDB is unavailable,
+    // do not advertise leaderboardReady=true even if on-chain submission succeeds.
+    const leaderboardReady = spacetimeUpdated;
 
     const onChainResult = await submitOnChainScoreWithRetry(
       normalizedWallet,
@@ -166,9 +187,10 @@ export async function POST(req: NextRequest) {
           onChainSessionId,
           spacetimeUpdated,
           onChainSubmitted: true,
-          leaderboardReady: true,
+          leaderboardReady,
           transactionHash: extendedRetry.transactionHash,
           retried: true,
+          spacetimeError,
         });
       }
 
@@ -181,6 +203,7 @@ export async function POST(req: NextRequest) {
           onChainSubmitted: false,
           leaderboardReady: false,
           onChainError: onChainResult.error,
+          spacetimeError,
           warning:
             'Score saved but the weekly leaderboard update failed. Your score may not appear until retried.',
         },
@@ -194,9 +217,10 @@ export async function POST(req: NextRequest) {
       onChainSessionId,
       spacetimeUpdated,
       onChainSubmitted: true,
-      leaderboardReady: true,
+      leaderboardReady,
       transactionHash: onChainResult.transactionHash,
       sessionCounter: onChainResult.sessionCounter.toString(),
+      spacetimeError,
     });
   } catch (error) {
     console.error('Error saving paid score:', error);

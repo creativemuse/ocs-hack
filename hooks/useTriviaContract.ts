@@ -392,6 +392,10 @@ export function useTriviaContract(useGasless: boolean = true) {
         throw new Error(data.error || 'Failed to save score');
       }
 
+      const data = await response.json();
+      if (data.spacetimeUpdated === false && data.leaderboardReady === false) {
+        throw new Error(data.warning || data.spacetimeError || 'Leaderboard update failed');
+      }
       setState(prev => ({ ...prev, isSubmitting: false }));
     } catch (error) {
       console.error('Error submitting score:', error);
