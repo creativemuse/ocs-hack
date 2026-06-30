@@ -64,6 +64,7 @@ export default function Game() {
   const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [scoreReceipt, setScoreReceipt] = useState<string | undefined>();
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -226,6 +227,8 @@ export default function Game() {
         body: JSON.stringify({
           questionToken: currentQuestion.questionToken,
           selectedAnswer: answerIndex,
+          entryToken,
+          scoreReceipt,
         }),
       });
 
@@ -234,7 +237,10 @@ export default function Game() {
         return;
       }
 
-      const { isCorrect, correctAnswer, pointsEarned } = await res.json();
+      const { isCorrect, correctAnswer, pointsEarned, scoreReceipt: nextScoreReceipt } = await res.json();
+      if (typeof nextScoreReceipt === 'string') {
+        setScoreReceipt(nextScoreReceipt);
+      }
       setVerifiedCorrectAnswer(correctAnswer);
 
       if (isCorrect) {
@@ -317,6 +323,7 @@ export default function Game() {
       setSessionIsTrial(isTrial);
       paidScoreSavedRef.current = false;
       setPaidScoreSaved(false);
+      setScoreReceipt(undefined);
       setGameStarted(true);
       loadRandomQuestion();
     } catch (err) {
@@ -329,6 +336,7 @@ export default function Game() {
     setIsGuestMode(true);
     setSessionIsTrial(true);
     paidScoreSavedRef.current = false;
+    setScoreReceipt(undefined);
     await GuestSessionManager.createGuestPlayer(name);
     setShowGuestMode(false);
     setGameStarted(true);
@@ -376,7 +384,7 @@ export default function Game() {
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken }),
+          body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken, scoreReceipt }),
         });
         if (cancelled) return;
         if (!res.ok) {
@@ -562,6 +570,7 @@ export default function Game() {
                 setGameCompleted(false);
                 paidScoreSavedRef.current = false;
                 setPaidScoreSaved(false);
+                setScoreReceipt(undefined);
                 setGameStarted(false); // Reset to entry screen
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
