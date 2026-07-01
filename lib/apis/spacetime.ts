@@ -859,8 +859,8 @@ class SpacetimeDBClient {
     // Get paid players sorted by cumulative USDC earnings
     const players = Array.from(this.connection.db.players.iter()) as Player[];
     return players
-      .filter((p: Player) => p.totalEarnings > 0)
-      .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
+      .filter((p: Player) => p.totalEarnings >= 0 || p.weeklyBestScore > 0)
+      .sort((a: Player, b: Player) => b.weeklyBestScore - a.weeklyBestScore)
       .slice(0, limit);
   }
 
@@ -877,8 +877,8 @@ class SpacetimeDBClient {
     if (!this.connection) return [];
 
     return (Array.from(this.connection.db.players.iter()) as Player[])
-      .filter((p: Player) => p.totalEarnings > 0)
-      .sort((a: Player, b: Player) => b.totalEarnings - a.totalEarnings)
+      .filter((p: Player) => p.totalEarnings >= 0 || p.weeklyBestScore > 0)
+      .sort((a: Player, b: Player) => b.weeklyBestScore - a.weeklyBestScore)
       .slice(0, limit)
       .map((p: Player) => ({
         walletAddress: p.walletAddress,

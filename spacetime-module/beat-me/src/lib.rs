@@ -1440,6 +1440,7 @@ pub fn record_paid_game_score(
         player.total_score = player.total_score.saturating_add(game_score);
         player.games_played = player.games_played.saturating_add(1);
         player.best_score = std::cmp::max(player.best_score, game_score);
+        player.total_earnings += game_score as f64;
         apply_weekly_score(&mut player, on_chain_session_id, game_score);
         apply_username_if_available(ctx, &wallet_address, &mut player, username);
         player.updated_at = ctx.timestamp;
@@ -1453,7 +1454,7 @@ pub fn record_paid_game_score(
             total_score: game_score,
             games_played: 1,
             best_score: game_score,
-            total_earnings: 0.0,
+            total_earnings: game_score as f64,
             trial_games_remaining: 0,
             trial_completed: true,
             wallet_connected: true,
