@@ -159,10 +159,19 @@ const readOnChainSessionState = async (): Promise<{
   let lastError: unknown;
   for (const rpcUrl of RPC_FALLBACKS) {
     try {
-      const state = await readDiagnosticsSequential(rpcUrl);
+      const state = await readDiagnosticsViaBatch(rpcUrl);
       return { rpcUrl, ...state };
-    } catch (sequentialError) {
-      lastError = sequentialError;
+    } catch (batchError) {
+      console.warn(
+        `Batch diagnostics failed for ${rpcUrl}, falling back to sequential:`,
+        batchError,
+      );
+      try {
+        const state = await readDiagnosticsSequential(rpcUrl);
+        return { rpcUrl, ...state };
+      } catch (sequentialError) {
+        lastError = sequentialError;
+      }
     }
   }
   throw lastError instanceof Error ? lastError : new Error('All RPC endpoints failed');

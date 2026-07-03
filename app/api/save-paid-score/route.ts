@@ -173,6 +173,10 @@ export async function POST(req: NextRequest) {
       );
     } catch (onChainErr) {
       console.warn('On-chain score submission threw (non-fatal):', onChainErr);
+      onChainResult = {
+        ok: false,
+        error: onChainErr instanceof Error ? onChainErr.message : String(onChainErr),
+      };
     }
 
     if (!onChainResult || !onChainResult.ok) {

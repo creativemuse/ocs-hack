@@ -4,11 +4,12 @@ import { getWeeklyLeaderboardEntries } from '@/lib/game/weeklyLeaderboardServer'
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const parsedLimit = parseInt(searchParams.get('limit') || '10', 10);
+    const limit = Number.isNaN(parsedLimit)
+      ? 10
+      : Math.min(Math.max(parsedLimit, 1), 50);
 
-    const { sessionCounter, entries } = await getWeeklyLeaderboardEntries(
-      Math.min(Math.max(limit, 1), 50),
-    );
+    const { sessionCounter, entries } = await getWeeklyLeaderboardEntries(limit);
 
     return NextResponse.json({
       success: true,
