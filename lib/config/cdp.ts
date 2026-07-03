@@ -1,7 +1,7 @@
 // CDP Configuration (client-side)
 export const CDP_CONFIG = {
   // TriviaBattle Contract Configuration
-  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6",
+  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x9b33f82357CC0a263A533599633fB0AA5CFD907c",
   NETWORK: "base-mainnet",
   CONTRACT_NAME: "TriviaBattle",
   PROTOCOL_NAME: "public"

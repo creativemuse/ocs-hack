@@ -1,8 +1,7 @@
 import { createPublicClient, http, type PublicClient } from 'viem';
 import { base } from 'viem/chains';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
-
-const BASE_RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
+import { resolveBaseRpcUrl } from '@/lib/blockchain/baseRpc';
 
 type ReadContractClient = Pick<PublicClient, 'readContract'>;
 
@@ -12,7 +11,7 @@ export type OnChainPlayerScore = {
 };
 
 export const createBasePublicClient = () =>
-  createPublicClient({ chain: base, transport: http(BASE_RPC) });
+  createPublicClient({ chain: base, transport: http(resolveBaseRpcUrl()) });
 
 export type BasePublicClient = ReturnType<typeof createBasePublicClient>;
 

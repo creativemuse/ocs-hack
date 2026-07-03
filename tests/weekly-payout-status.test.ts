@@ -44,4 +44,17 @@ describe('getWeeklyPayoutStatus', () => {
     });
     assert.ok(status.weekSubtitle.includes('new week starts when the next player joins'));
   });
+
+  it('includes CRE skip reason in subtitle when provided', () => {
+    const status = getWeeklyPayoutStatus({
+      isLoading: false,
+      isSessionActive: true,
+      sessionPrizePool: 8,
+      countdownExpired: true,
+      hasOnChainScores: false,
+      sessionCounter: 1,
+      creSkipReason: 'no_on_chain_scores',
+    });
+    assert.ok(status.weekSubtitle.includes('no_on_chain_scores'));
+  });
 });

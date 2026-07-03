@@ -3,20 +3,26 @@
  * Unblock a stuck weekly payout: sync Spacetime scores on-chain, then distribute prizes.
  *
  * Requires:
- *   ADMIN_API_SECRET
  *   CONTRACT_OWNER_PRIVATE_KEY (or PRIVATE_KEY)
- *   BASE_RPC_URL (optional)
- *   APP_URL (optional, default production)
+ *   BASE_RPC_URL (optional; avoids Alchemy if origin-blocked)
+ *
+ * Optional:
+ *   ADMIN_API_SECRET + --remote  → call production /api/submit-onchain-scores instead of local sync
+ *   --score=0xWallet:12345       → override score for a player
  */
 import { createPublicClient, createWalletClient, http, formatUnits } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '../lib/blockchain/contracts';
-import { spacetimeClient } from '../lib/apis/spacetime';
+import { resolveBaseRpcUrl } from '../lib/blockchain/baseRpc';
 import { submitScoresOnChain } from '../lib/blockchain/submitScoresOnChain';
+import {
+  getWeeklyScoresForPlayers,
+  hasResolvableWeeklyScores,
+} from '../lib/game/weeklyScoresForPlayers';
 
 const APP_URL = process.env.APP_URL || 'https://beatme.creativeplatform.xyz';
-const RPC = process.env.BASE_RPC_URL || process.env.NEXT_PUBLIC_BASE_RPC_URL || 'https://mainnet.base.org';
+const RPC = resolveBaseRpcUrl();
 
 const getOwnerKey = (): string => {
   const key = process.env.CONTRACT_OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -38,36 +44,54 @@ const parseScoreOverrides = (): Map<string, bigint> => {
   return overrides;
 };
 
+const createReadClient = () => createPublicClient({ chain: base, transport: http(RPC) });
+
 async function syncScoresLocal(): Promise<void> {
   const scoreOverrides = parseScoreOverrides();
-  const publicClient = createPublicClient({ chain: base, transport: http(RPC) });
-  const players = (await publicClient.readContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'getCurrentPlayers',
-  })) as `0x${string}`[];
+  const publicClient = createReadClient();
+  const [sessionCounter, players] = await Promise.all([
+    publicClient.readContract({
+      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      abi: TRIVIA_ABI,
+      functionName: 'sessionCounter',
+    }),
+    publicClient.readContract({
+      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+      abi: TRIVIA_ABI,
+      functionName: 'getCurrentPlayers',
+    }),
+  ]);
 
-  if (players.length === 0) {
+  const playerList = players as `0x${string}`[];
+
+  if (playerList.length === 0) {
     console.log('No on-chain players to sync');
     return;
   }
 
-  await spacetimeClient.ensurePlayerDataReady();
-
+  const { scores: resolved } = await getWeeklyScoresForPlayers(playerList, {
+    sessionCounter: Number(sessionCounter),
+    skipSpacetime:
+      scoreOverrides.size > 0 &&
+      playerList.every((address) => scoreOverrides.has(address.toLowerCase())),
+  });
   const addresses: `0x${string}`[] = [];
   const scores: bigint[] = [];
 
-  for (const addr of players) {
-    const override = scoreOverrides.get(addr.toLowerCase());
-    const profile = spacetimeClient.getPlayerProfile(addr);
-    const score =
-      override ??
-      (profile
-        ? BigInt(profile.weeklyBestScore > 0 ? profile.weeklyBestScore : profile.bestScore)
-        : BigInt(0));
-    addresses.push(addr);
+  for (const entry of resolved) {
+    const override = scoreOverrides.get(entry.address.toLowerCase());
+    const score = override ?? entry.score;
+    addresses.push(entry.address);
     scores.push(score);
-    console.log(`  ${addr} score=${score.toString()}${override !== undefined ? ' (override)' : ''}`);
+    console.log(
+      `  ${entry.address} score=${score.toString()}${override !== undefined ? ' (override)' : ''}`,
+    );
+  }
+
+  if (!hasResolvableWeeklyScores(resolved) && scoreOverrides.size === 0) {
+    throw new Error(
+      `No Spacetime scores for session ${sessionCounter}. Use --score=0xWallet:12345 or save scores in SpacetimeDB first.`,
+    );
   }
 
   const txHash = await submitScoresOnChain(addresses, scores);
@@ -82,10 +106,10 @@ async function syncScoresLocal(): Promise<void> {
   console.log('submitScores tx:', txHash);
 }
 
-async function syncScores(): Promise<void> {
+async function syncScoresRemote(): Promise<void> {
   const adminSecret = process.env.ADMIN_API_SECRET;
   if (!adminSecret) {
-    throw new Error('ADMIN_API_SECRET is required for score sync');
+    throw new Error('ADMIN_API_SECRET is required for --remote score sync');
   }
 
   const res = await fetch(`${APP_URL}/api/submit-onchain-scores`, {
@@ -104,9 +128,22 @@ async function syncScores(): Promise<void> {
   }
 }
 
+async function syncScores(useRemote: boolean): Promise<void> {
+  if (useRemote) {
+    try {
+      await syncScoresRemote();
+      return;
+    } catch (error) {
+      console.warn('Remote score sync failed; falling back to local owner tx...');
+      console.warn(error instanceof Error ? error.message : error);
+    }
+  }
+  await syncScoresLocal();
+}
+
 async function distributePrizes(): Promise<`0x${string}`> {
   const account = privateKeyToAccount(getOwnerKey() as `0x${string}`);
-  const publicClient = createPublicClient({ chain: base, transport: http(RPC) });
+  const publicClient = createReadClient();
   const walletClient = createWalletClient({
     account,
     chain: base,
@@ -128,7 +165,7 @@ async function distributePrizes(): Promise<`0x${string}`> {
 }
 
 async function printState(label: string): Promise<void> {
-  const publicClient = createPublicClient({ chain: base, transport: http(RPC) });
+  const publicClient = createReadClient();
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
 
   const [pool, active, counter, players] = await Promise.all([
@@ -156,22 +193,22 @@ async function printState(label: string): Promise<void> {
 async function main() {
   const skipSync = process.argv.includes('--skip-sync');
   const skipDistribute = process.argv.includes('--skip-distribute');
-  const useLocalSync = process.argv.includes('--local') || !process.env.ADMIN_API_SECRET;
+  const useRemote = process.argv.includes('--remote');
 
   console.log('Unblock weekly payout');
   console.log('Contract:', TRIVIA_CONTRACT_ADDRESS);
+  console.log('RPC:', RPC);
   console.log('App:', APP_URL);
-  console.log('Score sync mode:', useLocalSync ? 'local (SpacetimeDB + owner tx)' : 'remote API');
+  console.log(
+    'Score sync mode:',
+    useRemote ? 'remote API (with local fallback)' : 'local (SpacetimeDB + owner tx)',
+  );
 
   await printState('Before');
 
   if (!skipSync) {
     console.log('\nStep 1: Syncing scores...');
-    if (useLocalSync) {
-      await syncScoresLocal();
-    } else {
-      await syncScores();
-    }
+    await syncScores(useRemote);
   }
 
   if (!skipDistribute) {

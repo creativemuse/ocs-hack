@@ -143,6 +143,9 @@ class SpacetimeDBClient {
    */
   async ensurePlayerDataReady(): Promise<void> {
     await this.initialize({ syncPlayers: true });
+    if (this.playersSubscribed) {
+      return;
+    }
     await this.waitForSync();
   }
 
@@ -217,6 +220,7 @@ class SpacetimeDBClient {
       buildPlayerLookupSubscriptionQueries,
       () => {
         this.playersSubscribed = true;
+        this.markSubscriptionApplied();
       },
     );
   }

@@ -3,8 +3,7 @@ import { privateKeyToAccount } from 'viem/accounts';
 import { base } from 'viem/chains';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 import { enqueueOwnerTx } from '@/lib/blockchain/ownerTxQueue';
-
-const BASE_RPC = process.env.BASE_RPC_URL || 'https://mainnet.base.org';
+import { resolveBaseRpcUrl } from '@/lib/blockchain/baseRpc';
 
 const getOwnerKey = (): string | undefined =>
   process.env.CONTRACT_OWNER_PRIVATE_KEY || process.env.PRIVATE_KEY;
@@ -18,7 +17,8 @@ export const submitScoresOnChain = async (
     return null;
   }
 
-  const publicClient = createPublicClient({ chain: base, transport: http(BASE_RPC) });
+  const rpcUrl = resolveBaseRpcUrl();
+  const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
 
   const isActive = await publicClient.readContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
@@ -34,7 +34,7 @@ export const submitScoresOnChain = async (
   const walletClient = createWalletClient({
     account,
     chain: base,
-    transport: http(BASE_RPC),
+    transport: http(rpcUrl),
   });
 
   const hash = await enqueueOwnerTx(() =>

@@ -138,9 +138,14 @@ describe('weekly session transitions', () => {
     assert.equal(merged.length, 0);
   });
 
-  it('resolves authoritative session id using live counter', () => {
-    assert.equal(resolveAuthoritativeSessionId('1', 2), '2');
+  it('resolves authoritative session id from the entry token, not the live counter', () => {
+    // A player paid into session 1; we must not attribute their score to session 2
+    // just because the on-chain counter advanced while they were finishing.
+    assert.equal(resolveAuthoritativeSessionId('1', 2), '1');
     assert.equal(resolveAuthoritativeSessionId('3', 2), '3');
+    // Falls back to live counter only when the token has no session id.
+    assert.equal(resolveAuthoritativeSessionId('', 2), '2');
+    assert.equal(resolveAuthoritativeSessionId('0', 5), '5');
     assert.equal(parseSessionIdNumeric(''), 0);
   });
 

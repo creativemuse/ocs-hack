@@ -5,7 +5,6 @@ import { useSpacetime } from '@/components/providers/SpacetimeProvider';
 import type { Player } from '@/lib/spacetime/database';
 import {
   type WeeklyLeaderboardEntry,
-  fetchWeeklyScoresFromChain,
   mergeWeeklyLeaderboardEntries,
   enrichWeeklyEntriesWithMetadata,
 } from '@/lib/game/weeklyLeaderboard';
@@ -25,6 +24,9 @@ const toSpacetimeRows = (players: Player[]) =>
 /**
  * Weekly leaderboard tied to the on-chain session counter.
  * Merges on-chain scores with SpacetimeDB weekly session scores.
+ *
+ * Reads authoritative data from /api/weekly-leaderboard first (server-side merge),
+ * then keeps the local SpacetimeDB cache in sync for real-time updates.
  */
 export const useWeeklyLeaderboard = (limit: number = 10) => {
   const { connection, isConnected } = useSpacetime();
@@ -36,19 +38,28 @@ export const useWeeklyLeaderboard = (limit: number = 10) => {
   const [lastUpdated, setLastUpdated] = useState(0);
   const hasLoadedRef = useRef(false);
 
-  const buildMergedEntries = useCallback(
+  const buildEntriesFromCache = useCallback(
     (
       counter: number,
-      chainScores: Map<string, number>,
+      serverEntries: WeeklyLeaderboardEntry[],
     ): WeeklyLeaderboardEntry[] => {
-      const spacetimePlayers =
-        connection && isConnected
-          ? toSpacetimeRows(Array.from(connection.db.players.iter()) as Player[])
-          : [];
+      if (!connection || !isConnected) {
+        return serverEntries;
+      }
+
+      const spacetimePlayers = toSpacetimeRows(
+        Array.from(connection.db.players.iter()) as Player[],
+      );
+
+      // Seed the merge with server entries as the "chain" source so newer local rows
+      // can enrich/update them, while preserving any server-only rows the cache lacks.
+      const serverChainScores = new Map(
+        serverEntries.map((e) => [e.walletAddress.toLowerCase(), e.bestScore]),
+      );
 
       const merged = mergeWeeklyLeaderboardEntries(
         counter,
-        chainScores,
+        serverChainScores,
         spacetimePlayers,
         limit,
       );
@@ -58,16 +69,34 @@ export const useWeeklyLeaderboard = (limit: number = 10) => {
     [connection, isConnected, limit],
   );
 
+  const fetchFromServer = useCallback(async (): Promise<{
+    counter: number;
+    serverEntries: WeeklyLeaderboardEntry[];
+  }> => {
+    const res = await fetch(`/api/weekly-leaderboard?limit=${limit}`, {
+      cache: 'no-store',
+    });
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(body.error || `Server leaderboard failed (${res.status})`);
+    }
+    const data = await res.json();
+    return {
+      counter: Number(data.sessionCounter) || 0,
+      serverEntries: Array.isArray(data.entries) ? data.entries : [],
+    };
+  }, [limit]);
+
   const refresh = useCallback(async () => {
     try {
       setError(null);
       if (hasLoadedRef.current) {
         setIsRefreshing(true);
       }
-      const { sessionCounter: counter, chainScores } =
-        await fetchWeeklyScoresFromChain();
+
+      const { counter, serverEntries } = await fetchFromServer();
       setSessionCounter(counter);
-      setEntries(buildMergedEntries(counter, chainScores));
+      setEntries(buildEntriesFromCache(counter, serverEntries));
       setLastUpdated(Date.now());
       hasLoadedRef.current = true;
     } catch (err) {
@@ -77,7 +106,7 @@ export const useWeeklyLeaderboard = (limit: number = 10) => {
       setIsLoading(false);
       setIsRefreshing(false);
     }
-  }, [buildMergedEntries]);
+  }, [fetchFromServer, buildEntriesFromCache]);
 
   useEffect(() => {
     void refresh();

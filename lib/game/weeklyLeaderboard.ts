@@ -1,5 +1,6 @@
 import { decodeFunctionResult, encodeFunctionData } from 'viem';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import { resolveBaseRpcUrl } from '@/lib/blockchain/baseRpc';
 
 export interface WeeklyLeaderboardEntry {
   walletAddress: string;
@@ -26,9 +27,7 @@ type JsonRpcResponse = {
 };
 
 const BASE_RPC_URL =
-  process.env.NEXT_PUBLIC_BASE_RPC_URL ||
-  process.env.BASE_RPC_URL ||
-  'https://mainnet.base.org';
+  resolveBaseRpcUrl();
 
 const normalizeRpcBatchResponse = (json: unknown): JsonRpcResponse[] => {
   if (Array.isArray(json)) return json as JsonRpcResponse[];
@@ -44,6 +43,41 @@ const safeBigIntFromHex = (hex: string | undefined): bigint => {
   }
 };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const rpcEthCall = async (data: `0x${string}`, rpcUrl: string = BASE_RPC_URL): Promise<string> => {
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (attempt > 0) {
+      await sleep(800 * attempt);
+    }
+
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'eth_call',
+        params: [{ to: TRIVIA_CONTRACT_ADDRESS, data }, 'latest'],
+      }),
+      cache: 'no-store',
+    });
+
+    const json = (await res.json()) as JsonRpcResponse;
+    if (json.error) {
+      const message = json.error.message || 'RPC eth_call failed';
+      if (message.includes('rate limit') && attempt < 3) {
+        continue;
+      }
+      throw new Error(message);
+    }
+
+    return json.result ?? '0x';
+  }
+
+  throw new Error('RPC eth_call failed after retries');
+};
+
 /** Batch multiple eth_call requests into a single HTTP round-trip. */
 export const rpcBatchEthCall = async (
   callData: `0x${string}`[],
@@ -51,30 +85,47 @@ export const rpcBatchEthCall = async (
 ): Promise<string[]> => {
   if (callData.length === 0) return [];
 
-  const payload = callData.map((data, index) => ({
-    jsonrpc: '2.0',
-    id: index + 1,
-    method: 'eth_call',
-    params: [{ to: TRIVIA_CONTRACT_ADDRESS, data }, 'latest'],
-  }));
+  if (callData.length === 1) {
+    return [await rpcEthCall(callData[0], rpcUrl)];
+  }
 
-  const res = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload.length === 1 ? payload[0] : payload),
-    cache: 'no-store',
-  });
+  try {
+    const payload = callData.map((data, index) => ({
+      jsonrpc: '2.0',
+      id: index + 1,
+      method: 'eth_call',
+      params: [{ to: TRIVIA_CONTRACT_ADDRESS, data }, 'latest'],
+    }));
 
-  const json = await res.json();
-  const items = normalizeRpcBatchResponse(json);
-  const sorted = [...items].sort((a, b) => a.id - b.id);
+    const res = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      cache: 'no-store',
+    });
 
-  return sorted.map((item, index) => {
-    if (item.error) {
-      throw new Error(item.error.message || `RPC batch call ${index + 1} failed`);
+    const json = await res.json();
+    const items = normalizeRpcBatchResponse(json);
+    const sorted = [...items].sort((a, b) => a.id - b.id);
+
+    return sorted.map((item, index) => {
+      if (item.error) {
+        throw new Error(item.error.message || `RPC batch call ${index + 1} failed`);
+      }
+      return item.result ?? '0x';
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (!message.includes('rate limit')) {
+      throw error;
     }
-    return item.result ?? '0x';
-  });
+  }
+
+  const results: string[] = [];
+  for (const data of callData) {
+    results.push(await rpcEthCall(data, rpcUrl));
+  }
+  return results;
 };
 
 export const fetchWeeklyScoresFromChain = async (): Promise<{
@@ -266,12 +317,18 @@ export const parseSessionIdNumeric = (id: string | undefined): number => {
 
 /**
  * Resolve the session id to use for weekly score persistence.
- * Prefers the live on-chain counter when it exceeds token/receipt values (new-week edge case).
+ * Trusts the entry token / score receipt unless it is missing; only falls back to
+ * the live counter when no token session id is available. This prevents a player's
+ * score from being attributed to a later session if the on-chain counter advanced
+ * while they were still finishing their paid run.
  */
 export const resolveAuthoritativeSessionId = (
   tokenSessionId: string,
   liveSessionCounter: number,
 ): string => {
   const tokenNumeric = parseSessionIdNumeric(tokenSessionId);
-  return String(Math.max(tokenNumeric, liveSessionCounter));
+  if (tokenNumeric > 0) {
+    return String(tokenNumeric);
+  }
+  return String(liveSessionCounter > 0 ? liveSessionCounter : 0);
 };

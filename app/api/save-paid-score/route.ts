@@ -4,7 +4,6 @@ import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
 import { submitOnChainScoreWithRetry, readOnChainSessionCounter } from '@/lib/blockchain/submitOnChainScore';
-import { retryOnChainScoreBeforeResponse } from '@/lib/blockchain/pendingOnChainScoreRetry';
 import { resolveAuthoritativeSessionId } from '@/lib/game/weeklyLeaderboard';
 
 const MAX_GAME_SCORE = 3000;
@@ -118,6 +117,10 @@ export async function POST(req: NextRequest) {
 
     let spacetimeUpdated = false;
     let spacetimeError: string | undefined;
+    let onChainResult:
+      | { ok: true; transactionHash: `0x${string}`; sessionCounter: bigint }
+      | { ok: false; error: string }
+      | undefined;
 
     const isSpacetimeConfigured = Boolean(
       process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST,
@@ -160,55 +163,45 @@ export async function POST(req: NextRequest) {
     // do not advertise leaderboardReady=true even if on-chain submission succeeds.
     const leaderboardReady = spacetimeUpdated;
 
-    const onChainResult = await submitOnChainScoreWithRetry(
-      normalizedWallet,
-      authoritativeScore,
-      onChainSessionId,
-    );
+    // Attempt on-chain score submission in the background. A failure here should not
+    // block the player from seeing their score on the SpacetimeDB-backed leaderboard.
+    try {
+      onChainResult = await submitOnChainScoreWithRetry(
+        normalizedWallet,
+        authoritativeScore,
+        onChainSessionId,
+      );
+    } catch (onChainErr) {
+      console.warn('On-chain score submission threw (non-fatal):', onChainErr);
+      onChainResult = {
+        ok: false,
+        error: onChainErr instanceof Error ? onChainErr.message : String(onChainErr),
+      };
+    }
 
-    if (!onChainResult.ok) {
-      console.warn('On-chain score submission failed:', {
+    if (!onChainResult || !onChainResult.ok) {
+      const onChainError = onChainResult?.error;
+      console.warn('On-chain score submission failed (non-fatal):', {
         wallet: normalizedWallet,
         score: authoritativeScore,
         sessionId: onChainSessionId,
-        error: onChainResult.error,
+        error: onChainError,
       });
 
-      const extendedRetry = await retryOnChainScoreBeforeResponse({
-        walletAddress: normalizedWallet,
-        score: authoritativeScore,
-        sessionId: onChainSessionId || undefined,
+      // Surface a warning to the client, but still report success because the score
+      // is already visible on the leaderboard via SpacetimeDB.
+      return NextResponse.json({
+        success: true,
+        authoritativeScore,
+        onChainSessionId,
+        spacetimeUpdated,
+        onChainSubmitted: false,
+        leaderboardReady,
+        onChainError,
+        spacetimeError,
+        warning:
+          'Score saved to the leaderboard. On-chain sync will be retried.',
       });
-
-      if (extendedRetry.ok) {
-        return NextResponse.json({
-          success: true,
-          authoritativeScore,
-          onChainSessionId,
-          spacetimeUpdated,
-          onChainSubmitted: true,
-          leaderboardReady,
-          transactionHash: extendedRetry.transactionHash,
-          retried: true,
-          spacetimeError,
-        });
-      }
-
-      return NextResponse.json(
-        {
-          success: true,
-          authoritativeScore,
-          onChainSessionId,
-          spacetimeUpdated,
-          onChainSubmitted: false,
-          leaderboardReady: false,
-          onChainError: onChainResult.error,
-          spacetimeError,
-          warning:
-            'Score saved but the weekly leaderboard update failed. Your score may not appear until retried.',
-        },
-        { status: 202 },
-      );
     }
 
     return NextResponse.json({
