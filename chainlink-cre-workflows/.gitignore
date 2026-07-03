@@ -6,4 +6,5 @@ dist/
 build/
 # CRE CLI compile output (local only; binary.wasm.br.b64 is committed for deploy)
 *.wasm
+.cre_build_tmp.js
 tmp.js
