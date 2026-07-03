@@ -2,7 +2,7 @@
 
 After updating `config.production.json`, run everything from the **`chainlink-cre-workflows`** directory (parent of this folder).
 
-**Repo default:** `config.production.json` uses Base mainnet `TriviaBattle.sol` at `0x9b33f82357CC0a263A533599633fB0AA5CFD907c` (matches `lib/blockchain/contracts.ts`). Replace when you redeploy; see `docs/DEPLOY_TRIVIA_BATTLE_BASE.md`.
+**Repo default:** `config.production.json` uses Base mainnet `TriviaBattle.sol` at `0xaBa9e6116b6CF85527A31b7BA1d1E9D66A551556`. Replace when you redeploy; see `docs/DEPLOY_TRIVIA_BATTLE_BASE.md`.
 
 ## 1. RPC for `project.yaml`
 
@@ -14,11 +14,13 @@ The CRE CLI uses `chainlink-cre-workflows/project.yaml` for **Ethereum mainnet**
 cd chainlink-cre-workflows
 bun install --cwd weekly-prize-distribution
 
-# Use -e if CRE_ETH_PRIVATE_KEY lives in weekly-prize-distribution/.env (see ../ENV_SETUP.md)
-cre workflow deploy weekly-prize-distribution -e weekly-prize-distribution/.env --target production-settings --yes
+# Root .env (default) — or -e weekly-prize-distribution/.env (see ../ENV_SETUP.md)
+cre workflow deploy weekly-prize-distribution --target production-settings --yes
+cre workflow deploy session-monitor --target production-settings --yes
+cre workflow deploy prize-distribution-monitor --target production-settings --yes
 ```
 
-Successful deploy registers/updates workflow **`weekly-prize-dist-prod`** and uploads `config.production.json` (including your contract address).
+Successful deploy registers/updates each workflow and uploads its `config.production.json` (including your contract address).
 
 ## 3. Activate workflow
 

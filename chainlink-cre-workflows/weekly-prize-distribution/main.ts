@@ -195,6 +195,19 @@ const onWeeklyDistribution = (
       }
     }
 
+    if (receipt.status === "pending") {
+      runtime.log(`Distribution tx submitted but not finalized yet: ${txHash}`)
+      return {
+        action: "skipped",
+        distributionExecuted: false,
+        reason: `Distribution tx ${txHash} submitted; awaiting on-chain finalization. Weekly cron will re-check session state.`,
+        txHash,
+        receiptStatus: receipt.status,
+        scoreSyncAttempted,
+        scoreSyncSucceeded,
+      }
+    }
+
     return {
       action: "failed",
       distributionExecuted: false,

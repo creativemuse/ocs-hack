@@ -2,9 +2,11 @@
 
 ## Where the CRE CLI reads `.env`
 
-By default, `cre` loads **`chainlink-cre-workflows/.env`** (project root next to `project.yaml`). If you only have **`weekly-prize-distribution/.env`**, the CLI will **not** see `CRE_ETH_PRIVATE_KEY` and you get:
+By default, `cre` loads **`chainlink-cre-workflows/.env`** (project root next to `project.yaml`). That file works for **all** workflows (`weekly-prize-distribution`, `session-monitor`, `prize-distribution-monitor`) — omit `-e` when deploying from the project root.
 
-`failed to parse private key ... invalid length, need 256 bits`
+If you only have **`weekly-prize-distribution/.env`**, the CLI will **not** see `CRE_ETH_PRIVATE_KEY` unless you pass `-e weekly-prize-distribution/.env` on every command. There is **no** per-workflow `.env` for the monitor workflows; do not use `-e session-monitor/.env`.
+
+Without a valid key you may see: `failed to parse private key ... invalid length, need 256 bits` or `CRE_ETH_PRIVATE_KEY is not set`.
 
 **Fix (pick one):**
 
