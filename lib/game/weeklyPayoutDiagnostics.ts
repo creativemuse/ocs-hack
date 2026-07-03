@@ -68,7 +68,11 @@ type DiagnosticsViewFunction =
   | 'getCurrentPlayers'
   | 'chainlinkOracle';
 
-const decodeView = <T>(functionName: DiagnosticsViewFunction, data: string): T => {
+const decodeView = <T>(functionName: DiagnosticsViewFunction, data: string | undefined): T => {
+  if (!data || data === '0x') {
+    throw new Error(`No data returned for function ${functionName}`);
+  }
+
   return decodeFunctionResult({
     abi: TRIVIA_ABI,
     functionName,
