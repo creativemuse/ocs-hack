@@ -12,12 +12,13 @@ export const USDC_CONTRACT_ADDRESS =
 
 // Trivia Battle smart contract address
 // Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
-// Base Mainnet: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (deployed 2026-04-01)
+// Base Mainnet: 0x9b33f82357CC0a263A533599633fB0AA5CFD907c (production weekly sessions)
+// Legacy test deploy: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (10-min sessions)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
 // Paid entry verification filters logs by this address — it must match the deployment that emits PlayerJoined.
 export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6'; // Base Mainnet default
+  '0x9b33f82357CC0a263A533599633fB0AA5CFD907c'; // Base Mainnet default
 
 // Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
 // NOTE: This is a session-based contract, not game-based. It does NOT have:
@@ -559,6 +560,24 @@ const TRIVIA_ABI_INLINE = [
     "type": "function",
     "name": "startNewSession",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "syncAndDistribute",
+    "inputs": [
+      {
+        "name": "playerAddresses",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "scores",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },

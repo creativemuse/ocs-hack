@@ -19,6 +19,7 @@ type WeeklyPayoutStatusInput = {
   countdownExpired: boolean;
   hasOnChainScores: boolean;
   sessionCounter: number;
+  creSkipReason?: string | null;
 };
 
 export const getWeeklyPayoutStatus = ({
@@ -28,6 +29,7 @@ export const getWeeklyPayoutStatus = ({
   countdownExpired,
   hasOnChainScores,
   sessionCounter,
+  creSkipReason,
 }: WeeklyPayoutStatusInput): WeeklyPayoutStatus => {
   if (isLoading) {
     return {
@@ -63,7 +65,9 @@ export const getWeeklyPayoutStatus = ({
       return {
         phase: 'awaiting_score_sync',
         timerLabel: 'AWAITING SCORE SYNC',
-        weekSubtitle,
+        weekSubtitle: creSkipReason
+          ? `${weekSubtitle} CRE: ${creSkipReason}`.trim()
+          : weekSubtitle,
       };
     }
 

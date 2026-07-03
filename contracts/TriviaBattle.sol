@@ -235,6 +235,46 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         }
     }
 
+    /**
+     * @dev Chainlink CRE helper: write scores then distribute in one onReport call.
+     *      Callable by owner or Keystone forwarder (via onReport self-call).
+     */
+    function syncAndDistribute(address[] calldata playerAddresses, uint256[] calldata scores)
+        external
+        onlyOwnerOrChainlink
+        nonReentrant
+    {
+        if (playerAddresses.length != scores.length) {
+            revert("Player addresses and scores length mismatch");
+        }
+        if (playerAddresses.length == 0) {
+            revert("No players provided");
+        }
+
+        if (isSessionActive) {
+            for (uint256 i = 0; i < playerAddresses.length; i++) {
+                if (!hasParticipated[playerAddresses[i]]) {
+                    revert("Player not registered in this session");
+                }
+                playerScores[playerAddresses[i]] = scores[i];
+            }
+        }
+
+        if (block.timestamp < lastSessionTime + sessionInterval) {
+            revert TriviaBattle__SessionIntervalNotElapsed();
+        }
+
+        if (isSessionActive) {
+            isSessionActive = false;
+        }
+
+        if (players.length < MIN_PLAYERS) {
+            revert TriviaBattle__NotEnoughPlayers();
+        }
+
+        _distributePrizes();
+    }
+
     function endSession() external onlyOwner nonReentrant {
         if (!isSessionActive) {
             revert TriviaBattle__SessionNotActive();

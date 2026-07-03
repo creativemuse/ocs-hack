@@ -23,6 +23,8 @@ type Config = {
   schedule: string
   /** Optional app URL for pre-distribution score sync (POST /api/submit-onchain-scores). */
   scoreSyncApiUrl?: string
+  /** Optional app URL for CRE-fetched session rankings (GET /api/chainlink/session-rankings). */
+  sessionRankingsApiUrl?: string
   evms: EvmConfig[]
 }
 
@@ -121,15 +123,27 @@ const onWeeklyDistribution = (
 
   if (!hasScores) {
     runtime.log(
-      `No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting pre-distribution score sync...`
+      `No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting CRE rankings sync...`
+    )
+    scoreSyncAttempted = true
+    const rankingsSynced = syncScoresFromRankingsApi(runtime, network.chainSelector.selector, evmConfig)
+    if (rankingsSynced) {
+      runtime.log("Rankings-based on-chain score sync submitted; re-checking scores")
+      hasScores = verifyScoresExistWithRetry(runtime, network.chainSelector.selector, evmConfig)
+    }
+  }
+
+  if (!hasScores) {
+    runtime.log(
+      `Rankings sync unavailable or incomplete. Attempting HTTP score sync fallback...`
     )
     scoreSyncAttempted = true
     scoreSyncSucceeded = syncScoresFromApp(runtime)
     if (scoreSyncSucceeded) {
-      runtime.log("Pre-distribution score sync succeeded; re-checking on-chain scores")
-      hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
+      runtime.log("HTTP score sync succeeded; re-checking on-chain scores")
+      hasScores = verifyScoresExistWithRetry(runtime, network.chainSelector.selector, evmConfig)
     } else {
-      runtime.log("Pre-distribution score sync skipped or failed")
+      runtime.log("HTTP score sync skipped or failed")
     }
   }
 
@@ -192,6 +206,144 @@ const onWeeklyDistribution = (
       scoreSyncSucceeded,
     }
   }
+}
+
+function syncScoresFromRankingsApi(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig
+): boolean {
+  const apiUrl = runtime.config.sessionRankingsApiUrl?.trim()
+  if (!apiUrl) {
+    runtime.log("sessionRankingsApiUrl not configured; skipping rankings sync")
+    return false
+  }
+
+  const fetchRankings = (nodeRuntime: NodeRuntime<Config>): string => {
+    const httpClient = new cre.capabilities.HTTPClient()
+    const resp = httpClient
+      .sendRequest(nodeRuntime, {
+        url: apiUrl,
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+        },
+      })
+      .result()
+
+    const status = resp.statusCode ?? 0
+    nodeRuntime.log(`Session rankings HTTP status: ${status}`)
+    if (status < 200 || status >= 300) {
+      return ""
+    }
+
+    const body = new TextDecoder().decode(resp.body ?? new Uint8Array())
+    return body
+  }
+
+  const body = runtime.runInNodeMode(fetchRankings, consensusMedianAggregation())().result()
+  if (!body) {
+    return false
+  }
+
+  let parsed: {
+    players?: { address: string; score: number }[]
+    rankings?: string[]
+  }
+  try {
+    parsed = JSON.parse(body) as {
+      players?: { address: string; score: number }[]
+      rankings?: string[]
+    }
+  } catch {
+    runtime.log("Failed to parse session rankings JSON")
+    return false
+  }
+
+  const playerEntries = parsed.players ?? []
+  if (playerEntries.length === 0) {
+    runtime.log("Session rankings API returned no scored players")
+    return false
+  }
+
+  const addresses = playerEntries.map((entry) => entry.address as `0x${string}`)
+  const scores = playerEntries.map((entry) => BigInt(entry.score))
+
+  try {
+    callSubmitScores(runtime, chainSelector, evmConfig, addresses, scores)
+    return true
+  } catch (error) {
+    runtime.log(
+      `Rankings on-chain submit failed: ${error instanceof Error ? error.message : String(error)}`
+    )
+    return false
+  }
+}
+
+const SCORE_VERIFY_ATTEMPTS = 3
+
+function verifyScoresExistWithRetry(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig
+): boolean {
+  for (let attempt = 1; attempt <= SCORE_VERIFY_ATTEMPTS; attempt++) {
+    if (verifyScoresExist(runtime, chainSelector, evmConfig)) {
+      return true
+    }
+    runtime.log(`Score verify attempt ${attempt}/${SCORE_VERIFY_ATTEMPTS} — still zero`)
+  }
+  return false
+}
+
+function callSubmitScores(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig,
+  addresses: `0x${string}`[],
+  scores: bigint[]
+): string {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+
+  const callData = encodeFunctionData({
+    abi: [
+      {
+        inputs: [
+          { name: "playerAddresses", type: "address[]" },
+          { name: "scores", type: "uint256[]" },
+        ],
+        name: "submitScores",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function",
+      },
+    ],
+    functionName: "submitScores",
+    args: [addresses, scores],
+  })
+
+  const reportResponse = runtime
+    .report({
+      encodedPayload: hexToBase64(callData),
+      encoderName: "evm",
+      signingAlgo: "ecdsa",
+      hashingAlgo: "keccak256",
+    })
+    .result()
+
+  const writeResult = evmClient
+    .writeReport(runtime, {
+      receiver: evmConfig.contractAddress,
+      report: reportResponse,
+      gasConfig: {
+        gasLimit: evmConfig.gasLimit,
+      },
+    })
+    .result()
+
+  const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32))
+  runtime.log(`submitScores transaction submitted: ${txHash}`)
+  return txHash
 }
 
 function syncScoresFromApp(runtime: Runtime<Config>): boolean {

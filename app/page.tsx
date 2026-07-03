@@ -114,6 +114,27 @@ function HomePage() {
     onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
   );
   const { refresh: refreshWeeklyLeaderboard, entries: weeklyLeaderboardEntries, sessionCounter: weeklySessionCounter } = useWeeklyLeaderboard(10);
+  const [creSkipReason, setCreSkipReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPayoutStatus = async () => {
+      try {
+        const res = await fetch('/api/weekly-payout-status', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.creSkipReason) {
+          setCreSkipReason(data.creSkipReason);
+        }
+      } catch {
+        // Non-blocking UI enrichment
+      }
+    };
+    void loadPayoutStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionPrizePool, onChainSessionActive, weeklySessionCounter]);
 
   const hasOnChainScores = weeklyLeaderboardEntries.some((entry) => entry.bestScore > 0);
   const weeklyPayoutStatus = getWeeklyPayoutStatus({
@@ -123,6 +144,7 @@ function HomePage() {
     countdownExpired: settlementCountdown?.isExpired ?? false,
     hasOnChainScores,
     sessionCounter: weeklySessionCounter,
+    creSkipReason,
   });
 
   // Automatically switch to paid solo if trial is exhausted

@@ -1,10 +1,11 @@
 {
   "schedule": "0 0 * * 0",
   "scoreSyncApiUrl": "https://beatme.creativeplatform.xyz/api/submit-onchain-scores",
+  "sessionRankingsApiUrl": "https://beatme.creativeplatform.xyz/api/chainlink/session-rankings",
   "evms": [
     {
       "chainName": "ethereum-mainnet-base-1",
-      "contractAddress": "0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6",
+      "contractAddress": "0x9b33f82357CC0a263A533599633fB0AA5CFD907c",
       "gasLimit": "500000"
     }
   ]

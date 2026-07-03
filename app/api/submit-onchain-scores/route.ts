@@ -1,7 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { type Hash } from 'viem';
 import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
-import { spacetimeClient } from '@/lib/apis/spacetime';
 import { submitScoresOnChain } from '@/lib/blockchain/submitScoresOnChain';
 import {
   createBasePublicClient,
@@ -10,7 +8,12 @@ import {
   waitForNonZeroOnChainScores,
 } from '@/lib/blockchain/onChainScoreSync';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
+import {
+  getWeeklyScoresForPlayers,
+  hasResolvableWeeklyScores,
+} from '@/lib/game/weeklyScoresForPlayers';
 import { safeErrorMessage } from '@/lib/utils/safeErrorMessage';
+import { type Hash } from 'viem';
 
 /**
  * POST /api/submit-onchain-scores
@@ -18,10 +21,6 @@ import { safeErrorMessage } from '@/lib/utils/safeErrorMessage';
  * Admin-protected endpoint that syncs player scores from SpacetimeDB to on-chain.
  * Must be called before Chainlink CRE distributes prizes so that _findTopPlayers()
  * sees real scores instead of all-zero defaults.
- *
- * Requires:
- *   - Authorization: Bearer <ADMIN_API_SECRET>
- *   - CONTRACT_OWNER_PRIVATE_KEY env var (or PRIVATE_KEY fallback)
  */
 
 export async function POST(req: NextRequest) {
@@ -63,28 +62,29 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    await spacetimeClient.ensurePlayerDataReady();
+    const { sessionCounter, scores: resolvedScores } = await getWeeklyScoresForPlayers(players);
+    const addresses = resolvedScores.map((entry) => entry.address);
+    const scores = resolvedScores.map((entry) => entry.score);
+    const zeroScoreAddresses = resolvedScores
+      .filter((entry) => entry.score === BigInt(0))
+      .map((entry) => entry.address);
 
-    const addresses: `0x${string}`[] = [];
-    const scores: bigint[] = [];
-    const missingProfiles: string[] = [];
-
-    for (const addr of players) {
-      const profile = spacetimeClient.getPlayerProfile(addr);
-      if (!profile) {
-        missingProfiles.push(addr);
-      }
-      const score = profile
-        ? BigInt(profile.weeklyBestScore > 0 ? profile.weeklyBestScore : profile.bestScore)
-        : BigInt(0);
-      addresses.push(addr);
-      scores.push(score);
+    if (!hasResolvableWeeklyScores(resolvedScores)) {
+      return NextResponse.json(
+        {
+          error: 'No resolvable weekly scores for current session players',
+          sessionCounter,
+          players: players.length,
+          zeroScoreAddresses,
+        },
+        { status: 409 },
+      );
     }
 
-    if (missingProfiles.length > 0) {
+    if (zeroScoreAddresses.length > 0) {
       console.warn(
-        `submit-onchain-scores: ${missingProfiles.length} player(s) missing from Spacetime cache; submitting 0 for:`,
-        missingProfiles
+        `submit-onchain-scores: ${zeroScoreAddresses.length} player(s) have no Spacetime score for session ${sessionCounter}:`,
+        zeroScoreAddresses,
       );
     }
 
@@ -114,14 +114,26 @@ export async function POST(req: NextRequest) {
     }
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });
-    await waitForNonZeroOnChainScores(publicClient, players, { attempts: 4, delayMs: 1000 });
+    const verified = await waitForNonZeroOnChainScores(publicClient, players, { attempts: 6, delayMs: 2000 });
+
+    if (!verified) {
+      return NextResponse.json(
+        {
+          error: 'Transaction mined but on-chain scores still zero',
+          txHash,
+          sessionCounter,
+        },
+        { status: 500 },
+      );
+    }
 
     return NextResponse.json({
       success: receipt.status === 'success',
       txHash,
       blockNumber: Number(receipt.blockNumber),
       submitted: addresses.length,
-      missingProfiles: missingProfiles.length,
+      sessionCounter,
+      zeroScoreAddresses: zeroScoreAddresses.length,
       scores: addresses.map((a, i) => ({ address: a, score: Number(scores[i]) })),
     });
   } catch (error) {

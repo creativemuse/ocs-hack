@@ -3,7 +3,7 @@
 # Requires: cast, PRIVATE_KEY env (contract owner), optional BASE_RPC_URL.
 set -euo pipefail
 
-CONTRACT="${TRIVIA_CONTRACT:-0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6}"
+CONTRACT="${TRIVIA_CONTRACT:-0x9b33f82357CC0a263A533599633fB0AA5CFD907c}"
 RPC="${BASE_RPC_URL:-https://mainnet.base.org}"
 INTERVAL="${SESSION_INTERVAL_SEC:-604800}"
 
