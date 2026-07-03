@@ -58,7 +58,17 @@ const evaluateCreSkip = (params: {
   return 'none_ready_to_distribute';
 };
 
-const decodeView = <T>(functionName: string, data: string): T => {
+type DiagnosticsViewFunction =
+  | 'isSessionActive'
+  | 'sessionCounter'
+  | 'entryFee'
+  | 'lastSessionTime'
+  | 'sessionInterval'
+  | 'currentSessionPrizePool'
+  | 'getCurrentPlayers'
+  | 'chainlinkOracle';
+
+const decodeView = <T>(functionName: DiagnosticsViewFunction, data: string): T => {
   return decodeFunctionResult({
     abi: TRIVIA_ABI,
     functionName,
@@ -105,7 +115,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
   const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
 
-  const read = async <T>(functionName: 'isSessionActive' | 'sessionCounter' | 'entryFee' | 'lastSessionTime' | 'sessionInterval' | 'currentSessionPrizePool' | 'getCurrentPlayers' | 'chainlinkOracle') => {
+  const read = async <T>(functionName: DiagnosticsViewFunction) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         if (attempt > 0) await sleep(1000 * attempt);
