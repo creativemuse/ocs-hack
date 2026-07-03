@@ -5785,6 +5785,7 @@ var ListSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 3);
 var DecimalSchema = /* @__PURE__ */ messageDesc(file_values_v1_values, 4);
 var file_sdk_v1alpha_sdk = /* @__PURE__ */ fileDesc("ChVzZGsvdjFhbHBoYS9zZGsucHJvdG8SC3Nkay52MWFscGhhIrQBChVTaW1wbGVDb25zZW5zdXNJbnB1dHMSIQoFdmFsdWUYASABKAsyEC52YWx1ZXMudjEuVmFsdWVIABIPCgVlcnJvchgCIAEoCUgAEjUKC2Rlc2NyaXB0b3JzGAMgASgLMiAuc2RrLnYxYWxwaGEuQ29uc2Vuc3VzRGVzY3JpcHRvchIhCgdkZWZhdWx0GAQgASgLMhAudmFsdWVzLnYxLlZhbHVlQg0KC29ic2VydmF0aW9uIpABCglGaWVsZHNNYXASMgoGZmllbGRzGAEgAygLMiIuc2RrLnYxYWxwaGEuRmllbGRzTWFwLkZpZWxkc0VudHJ5Gk8KC0ZpZWxkc0VudHJ5EgsKA2tleRgBIAEoCRIvCgV2YWx1ZRgCIAEoCzIgLnNkay52MWFscGhhLkNvbnNlbnN1c0Rlc2NyaXB0b3I6AjgBIoYBChNDb25zZW5zdXNEZXNjcmlwdG9yEjMKC2FnZ3JlZ2F0aW9uGAEgASgOMhwuc2RrLnYxYWxwaGEuQWdncmVnYXRpb25UeXBlSAASLAoKZmllbGRzX21hcBgCIAEoCzIWLnNkay52MWFscGhhLkZpZWxkc01hcEgAQgwKCmRlc2NyaXB0b3IiagoNUmVwb3J0UmVxdWVzdBIXCg9lbmNvZGVkX3BheWxvYWQYASABKAwSFAoMZW5jb2Rlcl9uYW1lGAIgASgJEhQKDHNpZ25pbmdfYWxnbxgDIAEoCRIUCgxoYXNoaW5nX2FsZ28YBCABKAkilwEKDlJlcG9ydFJlc3BvbnNlEhUKDWNvbmZpZ19kaWdlc3QYASABKAwSEgoGc2VxX25yGAIgASgEQgIwABIWCg5yZXBvcnRfY29udGV4dBgDIAEoDBISCgpyYXdfcmVwb3J0GAQgASgMEi4KBHNpZ3MYBSADKAsyIC5zZGsudjFhbHBoYS5BdHRyaWJ1dGVkU2lnbmF0dXJlIjsKE0F0dHJpYnV0ZWRTaWduYXR1cmUSEQoJc2lnbmF0dXJlGAEgASgMEhEKCXNpZ25lcl9pZBgCIAEoDSJrChFDYXBhYmlsaXR5UmVxdWVzdBIKCgJpZBgBIAEoCRIlCgdwYXlsb2FkGAIgASgLMhQuZ29vZ2xlLnByb3RvYnVmLkFueRIOCgZtZXRob2QYAyABKAkSEwoLY2FsbGJhY2tfaWQYBCABKAUiWgoSQ2FwYWJpbGl0eVJlc3BvbnNlEicKB3BheWxvYWQYASABKAsyFC5nb29nbGUucHJvdG9idWYuQW55SAASDwoFZXJyb3IYAiABKAlIAEIKCghyZXNwb25zZSJYChNUcmlnZ2VyU3Vic2NyaXB0aW9uEgoKAmlkGAEgASgJEiUKB3BheWxvYWQYAiABKAsyFC5nb29nbGUucHJvdG9idWYuQW55Eg4KBm1ldGhvZBgDIAEoCSJVChpUcmlnZ2VyU3Vic2NyaXB0aW9uUmVxdWVzdBI3Cg1zdWJzY3JpcHRpb25zGAEgAygLMiAuc2RrLnYxYWxwaGEuVHJpZ2dlclN1YnNjcmlwdGlvbiJACgdUcmlnZ2VyEg4KAmlkGAEgASgEQgIwABIlCgdwYXlsb2FkGAIgASgLMhQuZ29vZ2xlLnByb3RvYnVmLkFueSInChhBd2FpdENhcGFiaWxpdGllc1JlcXVlc3QSCwoDaWRzGAEgAygFIrgBChlBd2FpdENhcGFiaWxpdGllc1Jlc3BvbnNlEkgKCXJlc3BvbnNlcxgBIAMoCzI1LnNkay52MWFscGhhLkF3YWl0Q2FwYWJpbGl0aWVzUmVzcG9uc2UuUmVzcG9uc2VzRW50cnkaUQoOUmVzcG9uc2VzRW50cnkSCwoDa2V5GAEgASgFEi4KBXZhbHVlGAIgASgLMh8uc2RrLnYxYWxwaGEuQ2FwYWJpbGl0eVJlc3BvbnNlOgI4ASKgAQoORXhlY3V0ZVJlcXVlc3QSDgoGY29uZmlnGAEgASgMEisKCXN1YnNjcmliZRgCIAEoCzIWLmdvb2dsZS5wcm90b2J1Zi5FbXB0eUgAEicKB3RyaWdnZXIYAyABKAsyFC5zZGsudjFhbHBoYS5UcmlnZ2VySAASHQoRbWF4X3Jlc3BvbnNlX3NpemUYBCABKARCAjAAQgkKB3JlcXVlc3QimQEKD0V4ZWN1dGlvblJlc3VsdBIhCgV2YWx1ZRgBIAEoCzIQLnZhbHVlcy52MS5WYWx1ZUgAEg8KBWVycm9yGAIgASgJSAASSAoVdHJpZ2dlcl9zdWJzY3JpcHRpb25zGAMgASgLMicuc2RrLnYxYWxwaGEuVHJpZ2dlclN1YnNjcmlwdGlvblJlcXVlc3RIAEIICgZyZXN1bHQiVgoRR2V0U2VjcmV0c1JlcXVlc3QSLAoIcmVxdWVzdHMYASADKAsyGi5zZGsudjFhbHBoYS5TZWNyZXRSZXF1ZXN0EhMKC2NhbGxiYWNrX2lkGAIgASgFIiIKE0F3YWl0U2VjcmV0c1JlcXVlc3QSCwoDaWRzGAEgAygFIqsBChRBd2FpdFNlY3JldHNSZXNwb25zZRJDCglyZXNwb25zZXMYASADKAsyMC5zZGsudjFhbHBoYS5Bd2FpdFNlY3JldHNSZXNwb25zZS5SZXNwb25zZXNFbnRyeRpOCg5SZXNwb25zZXNFbnRyeRILCgNrZXkYASABKAUSKwoFdmFsdWUYAiABKAsyHC5zZGsudjFhbHBoYS5TZWNyZXRSZXNwb25zZXM6AjgBIi4KDVNlY3JldFJlcXVlc3QSCgoCaWQYASABKAkSEQoJbmFtZXNwYWNlGAIgASgJIkUKBlNlY3JldBIKCgJpZBgBIAEoCRIRCgluYW1lc3BhY2UYAiABKAkSDQoFb3duZXIYAyABKAkSDQoFdmFsdWUYBCABKAkiSgoLU2VjcmV0RXJyb3ISCgoCaWQYASABKAkSEQoJbmFtZXNwYWNlGAIgASgJEg0KBW93bmVyGAMgASgJEg0KBWVycm9yGAQgASgJIm4KDlNlY3JldFJlc3BvbnNlEiUKBnNlY3JldBgBIAEoCzITLnNkay52MWFscGhhLlNlY3JldEgAEikKBWVycm9yGAIgASgLMhguc2RrLnYxYWxwaGEuU2VjcmV0RXJyb3JIAEIKCghyZXNwb25zZSJBCg9TZWNyZXRSZXNwb25zZXMSLgoJcmVzcG9uc2VzGAEgAygLMhsuc2RrLnYxYWxwaGEuU2VjcmV0UmVzcG9uc2UquAEKD0FnZ3JlZ2F0aW9uVHlwZRIgChxBR0dSRUdBVElPTl9UWVBFX1VOU1BFQ0lGSUVEEAASGwoXQUdHUkVHQVRJT05fVFlQRV9NRURJQU4QARIeChpBR0dSRUdBVElPTl9UWVBFX0lERU5USUNBTBACEiIKHkFHR1JFR0FUSU9OX1RZUEVfQ09NTU9OX1BSRUZJWBADEiIKHkFHR1JFR0FUSU9OX1RZUEVfQ09NTU9OX1NVRkZJWBAEKjkKBE1vZGUSFAoQTU9ERV9VTlNQRUNJRklFRBAAEgwKCE1PREVfRE9OEAESDQoJTU9ERV9OT0RFEAJCaAoPY29tLnNkay52MWFscGhhQghTZGtQcm90b1ABogIDU1hYqgILU2RrLlYxYWxwaGHKAgtTZGtcVjFhbHBoYeICF1Nka1xWMWFscGhhXEdQQk1ldGFkYXRh6gIMU2RrOjpWMWFscGhhYgZwcm90bzM", [file_google_protobuf_any, file_google_protobuf_empty, file_values_v1_values]);
 var SimpleConsensusInputsSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 0);
+var ConsensusDescriptorSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 2);
 var ReportRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 3);
 var ReportResponseSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 4);
 var CapabilityRequestSchema = /* @__PURE__ */ messageDesc(file_sdk_v1alpha_sdk, 6);
@@ -11307,6 +11308,33 @@ var defaultLookup = new NetworkLookup({
   testnetBySelectorByFamily
 });
 var getNetwork = (options) => defaultLookup.find(options);
+function consensusMedianAggregation() {
+  return simpleConsensus(AggregationType.MEDIAN);
+}
+
+class ConsensusImpl {
+  descriptor;
+  defaultValue;
+  constructor(descriptor, defaultValue) {
+    this.descriptor = descriptor;
+    this.defaultValue = defaultValue;
+  }
+  withDefault(t) {
+    return new ConsensusImpl(this.descriptor, t);
+  }
+  _usesUToForceShape(_) {}
+}
+function simpleConsensus(agg) {
+  return new ConsensusImpl(simpleDescriptor(agg));
+}
+function simpleDescriptor(agg) {
+  return create(ConsensusDescriptorSchema, {
+    descriptor: {
+      case: "aggregation",
+      value: agg
+    }
+  });
+}
 
 class Int64 {
   static INT64_MIN = -(2n ** 63n);
@@ -16146,56 +16174,283 @@ var onWeeklyDistribution = (runtime2, payload) => {
   runtime2.log(`Session state - Active: ${sessionInfo.isActive}, Prize Pool: ${sessionInfo.prizePool}, Distributed: ${sessionInfo.prizesDistributed}, End Time: ${sessionInfo.endTime}, Session Counter: ${sessionInfo.sessionCounter}, Players: ${sessionInfo.paidPlayerCount}`);
   const currentTime = BigInt(Math.floor(Date.now() / 1000));
   const isSessionEnded = !sessionInfo.isActive || currentTime > sessionInfo.endTime;
-  if (sessionInfo.sessionCounter === BigInt(0)) {
-    const reason = `No session has been started yet (sessionCounter = 0). This is expected for a new contract. Skipping distribution.`;
+  const skip = (reason) => {
     runtime2.log(reason);
     return {
+      action: "skipped",
       distributionExecuted: false,
       reason
     };
+  };
+  if (sessionInfo.sessionCounter === BigInt(0)) {
+    return skip(`No session has been started yet (sessionCounter = 0). Skipping distribution.`);
   }
   if (!isSessionEnded) {
-    const reason = `Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`;
-    runtime2.log(reason);
-    return {
-      distributionExecuted: false,
-      reason
-    };
+    return skip(`Session still active. End time: ${sessionInfo.endTime}, Current time: ${currentTime}`);
   }
   if (sessionInfo.prizesDistributed) {
-    const reason = `Prizes already distributed for session ${sessionInfo.sessionCounter}`;
-    runtime2.log(reason);
-    return {
-      distributionExecuted: false,
-      reason
-    };
+    return skip(`Prizes already distributed for session ${sessionInfo.sessionCounter}`);
   }
   if (sessionInfo.prizePool === BigInt(0)) {
-    const reason = `No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}). This may mean prizes were already distributed or no players joined.`;
-    runtime2.log(reason);
+    return skip(`No prize pool to distribute for session ${sessionInfo.sessionCounter} (prize pool: 0, players: ${sessionInfo.paidPlayerCount}).`);
+  }
+  let scoreSyncAttempted = false;
+  let scoreSyncSucceeded = false;
+  let hasScores = verifyScoresExist(runtime2, network248.chainSelector.selector, evmConfig);
+  if (!hasScores) {
+    runtime2.log(`No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting CRE rankings sync...`);
+    scoreSyncAttempted = true;
+    const rankingsSynced = syncScoresFromRankingsApi(runtime2, network248.chainSelector.selector, evmConfig);
+    if (rankingsSynced) {
+      runtime2.log("Rankings-based on-chain score sync submitted; re-checking scores");
+      hasScores = verifyScoresExistWithRetry(runtime2, network248.chainSelector.selector, evmConfig);
+    }
+  }
+  if (!hasScores) {
+    runtime2.log(`Rankings sync unavailable or incomplete. Attempting HTTP score sync fallback...`);
+    scoreSyncAttempted = true;
+    scoreSyncSucceeded = syncScoresFromApp(runtime2);
+    if (scoreSyncSucceeded) {
+      runtime2.log("HTTP score sync succeeded; re-checking on-chain scores");
+      hasScores = verifyScoresExistWithRetry(runtime2, network248.chainSelector.selector, evmConfig);
+    } else {
+      runtime2.log("HTTP score sync skipped or failed");
+    }
+  }
+  if (!hasScores) {
     return {
+      action: "skipped",
       distributionExecuted: false,
-      reason
+      scoreSyncAttempted,
+      scoreSyncSucceeded,
+      reason: `No player scores on-chain for session ${sessionInfo.sessionCounter}. Sync scores via /api/submit-onchain-scores before distribution.`
     };
   }
-  runtime2.log("Conditions met. Executing distributePrizes()...");
+  runtime2.log("All conditions met. Executing distributePrizes()...");
   try {
     const txHash = callDistributePrizes(runtime2, network248.chainSelector.selector, evmConfig);
-    runtime2.log(`Distribution transaction successful: ${txHash}`);
+    const receipt = verifyDistributionReceipt(runtime2, network248.chainSelector.selector, evmConfig, txHash);
+    if (receipt.status === "success") {
+      runtime2.log(`Distribution confirmed on-chain: ${txHash}`);
+      return {
+        action: "distributed",
+        distributionExecuted: true,
+        reason: "Prizes distributed successfully",
+        txHash,
+        receiptStatus: receipt.status,
+        scoreSyncAttempted,
+        scoreSyncSucceeded
+      };
+    }
     return {
-      distributionExecuted: true,
-      reason: "Prizes distributed successfully",
-      txHash
+      action: "failed",
+      distributionExecuted: false,
+      reason: `Distribution tx ${txHash} did not succeed on-chain (${receipt.status})`,
+      txHash,
+      receiptStatus: receipt.status,
+      scoreSyncAttempted,
+      scoreSyncSucceeded
     };
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     runtime2.log(`Distribution failed: ${errorMessage}`);
     return {
+      action: "failed",
       distributionExecuted: false,
-      reason: `Distribution failed: ${errorMessage}`
+      reason: `Distribution failed: ${errorMessage}`,
+      scoreSyncAttempted,
+      scoreSyncSucceeded
     };
   }
 };
+function syncScoresFromRankingsApi(runtime2, chainSelector, evmConfig) {
+  const apiUrl = runtime2.config.sessionRankingsApiUrl?.trim();
+  if (!apiUrl) {
+    runtime2.log("sessionRankingsApiUrl not configured; skipping rankings sync");
+    return false;
+  }
+  const fetchRankings = (nodeRuntime) => {
+    const httpClient = new cre.capabilities.HTTPClient;
+    const resp = httpClient.sendRequest(nodeRuntime, {
+      url: apiUrl,
+      method: "GET",
+      headers: {
+        Accept: "application/json"
+      }
+    }).result();
+    const status = resp.statusCode ?? 0;
+    nodeRuntime.log(`Session rankings HTTP status: ${status}`);
+    if (status < 200 || status >= 300) {
+      return "";
+    }
+    const body2 = new TextDecoder().decode(resp.body ?? new Uint8Array);
+    return body2;
+  };
+  const body = runtime2.runInNodeMode(fetchRankings, consensusMedianAggregation())().result();
+  if (!body) {
+    return false;
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    runtime2.log("Failed to parse session rankings JSON");
+    return false;
+  }
+  const playerEntries = parsed.players ?? [];
+  if (playerEntries.length === 0) {
+    runtime2.log("Session rankings API returned no scored players");
+    return false;
+  }
+  const addresses = playerEntries.map((entry) => entry.address);
+  const scores = playerEntries.map((entry) => BigInt(entry.score));
+  try {
+    callSubmitScores(runtime2, chainSelector, evmConfig, addresses, scores);
+    return true;
+  } catch (error) {
+    runtime2.log(`Rankings on-chain submit failed: ${error instanceof Error ? error.message : String(error)}`);
+    return false;
+  }
+}
+var SCORE_VERIFY_ATTEMPTS = 3;
+function verifyScoresExistWithRetry(runtime2, chainSelector, evmConfig) {
+  for (let attempt = 1;attempt <= SCORE_VERIFY_ATTEMPTS; attempt++) {
+    if (verifyScoresExist(runtime2, chainSelector, evmConfig)) {
+      return true;
+    }
+    runtime2.log(`Score verify attempt ${attempt}/${SCORE_VERIFY_ATTEMPTS} — still zero`);
+  }
+  return false;
+}
+function callSubmitScores(runtime2, chainSelector, evmConfig, addresses, scores) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  const callData = encodeFunctionData({
+    abi: [
+      {
+        inputs: [
+          { name: "playerAddresses", type: "address[]" },
+          { name: "scores", type: "uint256[]" }
+        ],
+        name: "submitScores",
+        outputs: [],
+        stateMutability: "nonpayable",
+        type: "function"
+      }
+    ],
+    functionName: "submitScores",
+    args: [addresses, scores]
+  });
+  const reportResponse = runtime2.report({
+    encodedPayload: hexToBase64(callData),
+    encoderName: "evm",
+    signingAlgo: "ecdsa",
+    hashingAlgo: "keccak256"
+  }).result();
+  const writeResult = evmClient.writeReport(runtime2, {
+    receiver: evmConfig.contractAddress,
+    report: reportResponse,
+    gasConfig: {
+      gasLimit: evmConfig.gasLimit
+    }
+  }).result();
+  const txHash = bytesToHex(writeResult.txHash || new Uint8Array(32));
+  runtime2.log(`submitScores transaction submitted: ${txHash}`);
+  return txHash;
+}
+function syncScoresFromApp(runtime2) {
+  const apiUrl = runtime2.config.scoreSyncApiUrl?.trim();
+  if (!apiUrl) {
+    runtime2.log("scoreSyncApiUrl not configured; cannot auto-sync scores");
+    return false;
+  }
+  let adminSecret = "";
+  try {
+    const secretValue = runtime2.getSecret({ key: "ADMIN_API_SECRET" }).result();
+    adminSecret = typeof secretValue === "string" ? secretValue : new TextDecoder().decode(secretValue);
+  } catch {
+    runtime2.log("ADMIN_API_SECRET not available in CRE secrets; cannot auto-sync scores");
+    return false;
+  }
+  if (!adminSecret) {
+    runtime2.log("ADMIN_API_SECRET is empty");
+    return false;
+  }
+  const syncScore = (nodeRuntime) => {
+    const httpClient = new cre.capabilities.HTTPClient;
+    const resp = httpClient.sendRequest(nodeRuntime, {
+      url: apiUrl,
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${adminSecret}`,
+        "Content-Type": "application/json"
+      },
+      body: new TextEncoder().encode("{}")
+    }).result();
+    const status = resp.statusCode ?? 0;
+    nodeRuntime.log(`Score sync HTTP status: ${status}`);
+    return status >= 200 && status < 300 ? 1 : 0;
+  };
+  const result = runtime2.runInNodeMode(syncScore, consensusMedianAggregation())().result();
+  return result >= 1;
+}
+var RECEIPT_POLL_ATTEMPTS = 12;
+function readFinalizedBlockNumber(runtime2, chainSelector) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  try {
+    const header = evmClient.headerByNumber(runtime2, {
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+    }).result();
+    const raw = header.header?.number ?? header.number;
+    if (raw === undefined || raw === null) {
+      return null;
+    }
+    return typeof raw === "bigint" ? raw : BigInt(raw);
+  } catch {
+    return null;
+  }
+}
+function verifyDistributionReceipt(runtime2, chainSelector, evmConfig, txHash) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  let lastSeenBlock = BigInt(0);
+  for (let attempt = 1;attempt <= RECEIPT_POLL_ATTEMPTS; attempt++) {
+    const blockNumber = readFinalizedBlockNumber(runtime2, chainSelector);
+    if (blockNumber !== null && blockNumber > lastSeenBlock) {
+      lastSeenBlock = blockNumber;
+      runtime2.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} at finalized block ${blockNumber}`);
+    } else {
+      runtime2.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} (awaiting new block)`);
+    }
+    const poolBeforeReceipt = readSessionInfo(runtime2, chainSelector, evmConfig).prizePool;
+    if (poolBeforeReceipt === BigInt(0)) {
+      runtime2.log("Prize pool cleared — distribution confirmed via state");
+      return { status: "success" };
+    }
+    try {
+      const receiptReply = evmClient.getTransactionReceipt(runtime2, {
+        hash: txHash
+      }).result();
+      const receipt = receiptReply;
+      const rawStatus = receipt.receipt?.status ?? receipt.status;
+      if (rawStatus === undefined || rawStatus === null) {
+        continue;
+      }
+      const statusNum = typeof rawStatus === "string" ? parseInt(rawStatus, 16) : Number(rawStatus);
+      if (statusNum === 1) {
+        return { status: "success" };
+      }
+      if (statusNum === 0) {
+        return { status: "reverted" };
+      }
+    } catch (error) {
+      runtime2.log(`Receipt poll attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+  const poolAfter = readSessionInfo(runtime2, chainSelector, evmConfig).prizePool;
+  if (poolAfter === BigInt(0)) {
+    return { status: "success" };
+  }
+  return { status: "pending" };
+}
 function readSessionInfo(runtime2, chainSelector, evmConfig) {
   const evmClient = new cre.capabilities.EVMClient(chainSelector);
   const contractAddress = evmConfig.contractAddress;
@@ -16238,17 +16493,17 @@ function readSessionInfo(runtime2, chainSelector, evmConfig) {
     functionName: "sessionInterval",
     data: bytesToHex(sessionIntervalResult.data)
   });
-  const getContractUsdcBalanceCall = encodeFunctionData({
-    abi: [{ inputs: [], name: "getContractUsdcBalance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
-    functionName: "getContractUsdcBalance"
+  const currentSessionPrizePoolCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "currentSessionPrizePool", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "currentSessionPrizePool"
   });
   const prizePoolResult = evmClient.callContract(runtime2, {
-    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getContractUsdcBalanceCall }),
+    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: currentSessionPrizePoolCall }),
     blockNumber: LAST_FINALIZED_BLOCK_NUMBER
   }).result();
   const prizePool = decodeFunctionResult({
-    abi: [{ inputs: [], name: "getContractUsdcBalance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
-    functionName: "getContractUsdcBalance",
+    abi: [{ inputs: [], name: "currentSessionPrizePool", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+    functionName: "currentSessionPrizePool",
     data: bytesToHex(prizePoolResult.data)
   });
   const getCurrentPlayersCall = encodeFunctionData({
@@ -16292,6 +16547,49 @@ function readSessionInfo(runtime2, chainSelector, evmConfig) {
     prizesDistributed,
     sessionCounter
   };
+}
+function verifyScoresExist(runtime2, chainSelector, evmConfig) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  const contractAddress = evmConfig.contractAddress;
+  const getCurrentPlayersCall = encodeFunctionData({
+    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
+    functionName: "getCurrentPlayers"
+  });
+  const playersResult = evmClient.callContract(runtime2, {
+    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+  }).result();
+  const players = decodeFunctionResult({
+    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
+    functionName: "getCurrentPlayers",
+    data: bytesToHex(playersResult.data)
+  });
+  if (players.length === 0) {
+    runtime2.log("No players found in current session");
+    return false;
+  }
+  for (const player of players) {
+    const getScoreCall = encodeFunctionData({
+      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      functionName: "getPlayerScore",
+      args: [player]
+    });
+    const scoreResult = evmClient.callContract(runtime2, {
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getScoreCall }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+    }).result();
+    const score = decodeFunctionResult({
+      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      functionName: "getPlayerScore",
+      data: bytesToHex(scoreResult.data)
+    });
+    if (score > BigInt(0)) {
+      runtime2.log(`Player ${player} has score: ${score}`);
+      return true;
+    }
+  }
+  runtime2.log(`Checked ${players.length} players - no scores found`);
+  return false;
 }
 function callDistributePrizes(runtime2, chainSelector, evmConfig) {
   const evmClient = new cre.capabilities.EVMClient(chainSelector);
