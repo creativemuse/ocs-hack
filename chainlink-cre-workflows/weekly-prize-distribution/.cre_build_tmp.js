@@ -16200,10 +16200,10 @@ var onWeeklyDistribution = (runtime2, payload) => {
   if (!hasScores) {
     runtime2.log(`No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting CRE rankings sync...`);
     scoreSyncAttempted = true;
-    const rankingsSynced = syncScoresFromRankingsApi(runtime2, network248.chainSelector.selector, evmConfig);
-    if (rankingsSynced) {
-      runtime2.log("Rankings-based on-chain score sync submitted; re-checking scores");
-      hasScores = verifyScoresExistWithRetry(runtime2, network248.chainSelector.selector, evmConfig);
+    const rankingsSync = syncScoresFromRankingsApi(runtime2, network248.chainSelector.selector, evmConfig);
+    if (rankingsSync.synced) {
+      runtime2.log("Rankings-based on-chain score sync submitted; re-checking synced player scores");
+      hasScores = verifyScoresForPlayers(runtime2, network248.chainSelector.selector, evmConfig, rankingsSync.addresses);
     }
   }
   if (!hasScores) {
@@ -16211,8 +16211,8 @@ var onWeeklyDistribution = (runtime2, payload) => {
     scoreSyncAttempted = true;
     scoreSyncSucceeded = syncScoresFromApp(runtime2);
     if (scoreSyncSucceeded) {
-      runtime2.log("HTTP score sync succeeded; re-checking on-chain scores");
-      hasScores = verifyScoresExistWithRetry(runtime2, network248.chainSelector.selector, evmConfig);
+      runtime2.log("HTTP score sync succeeded; re-checking on-chain scores once");
+      hasScores = verifyScoresExist(runtime2, network248.chainSelector.selector, evmConfig);
     } else {
       runtime2.log("HTTP score sync skipped or failed");
     }
@@ -16267,7 +16267,7 @@ function syncScoresFromRankingsApi(runtime2, chainSelector, evmConfig) {
   const apiUrl = runtime2.config.sessionRankingsApiUrl?.trim();
   if (!apiUrl) {
     runtime2.log("sessionRankingsApiUrl not configured; skipping rankings sync");
-    return false;
+    return { synced: false, addresses: [] };
   }
   const fetchRankings = (nodeRuntime) => {
     const httpClient = new cre.capabilities.HTTPClient;
@@ -16288,39 +16288,77 @@ function syncScoresFromRankingsApi(runtime2, chainSelector, evmConfig) {
   };
   const body = runtime2.runInNodeMode(fetchRankings, consensusMedianAggregation())().result();
   if (!body) {
-    return false;
+    return { synced: false, addresses: [] };
   }
   let parsed;
   try {
     parsed = JSON.parse(body);
   } catch {
     runtime2.log("Failed to parse session rankings JSON");
-    return false;
+    return { synced: false, addresses: [] };
   }
   const playerEntries = parsed.players ?? [];
   if (playerEntries.length === 0) {
     runtime2.log("Session rankings API returned no scored players");
-    return false;
+    return { synced: false, addresses: [] };
   }
   const addresses = playerEntries.map((entry) => entry.address);
   const scores = playerEntries.map((entry) => BigInt(entry.score));
   try {
     callSubmitScores(runtime2, chainSelector, evmConfig, addresses, scores);
-    return true;
+    return { synced: true, addresses };
   } catch (error) {
     runtime2.log(`Rankings on-chain submit failed: ${error instanceof Error ? error.message : String(error)}`);
-    return false;
+    return { synced: false, addresses: [] };
   }
 }
-var SCORE_VERIFY_ATTEMPTS = 3;
-function verifyScoresExistWithRetry(runtime2, chainSelector, evmConfig) {
-  for (let attempt = 1;attempt <= SCORE_VERIFY_ATTEMPTS; attempt++) {
-    if (verifyScoresExist(runtime2, chainSelector, evmConfig)) {
-      return true;
-    }
-    runtime2.log(`Score verify attempt ${attempt}/${SCORE_VERIFY_ATTEMPTS} — still zero`);
+var RECEIPT_ABI = [
+  {
+    inputs: [],
+    name: "currentSessionPrizePool",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
   }
-  return false;
+];
+var GET_PLAYER_SCORE_ABI = [
+  {
+    inputs: [{ name: "player", type: "address" }],
+    name: "getPlayerScore",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+var GET_CURRENT_PLAYERS_ABI = [
+  {
+    inputs: [],
+    name: "getCurrentPlayers",
+    outputs: [{ type: "address[]" }],
+    stateMutability: "view",
+    type: "function"
+  }
+];
+function readCurrentSessionPrizePool(runtime2, chainSelector, evmConfig) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  const contractAddress = evmConfig.contractAddress;
+  const currentSessionPrizePoolCall = encodeFunctionData({
+    abi: RECEIPT_ABI,
+    functionName: "currentSessionPrizePool"
+  });
+  const prizePoolResult = evmClient.callContract(runtime2, {
+    call: encodeCallMsg({
+      from: zeroAddress,
+      to: contractAddress,
+      data: currentSessionPrizePoolCall
+    }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+  }).result();
+  return decodeFunctionResult({
+    abi: RECEIPT_ABI,
+    functionName: "currentSessionPrizePool",
+    data: bytesToHex(prizePoolResult.data)
+  });
 }
 function callSubmitScores(runtime2, chainSelector, evmConfig, addresses, scores) {
   const evmClient = new cre.capabilities.EVMClient(chainSelector);
@@ -16393,47 +16431,20 @@ function syncScoresFromApp(runtime2) {
   const result = runtime2.runInNodeMode(syncScore, consensusMedianAggregation())().result();
   return result >= 1;
 }
-var RECEIPT_POLL_ATTEMPTS = 12;
-function readFinalizedBlockNumber(runtime2, chainSelector) {
-  const evmClient = new cre.capabilities.EVMClient(chainSelector);
-  try {
-    const header = evmClient.headerByNumber(runtime2, {
-      blockNumber: LAST_FINALIZED_BLOCK_NUMBER
-    }).result();
-    const raw = header.header?.number ?? header.number;
-    if (raw === undefined || raw === null) {
-      return null;
-    }
-    return typeof raw === "bigint" ? raw : BigInt(raw);
-  } catch {
-    return null;
-  }
-}
 function verifyDistributionReceipt(runtime2, chainSelector, evmConfig, txHash) {
   const evmClient = new cre.capabilities.EVMClient(chainSelector);
-  let lastSeenBlock = BigInt(0);
-  for (let attempt = 1;attempt <= RECEIPT_POLL_ATTEMPTS; attempt++) {
-    const blockNumber = readFinalizedBlockNumber(runtime2, chainSelector);
-    if (blockNumber !== null && blockNumber > lastSeenBlock) {
-      lastSeenBlock = blockNumber;
-      runtime2.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} at finalized block ${blockNumber}`);
-    } else {
-      runtime2.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} (awaiting new block)`);
-    }
-    const poolBeforeReceipt = readSessionInfo(runtime2, chainSelector, evmConfig).prizePool;
-    if (poolBeforeReceipt === BigInt(0)) {
-      runtime2.log("Prize pool cleared — distribution confirmed via state");
-      return { status: "success" };
-    }
-    try {
-      const receiptReply = evmClient.getTransactionReceipt(runtime2, {
-        hash: txHash
-      }).result();
-      const receipt = receiptReply;
-      const rawStatus = receipt.receipt?.status ?? receipt.status;
-      if (rawStatus === undefined || rawStatus === null) {
-        continue;
-      }
+  const poolBeforeReceipt = readCurrentSessionPrizePool(runtime2, chainSelector, evmConfig);
+  if (poolBeforeReceipt === BigInt(0)) {
+    runtime2.log("Prize pool cleared — distribution confirmed via state");
+    return { status: "success" };
+  }
+  try {
+    const receiptReply = evmClient.getTransactionReceipt(runtime2, {
+      hash: txHash
+    }).result();
+    const receipt = receiptReply;
+    const rawStatus = receipt.receipt?.status ?? receipt.status;
+    if (rawStatus !== undefined && rawStatus !== null) {
       const statusNum = typeof rawStatus === "string" ? parseInt(rawStatus, 16) : Number(rawStatus);
       if (statusNum === 1) {
         return { status: "success" };
@@ -16441,14 +16452,15 @@ function verifyDistributionReceipt(runtime2, chainSelector, evmConfig, txHash) {
       if (statusNum === 0) {
         return { status: "reverted" };
       }
-    } catch (error) {
-      runtime2.log(`Receipt poll attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`);
     }
+  } catch (error) {
+    runtime2.log(`Receipt check failed: ${error instanceof Error ? error.message : String(error)}`);
   }
-  const poolAfter = readSessionInfo(runtime2, chainSelector, evmConfig).prizePool;
+  const poolAfter = readCurrentSessionPrizePool(runtime2, chainSelector, evmConfig);
   if (poolAfter === BigInt(0)) {
     return { status: "success" };
   }
+  runtime2.log("Distribution tx not finalized in this run; weekly cron will re-check session state");
   return { status: "pending" };
 }
 function readSessionInfo(runtime2, chainSelector, evmConfig) {
@@ -16548,29 +16560,15 @@ function readSessionInfo(runtime2, chainSelector, evmConfig) {
     sessionCounter
   };
 }
-function verifyScoresExist(runtime2, chainSelector, evmConfig) {
-  const evmClient = new cre.capabilities.EVMClient(chainSelector);
-  const contractAddress = evmConfig.contractAddress;
-  const getCurrentPlayersCall = encodeFunctionData({
-    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
-    functionName: "getCurrentPlayers"
-  });
-  const playersResult = evmClient.callContract(runtime2, {
-    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
-    blockNumber: LAST_FINALIZED_BLOCK_NUMBER
-  }).result();
-  const players = decodeFunctionResult({
-    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
-    functionName: "getCurrentPlayers",
-    data: bytesToHex(playersResult.data)
-  });
+function verifyScoresForPlayers(runtime2, chainSelector, evmConfig, players) {
   if (players.length === 0) {
-    runtime2.log("No players found in current session");
     return false;
   }
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  const contractAddress = evmConfig.contractAddress;
   for (const player of players) {
     const getScoreCall = encodeFunctionData({
-      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      abi: GET_PLAYER_SCORE_ABI,
       functionName: "getPlayerScore",
       args: [player]
     });
@@ -16579,7 +16577,7 @@ function verifyScoresExist(runtime2, chainSelector, evmConfig) {
       blockNumber: LAST_FINALIZED_BLOCK_NUMBER
     }).result();
     const score = decodeFunctionResult({
-      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      abi: GET_PLAYER_SCORE_ABI,
       functionName: "getPlayerScore",
       data: bytesToHex(scoreResult.data)
     });
@@ -16590,6 +16588,28 @@ function verifyScoresExist(runtime2, chainSelector, evmConfig) {
   }
   runtime2.log(`Checked ${players.length} players - no scores found`);
   return false;
+}
+function verifyScoresExist(runtime2, chainSelector, evmConfig) {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector);
+  const contractAddress = evmConfig.contractAddress;
+  const getCurrentPlayersCall = encodeFunctionData({
+    abi: GET_CURRENT_PLAYERS_ABI,
+    functionName: "getCurrentPlayers"
+  });
+  const playersResult = evmClient.callContract(runtime2, {
+    call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
+    blockNumber: LAST_FINALIZED_BLOCK_NUMBER
+  }).result();
+  const players = decodeFunctionResult({
+    abi: GET_CURRENT_PLAYERS_ABI,
+    functionName: "getCurrentPlayers",
+    data: bytesToHex(playersResult.data)
+  });
+  if (players.length === 0) {
+    runtime2.log("No players found in current session");
+    return false;
+  }
+  return verifyScoresForPlayers(runtime2, chainSelector, evmConfig, players);
 }
 function callDistributePrizes(runtime2, chainSelector, evmConfig) {
   const evmClient = new cre.capabilities.EVMClient(chainSelector);

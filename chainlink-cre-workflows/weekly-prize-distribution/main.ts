@@ -126,10 +126,19 @@ const onWeeklyDistribution = (
       `No on-chain scores for session ${sessionInfo.sessionCounter}. Attempting CRE rankings sync...`
     )
     scoreSyncAttempted = true
-    const rankingsSynced = syncScoresFromRankingsApi(runtime, network.chainSelector.selector, evmConfig)
-    if (rankingsSynced) {
-      runtime.log("Rankings-based on-chain score sync submitted; re-checking scores")
-      hasScores = verifyScoresExistWithRetry(runtime, network.chainSelector.selector, evmConfig)
+    const rankingsSync = syncScoresFromRankingsApi(
+      runtime,
+      network.chainSelector.selector,
+      evmConfig
+    )
+    if (rankingsSync.synced) {
+      runtime.log("Rankings-based on-chain score sync submitted; re-checking synced player scores")
+      hasScores = verifyScoresForPlayers(
+        runtime,
+        network.chainSelector.selector,
+        evmConfig,
+        rankingsSync.addresses
+      )
     }
   }
 
@@ -140,8 +149,8 @@ const onWeeklyDistribution = (
     scoreSyncAttempted = true
     scoreSyncSucceeded = syncScoresFromApp(runtime)
     if (scoreSyncSucceeded) {
-      runtime.log("HTTP score sync succeeded; re-checking on-chain scores")
-      hasScores = verifyScoresExistWithRetry(runtime, network.chainSelector.selector, evmConfig)
+      runtime.log("HTTP score sync succeeded; re-checking on-chain scores once")
+      hasScores = verifyScoresExist(runtime, network.chainSelector.selector, evmConfig)
     } else {
       runtime.log("HTTP score sync skipped or failed")
     }
@@ -212,11 +221,11 @@ function syncScoresFromRankingsApi(
   runtime: Runtime<Config>,
   chainSelector: bigint,
   evmConfig: EvmConfig
-): boolean {
+): { synced: boolean; addresses: `0x${string}`[] } {
   const apiUrl = runtime.config.sessionRankingsApiUrl?.trim()
   if (!apiUrl) {
     runtime.log("sessionRankingsApiUrl not configured; skipping rankings sync")
-    return false
+    return { synced: false, addresses: [] }
   }
 
   const fetchRankings = (nodeRuntime: NodeRuntime<Config>): string => {
@@ -243,7 +252,7 @@ function syncScoresFromRankingsApi(
 
   const body = runtime.runInNodeMode(fetchRankings, consensusMedianAggregation())().result()
   if (!body) {
-    return false
+    return { synced: false, addresses: [] }
   }
 
   let parsed: {
@@ -257,13 +266,13 @@ function syncScoresFromRankingsApi(
     }
   } catch {
     runtime.log("Failed to parse session rankings JSON")
-    return false
+    return { synced: false, addresses: [] }
   }
 
   const playerEntries = parsed.players ?? []
   if (playerEntries.length === 0) {
     runtime.log("Session rankings API returned no scored players")
-    return false
+    return { synced: false, addresses: [] }
   }
 
   const addresses = playerEntries.map((entry) => entry.address as `0x${string}`)
@@ -271,29 +280,73 @@ function syncScoresFromRankingsApi(
 
   try {
     callSubmitScores(runtime, chainSelector, evmConfig, addresses, scores)
-    return true
+    return { synced: true, addresses }
   } catch (error) {
     runtime.log(
       `Rankings on-chain submit failed: ${error instanceof Error ? error.message : String(error)}`
     )
-    return false
+    return { synced: false, addresses: [] }
   }
 }
 
-const SCORE_VERIFY_ATTEMPTS = 3
+const RECEIPT_ABI = [
+  {
+    inputs: [],
+    name: "currentSessionPrizePool",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const
 
-function verifyScoresExistWithRetry(
+const GET_PLAYER_SCORE_ABI = [
+  {
+    inputs: [{ name: "player", type: "address" }],
+    name: "getPlayerScore",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const
+
+const GET_CURRENT_PLAYERS_ABI = [
+  {
+    inputs: [],
+    name: "getCurrentPlayers",
+    outputs: [{ type: "address[]" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const
+
+function readCurrentSessionPrizePool(
   runtime: Runtime<Config>,
   chainSelector: bigint,
   evmConfig: EvmConfig
-): boolean {
-  for (let attempt = 1; attempt <= SCORE_VERIFY_ATTEMPTS; attempt++) {
-    if (verifyScoresExist(runtime, chainSelector, evmConfig)) {
-      return true
-    }
-    runtime.log(`Score verify attempt ${attempt}/${SCORE_VERIFY_ATTEMPTS} — still zero`)
-  }
-  return false
+): bigint {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  const contractAddress = evmConfig.contractAddress as `0x${string}`
+
+  const currentSessionPrizePoolCall = encodeFunctionData({
+    abi: RECEIPT_ABI,
+    functionName: "currentSessionPrizePool",
+  })
+  const prizePoolResult = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({
+        from: zeroAddress,
+        to: contractAddress,
+        data: currentSessionPrizePoolCall,
+      }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    })
+    .result()
+
+  return decodeFunctionResult({
+    abi: RECEIPT_ABI,
+    functionName: "currentSessionPrizePool",
+    data: bytesToHex(prizePoolResult.data),
+  }) as bigint
 }
 
 function callSubmitScores(
@@ -395,30 +448,6 @@ function syncScoresFromApp(runtime: Runtime<Config>): boolean {
   return result >= 1
 }
 
-const RECEIPT_POLL_ATTEMPTS = 12
-
-function readFinalizedBlockNumber(
-  runtime: Runtime<Config>,
-  chainSelector: bigint
-): bigint | null {
-  const evmClient = new cre.capabilities.EVMClient(chainSelector)
-  try {
-    const header = evmClient
-      .headerByNumber(runtime, {
-        blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
-      })
-      .result() as { header?: { number?: string | number | bigint }; number?: string | number | bigint }
-
-    const raw = header.header?.number ?? header.number
-    if (raw === undefined || raw === null) {
-      return null
-    }
-    return typeof raw === "bigint" ? raw : BigInt(raw)
-  } catch {
-    return null
-  }
-}
-
 function verifyDistributionReceipt(
   runtime: Runtime<Config>,
   chainSelector: bigint,
@@ -426,42 +455,27 @@ function verifyDistributionReceipt(
   txHash: string
 ): { status: "success" | "reverted" | "pending" | "unknown" } {
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
-  let lastSeenBlock = BigInt(0)
 
-  for (let attempt = 1; attempt <= RECEIPT_POLL_ATTEMPTS; attempt++) {
-    const blockNumber = readFinalizedBlockNumber(runtime, chainSelector)
-    if (blockNumber !== null && blockNumber > lastSeenBlock) {
-      lastSeenBlock = blockNumber
-      runtime.log(
-        `Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} at finalized block ${blockNumber}`
-      )
-    } else {
-      runtime.log(`Receipt poll ${attempt}/${RECEIPT_POLL_ATTEMPTS} (awaiting new block)`)
+  const poolBeforeReceipt = readCurrentSessionPrizePool(runtime, chainSelector, evmConfig)
+  if (poolBeforeReceipt === BigInt(0)) {
+    runtime.log("Prize pool cleared — distribution confirmed via state")
+    return { status: "success" }
+  }
+
+  try {
+    const receiptReply = evmClient
+      .getTransactionReceipt(runtime, {
+        hash: txHash,
+      })
+      .result()
+
+    const receipt = receiptReply as {
+      receipt?: { status?: number | string }
+      status?: number | string
     }
 
-    const poolBeforeReceipt = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
-    if (poolBeforeReceipt === BigInt(0)) {
-      runtime.log("Prize pool cleared — distribution confirmed via state")
-      return { status: "success" }
-    }
-
-    try {
-      const receiptReply = evmClient
-        .getTransactionReceipt(runtime, {
-          hash: txHash,
-        })
-        .result()
-
-      const receipt = receiptReply as {
-        receipt?: { status?: number | string }
-        status?: number | string
-      }
-
-      const rawStatus = receipt.receipt?.status ?? receipt.status
-      if (rawStatus === undefined || rawStatus === null) {
-        continue
-      }
-
+    const rawStatus = receipt.receipt?.status ?? receipt.status
+    if (rawStatus !== undefined && rawStatus !== null) {
       const statusNum =
         typeof rawStatus === "string" ? parseInt(rawStatus, 16) : Number(rawStatus)
 
@@ -472,18 +486,21 @@ function verifyDistributionReceipt(
       if (statusNum === 0) {
         return { status: "reverted" }
       }
-    } catch (error) {
-      runtime.log(
-        `Receipt poll attempt ${attempt} failed: ${error instanceof Error ? error.message : String(error)}`
-      )
     }
+  } catch (error) {
+    runtime.log(
+      `Receipt check failed: ${error instanceof Error ? error.message : String(error)}`
+    )
   }
 
-  const poolAfter = readSessionInfo(runtime, chainSelector, evmConfig).prizePool
+  const poolAfter = readCurrentSessionPrizePool(runtime, chainSelector, evmConfig)
   if (poolAfter === BigInt(0)) {
     return { status: "success" }
   }
 
+  runtime.log(
+    "Distribution tx not finalized in this run; weekly cron will re-check session state"
+  )
   return { status: "pending" }
 }
 
@@ -611,38 +628,22 @@ function readSessionInfo(
   }
 }
 
-function verifyScoresExist(
+function verifyScoresForPlayers(
   runtime: Runtime<Config>,
   chainSelector: bigint,
-  evmConfig: EvmConfig
+  evmConfig: EvmConfig,
+  players: `0x${string}`[]
 ): boolean {
-  const evmClient = new cre.capabilities.EVMClient(chainSelector)
-  const contractAddress = evmConfig.contractAddress as `0x${string}`
-
-  const getCurrentPlayersCall = encodeFunctionData({
-    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
-    functionName: "getCurrentPlayers",
-  })
-  const playersResult = evmClient
-    .callContract(runtime, {
-      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
-      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
-    })
-    .result()
-  const players = decodeFunctionResult({
-    abi: [{ inputs: [], name: "getCurrentPlayers", outputs: [{ type: "address[]" }], stateMutability: "view", type: "function" }],
-    functionName: "getCurrentPlayers",
-    data: bytesToHex(playersResult.data),
-  }) as `0x${string}`[]
-
   if (players.length === 0) {
-    runtime.log("No players found in current session")
     return false
   }
 
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  const contractAddress = evmConfig.contractAddress as `0x${string}`
+
   for (const player of players) {
     const getScoreCall = encodeFunctionData({
-      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      abi: GET_PLAYER_SCORE_ABI,
       functionName: "getPlayerScore",
       args: [player],
     })
@@ -653,7 +654,7 @@ function verifyScoresExist(
       })
       .result()
     const score = decodeFunctionResult({
-      abi: [{ inputs: [{ name: "player", type: "address" }], name: "getPlayerScore", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" }],
+      abi: GET_PLAYER_SCORE_ABI,
       functionName: "getPlayerScore",
       data: bytesToHex(scoreResult.data),
     }) as bigint
@@ -666,6 +667,38 @@ function verifyScoresExist(
 
   runtime.log(`Checked ${players.length} players - no scores found`)
   return false
+}
+
+function verifyScoresExist(
+  runtime: Runtime<Config>,
+  chainSelector: bigint,
+  evmConfig: EvmConfig
+): boolean {
+  const evmClient = new cre.capabilities.EVMClient(chainSelector)
+  const contractAddress = evmConfig.contractAddress as `0x${string}`
+
+  const getCurrentPlayersCall = encodeFunctionData({
+    abi: GET_CURRENT_PLAYERS_ABI,
+    functionName: "getCurrentPlayers",
+  })
+  const playersResult = evmClient
+    .callContract(runtime, {
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: getCurrentPlayersCall }),
+      blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
+    })
+    .result()
+  const players = decodeFunctionResult({
+    abi: GET_CURRENT_PLAYERS_ABI,
+    functionName: "getCurrentPlayers",
+    data: bytesToHex(playersResult.data),
+  }) as `0x${string}`[]
+
+  if (players.length === 0) {
+    runtime.log("No players found in current session")
+    return false
+  }
+
+  return verifyScoresForPlayers(runtime, chainSelector, evmConfig, players)
 }
 
 function callDistributePrizes(
