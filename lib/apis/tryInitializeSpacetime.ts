@@ -42,10 +42,13 @@ export const ensureTrialDataReady = async (): Promise<TryInitializeSpacetimeResu
   }
 };
 
-const isSpacetimeEnvConfigured = (): boolean =>
+const isSpacetimeEnvConfigured = (): boolean => 
   !!(
     (process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST) &&
-    (process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE)
+    (process.env.SPACETIME_DATABASE ||
+      process.env.NEXT_PUBLIC_SPACETIME_DATABASE ||
+      process.env.SPACETIME_MODULE ||
+      process.env.NEXT_PUBLIC_SPACETIME_MODULE)
   );
 
 /** Bounded Spacetime probe for lightweight health routes (e.g. env-check). */

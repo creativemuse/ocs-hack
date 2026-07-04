@@ -21,7 +21,7 @@ const toSpacetimeRows = (players: Player[]) =>
 export const getWeeklyLeaderboardEntries = async (
   limit: number = 10,
 ): Promise<{ sessionCounter: number; entries: WeeklyLeaderboardEntry[] }> => {
-  if (process.env.SPACETIME_HOST && process.env.SPACETIME_MODULE) {
+  if (process.env.SPACETIME_HOST && (process.env.SPACETIME_DATABASE || process.env.SPACETIME_MODULE)) {
     await spacetimeClient.ensurePlayerDataReady();
   }
 
