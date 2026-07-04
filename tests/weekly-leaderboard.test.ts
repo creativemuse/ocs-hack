@@ -138,14 +138,17 @@ describe('weekly session transitions', () => {
     assert.equal(merged.length, 0);
   });
 
-  it('resolves authoritative session id from the entry token, not the live counter', () => {
-    // A player paid into session 1; we must not attribute their score to session 2
-    // just because the on-chain counter advanced while they were finishing.
-    assert.equal(resolveAuthoritativeSessionId('1', 2), '1');
-    assert.equal(resolveAuthoritativeSessionId('3', 2), '3');
-    // Falls back to live counter only when the token has no session id.
+  it('prefers the live on-chain session counter over a stale token session id', () => {
+    // The weekly leaderboard is keyed to the live sessionCounter. A token issued when
+    // the player joined/paid may reference an older session if the counter advanced
+    // while they were finishing their run; the score must be attributed to the
+    // current live counter to appear on the leaderboard.
+    assert.equal(resolveAuthoritativeSessionId('1', 2), '2');
+    assert.equal(resolveAuthoritativeSessionId('3', 2), '2');
+    // Falls back to the token value only when the live counter cannot be read.
     assert.equal(resolveAuthoritativeSessionId('', 2), '2');
-    assert.equal(resolveAuthoritativeSessionId('0', 5), '5');
+    assert.equal(resolveAuthoritativeSessionId('5', 0), '5');
+    assert.equal(resolveAuthoritativeSessionId('0', 0), '0');
     assert.equal(parseSessionIdNumeric(''), 0);
   });
 

@@ -317,18 +317,26 @@ export const parseSessionIdNumeric = (id: string | undefined): number => {
 
 /**
  * Resolve the session id to use for weekly score persistence.
- * Trusts the entry token / score receipt unless it is missing; only falls back to
- * the live counter when no token session id is available. This prevents a player's
- * score from being attributed to a later session if the on-chain counter advanced
- * while they were still finishing their paid run.
+ *
+ * The weekly leaderboard is keyed to the **live** on-chain `sessionCounter`, so the
+ * authoritative session id must match that counter. The entry token's
+ * `onChainSessionId` is a snapshot from when the player paid/joined and can become
+ * stale if a new weekly session started while they were finishing their run.
+ *
+ * Prefer the live counter when it is readable (>0). Fall back to the token/receipt
+ * value only when the live read failed, and default to 0 as a last resort (which
+ * prevents the score from appearing on any weekly board until the chain is reachable).
  */
 export const resolveAuthoritativeSessionId = (
   tokenSessionId: string,
   liveSessionCounter: number,
 ): string => {
+  if (liveSessionCounter > 0) {
+    return String(liveSessionCounter);
+  }
   const tokenNumeric = parseSessionIdNumeric(tokenSessionId);
   if (tokenNumeric > 0) {
     return String(tokenNumeric);
   }
-  return String(liveSessionCounter > 0 ? liveSessionCounter : 0);
+  return '0';
 };
