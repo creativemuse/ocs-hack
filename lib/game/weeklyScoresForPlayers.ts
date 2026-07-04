@@ -31,7 +31,7 @@ export const getWeeklyScoresForPlayers = async (
     chainScores = chain.chainScores;
   }
 
-  if (!options.skipSpacetime && process.env.SPACETIME_HOST && process.env.SPACETIME_MODULE) {
+  if (!options.skipSpacetime && process.env.SPACETIME_HOST && (process.env.SPACETIME_DATABASE || process.env.SPACETIME_MODULE)) {
     await spacetimeClient.ensurePlayerDataReady();
   }
 

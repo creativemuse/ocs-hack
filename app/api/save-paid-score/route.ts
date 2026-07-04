@@ -125,7 +125,10 @@ export async function POST(req: NextRequest) {
     const isSpacetimeConfigured = Boolean(
       process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST,
     ) && Boolean(
-      process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE,
+      process.env.SPACETIME_DATABASE ||
+        process.env.NEXT_PUBLIC_SPACETIME_DATABASE ||
+        process.env.SPACETIME_MODULE ||
+        process.env.NEXT_PUBLIC_SPACETIME_MODULE,
     );
 
     try {

@@ -61,12 +61,17 @@ export interface TopEarner {
 }
 
 // Configuration
+// SpacetimeDB identifies databases by a unique database id (SPACETIME_DATABASE), not the
+// module name. Using the module name as the database name causes silent failures: rows are
+// written to / read from a database that doesn't exist, so leaderboards stay empty.
 const SPACETIME_CONFIG = {
   host:
     process.env.SPACETIME_HOST ||
     process.env.NEXT_PUBLIC_SPACETIME_HOST ||
     'https://maincloud.spacetimedb.com',
-  module:
+  database:
+    process.env.SPACETIME_DATABASE ||
+    process.env.NEXT_PUBLIC_SPACETIME_DATABASE ||
     process.env.SPACETIME_MODULE ||
     process.env.NEXT_PUBLIC_SPACETIME_MODULE ||
     'beat-me',
@@ -271,8 +276,12 @@ class SpacetimeDBClient {
   private async _doInitialize(): Promise<void> {
     // Check if SpacetimeDB is configured (server or public env)
     const host = process.env.SPACETIME_HOST || process.env.NEXT_PUBLIC_SPACETIME_HOST;
-    const moduleName = process.env.SPACETIME_MODULE || process.env.NEXT_PUBLIC_SPACETIME_MODULE;
-    if (!host || !moduleName) {
+    const database =
+      process.env.SPACETIME_DATABASE ||
+      process.env.NEXT_PUBLIC_SPACETIME_DATABASE ||
+      process.env.SPACETIME_MODULE ||
+      process.env.NEXT_PUBLIC_SPACETIME_MODULE;
+    if (!host || !database) {
       console.log('⚠️ SpacetimeDB not configured - using fallback mode');
       this.isConnected = false;
       return;
@@ -284,9 +293,9 @@ class SpacetimeDBClient {
     const connectTimeoutMs = 25000;
 
     try {
-      console.log('🚀 Initializing SpacetimeDB client...');
+      console.log(`🚀 Initializing SpacetimeDB client...`);
       console.log(`🔗 Connecting to: ${SPACETIME_CONFIG.host}`);
-      console.log(`🔧 Module: ${SPACETIME_CONFIG.module}`);
+      console.log(`🔧 Database: ${SPACETIME_CONFIG.database}`);
 
       await this.connectWithOptionalTokenRetry(serverToken, {
         connectTimeoutMs,
@@ -344,7 +353,7 @@ class SpacetimeDBClient {
 
       const builder = DbConnection.builder()
         .withUri(SPACETIME_CONFIG.host)
-        .withDatabaseName(SPACETIME_CONFIG.module)
+        .withDatabaseName(SPACETIME_CONFIG.database)
         .onConnect((conn, identity, authToken) => {
           if (connectionResolved) {
             conn.disconnect();
