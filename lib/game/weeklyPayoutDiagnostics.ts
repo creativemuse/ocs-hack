@@ -83,7 +83,7 @@ const decodeView = <T>(functionName: DiagnosticsViewFunction, data: string | und
 
 /** Prefer configured RPC (e.g. Alchemy via BASE_RPC_URL); fall back to public Base. */
 const RPC_FALLBACKS = [resolveBaseRpcUrl(), 'https://mainnet.base.org'].filter(
-  (url, index, list) => list.indexOf(url) === index,
+  (url, index, list): url is string => Boolean(url) && list.indexOf(url) === index,
 );
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
