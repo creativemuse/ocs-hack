@@ -4,7 +4,7 @@ import {
   isSpacetimeHttpConfigured,
   mapSqlGameSessionRow,
   mapSqlPlayerRow,
-  querySql,
+  querySqlSafe,
 } from '@/lib/apis/spacetimeHttp';
 import { fetchWeeklyScoresFromChain } from '@/lib/game/weeklyLeaderboard';
 
@@ -47,7 +47,7 @@ export const getWeeklyScoresForPlayers = async (
   if (!options.skipSpacetime && isSpacetimeHttpConfigured()) {
     const wallets = playerAddresses.map((a) => `'${a.toLowerCase().replace(/'/g, "''")}'`);
     const walletFilter = wallets.length > 0 ? `wallet_address IN (${wallets.join(',')})` : 'FALSE';
-    const playerRows = await querySql<Record<string, unknown>>(
+    const playerRows = await querySqlSafe<Record<string, unknown>>(
       `SELECT * FROM players WHERE ${walletFilter} OR weekly_session_id = ${sessionCounter}`,
     );
     for (const row of playerRows) {
@@ -55,7 +55,7 @@ export const getWeeklyScoresForPlayers = async (
       playersByWallet.set(player.walletAddress.toLowerCase(), player);
     }
 
-    const sessionRows = await querySql<Record<string, unknown>>(
+    const sessionRows = await querySqlSafe<Record<string, unknown>>(
       `SELECT * FROM game_sessions WHERE game_id = '${gameId.replace(/'/g, "''")}'`,
     );
     for (const row of sessionRows) {
