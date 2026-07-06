@@ -45,13 +45,19 @@ export const getWeeklyScoresForPlayers = async (
   const sessionScores = new Map<string, { score: number; startedAt: number }>();
 
   if (!options.skipSpacetime && isSpacetimeHttpConfigured()) {
-    const playerRows = await querySql<Record<string, unknown>>('SELECT * FROM players');
+    const wallets = playerAddresses.map((a) => `'${a.toLowerCase().replace(/'/g, "''")}'`);
+    const walletFilter = wallets.length > 0 ? `wallet_address IN (${wallets.join(',')})` : 'FALSE';
+    const playerRows = await querySql<Record<string, unknown>>(
+      `SELECT * FROM players WHERE ${walletFilter} OR weekly_session_id = ${sessionCounter}`,
+    );
     for (const row of playerRows) {
       const player = mapSqlPlayerRow(row);
       playersByWallet.set(player.walletAddress.toLowerCase(), player);
     }
 
-    const sessionRows = await querySql<Record<string, unknown>>('SELECT * FROM game_sessions');
+    const sessionRows = await querySql<Record<string, unknown>>(
+      `SELECT * FROM game_sessions WHERE game_id = '${gameId.replace(/'/g, "''")}'`,
+    );
     for (const row of sessionRows) {
       const session = mapSqlGameSessionRow(row);
       if (session.gameId !== gameId || !session.walletAddress) continue;

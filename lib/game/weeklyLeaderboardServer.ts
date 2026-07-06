@@ -25,7 +25,11 @@ export const getWeeklyLeaderboardEntries = async (
 
   let players: Player[] = [];
   if (isSpacetimeHttpConfigured()) {
-    const rows = await querySql<Record<string, unknown>>('SELECT * FROM players');
+    const wallets = Array.from(chainScores.keys()).map((w) => `'${w.toLowerCase().replace(/'/g, "''")}'`);
+    const walletFilter = wallets.length > 0 ? ` OR wallet_address IN (${wallets.join(',')})` : '';
+    const rows = await querySql<Record<string, unknown>>(
+      `SELECT * FROM players WHERE weekly_session_id = ${sessionCounter}${walletFilter}`,
+    );
     players = rows.map(mapSqlPlayerRow);
   }
 

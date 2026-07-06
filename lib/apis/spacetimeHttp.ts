@@ -51,6 +51,19 @@ const toNumber = (value: unknown, fallback = 0): number => {
   return fallback;
 };
 
+const toBigInt = (value: unknown, fallback = BigInt(0)): bigint => {
+  if (typeof value === 'bigint') return value;
+  if (typeof value === 'number' && Number.isFinite(value)) return BigInt(Math.floor(value));
+  if (typeof value === 'string' && value.trim() !== '') {
+    try {
+      return BigInt(value);
+    } catch {
+      return fallback;
+    }
+  }
+  return fallback;
+};
+
 const toBool = (value: unknown, fallback = false): boolean => {
   if (typeof value === 'boolean') return value;
   if (value === 1 || value === '1' || value === 'true') return true;
@@ -100,14 +113,14 @@ export const mapSqlPlayerRow = (row: Record<string, unknown>): Player => ({
   trialGamesRemaining: toNumber(pick(row, 'trialGamesRemaining', 'trial_games_remaining')),
   trialCompleted: toBool(pick(row, 'trialCompleted', 'trial_completed')),
   walletConnected: toBool(pick(row, 'walletConnected', 'wallet_connected')),
-  weeklySessionId: BigInt(toNumber(pick(row, 'weeklySessionId', 'weekly_session_id'))),
+  weeklySessionId: toBigInt(pick(row, 'weeklySessionId', 'weekly_session_id')),
   weeklyBestScore: toNumber(pick(row, 'weeklyBestScore', 'weekly_best_score')),
   createdAt: pick(row, 'createdAt', 'created_at') as Player['createdAt'],
   updatedAt: pick(row, 'updatedAt', 'updated_at') as Player['updatedAt'],
 });
 
 export const mapSqlGameSessionRow = (row: Record<string, unknown>): GameSession => ({
-  id: BigInt(toNumber(pick(row, 'id', 'id'))),
+  id: toBigInt(pick(row, 'id', 'id')),
   sessionId: String(pick(row, 'sessionId', 'session_id') ?? ''),
   gameId: String(pick(row, 'gameId', 'game_id') ?? ''),
   walletAddress: toOptionalString(pick(row, 'walletAddress', 'wallet_address')),
@@ -172,5 +185,7 @@ export async function querySql<T = unknown>(sql: string): Promise<T[]> {
       return stmt as T;
     });
   }
-  return data.rows ?? [];
+  return (data && typeof data === 'object' && 'rows' in data)
+    ? (data as { rows: T[] }).rows ?? []
+    : [];
 }
