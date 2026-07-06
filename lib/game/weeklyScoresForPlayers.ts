@@ -1,4 +1,11 @@
-import { spacetimeClient } from '@/lib/apis/spacetime';
+import {
+  getTimestampMicros,
+  isPaidPlayerType,
+  isSpacetimeHttpConfigured,
+  mapSqlGameSessionRow,
+  mapSqlPlayerRow,
+  querySql,
+} from '@/lib/apis/spacetimeHttp';
 import { fetchWeeklyScoresFromChain } from '@/lib/game/weeklyLeaderboard';
 
 export type PlayerWeeklyScore = {
@@ -31,28 +38,26 @@ export const getWeeklyScoresForPlayers = async (
     chainScores = chain.chainScores;
   }
 
-  if (!options.skipSpacetime && process.env.SPACETIME_HOST && (process.env.SPACETIME_DATABASE || process.env.SPACETIME_MODULE)) {
-    await spacetimeClient.ensurePlayerDataReady();
-  }
-
   const sessionId = BigInt(sessionCounter);
   const gameId = sessionCounter.toString();
-  const playersByWallet = new Map(
-    spacetimeClient.isConfigured()
-      ? spacetimeClient.getAllPlayers().map((p) => [p.walletAddress.toLowerCase(), p])
-      : [],
-  );
 
+  const playersByWallet = new Map<string, ReturnType<typeof mapSqlPlayerRow>>();
   const sessionScores = new Map<string, { score: number; startedAt: number }>();
-  if (spacetimeClient.isConfigured()) {
-    const allSessions = spacetimeClient.getAllGameSessions();
-    for (const session of allSessions) {
+
+  if (!options.skipSpacetime && isSpacetimeHttpConfigured()) {
+    const playerRows = await querySql<Record<string, unknown>>('SELECT * FROM players');
+    for (const row of playerRows) {
+      const player = mapSqlPlayerRow(row);
+      playersByWallet.set(player.walletAddress.toLowerCase(), player);
+    }
+
+    const sessionRows = await querySql<Record<string, unknown>>('SELECT * FROM game_sessions');
+    for (const row of sessionRows) {
+      const session = mapSqlGameSessionRow(row);
       if (session.gameId !== gameId || !session.walletAddress) continue;
-      if (session.playerType?.tag !== 'Paid') continue;
+      if (!isPaidPlayerType(session.playerType)) continue;
       const wallet = session.walletAddress.toLowerCase();
-      const startedAt = session.startedAt?.microsSinceUnixEpoch
-        ? Number(session.startedAt.microsSinceUnixEpoch)
-        : 0;
+      const startedAt = getTimestampMicros(session.startedAt);
       const prev = sessionScores.get(wallet);
       if (!prev || startedAt >= prev.startedAt) {
         sessionScores.set(wallet, { score: session.score, startedAt });

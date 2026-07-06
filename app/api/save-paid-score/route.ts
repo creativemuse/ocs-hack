@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { spacetimeClient } from '@/lib/apis/spacetime';
+import { callReducer } from '@/lib/apis/spacetimeHttp';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
@@ -133,28 +133,24 @@ export async function POST(req: NextRequest) {
 
     try {
       if (isSpacetimeConfigured) {
-        await spacetimeClient.ensurePlayerDataReady();
-      }
-
-      if (isSpacetimeConfigured && spacetimeClient.isConfigured()) {
         const sessionIdNumeric = onChainSessionId
           ? Number(onChainSessionId)
           : 0;
-        await spacetimeClient.recordPaidGameScore(
-          normalizedWallet,
-          authoritativeScore,
-          sessionIdNumeric,
-          displayUsername,
-        );
+        await callReducer('record_paid_game_score', {
+          walletAddress: normalizedWallet,
+          gameScore: authoritativeScore,
+          onChainSessionId: sessionIdNumeric,
+          username: displayUsername,
+        });
         spacetimeUpdated = true;
 
         try {
-          await spacetimeClient.endGameSession(payload.entryId);
+          await callReducer('end_game_session', { sessionId: payload.entryId });
         } catch (endErr) {
           console.warn('Spacetime endGameSession failed (non-fatal):', endErr);
         }
       } else {
-        spacetimeError = 'SpacetimeDB is not connected; leaderboard update deferred.';
+        spacetimeError = 'SpacetimeDB is not configured; leaderboard update deferred.';
       }
     } catch (spacetimeErr) {
       console.error('❌ SpacetimeDB paid score update failed:', spacetimeErr);

@@ -1,4 +1,4 @@
-import { spacetimeClient } from '@/lib/apis/spacetime';
+import { isSpacetimeHttpConfigured, mapSqlPlayerRow, querySql } from '@/lib/apis/spacetimeHttp';
 import type { Player } from '@/lib/spacetime/database';
 import {
   type WeeklyLeaderboardEntry,
@@ -21,14 +21,13 @@ const toSpacetimeRows = (players: Player[]) =>
 export const getWeeklyLeaderboardEntries = async (
   limit: number = 10,
 ): Promise<{ sessionCounter: number; entries: WeeklyLeaderboardEntry[] }> => {
-  if (process.env.SPACETIME_HOST && (process.env.SPACETIME_DATABASE || process.env.SPACETIME_MODULE)) {
-    await spacetimeClient.ensurePlayerDataReady();
-  }
-
   const { sessionCounter, chainScores } = await fetchWeeklyScoresFromChain();
-  const players = spacetimeClient.isConfigured()
-    ? spacetimeClient.getAllPlayers()
-    : [];
+
+  let players: Player[] = [];
+  if (isSpacetimeHttpConfigured()) {
+    const rows = await querySql<Record<string, unknown>>('SELECT * FROM players');
+    players = rows.map(mapSqlPlayerRow);
+  }
 
   const merged = mergeWeeklyLeaderboardEntries(
     sessionCounter,
