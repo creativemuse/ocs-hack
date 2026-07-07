@@ -1,5 +1,6 @@
 import { formatUnits, createPublicClient, http, encodeFunctionData, decodeFunctionResult } from 'viem';
 import { base } from 'viem/chains';
+import { resolveBaseRpcUrl } from '@/lib/blockchain/baseRpc';
 import { TRIVIA_ABI, TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 import {
   readOnChainPlayerScores,
@@ -80,13 +81,10 @@ const decodeView = <T>(functionName: DiagnosticsViewFunction, data: string | und
   }) as T;
 };
 
-const RPC_FALLBACKS = [
-  'https://mainnet.base.org',
-  process.env.BASE_RPC_URL,
-  process.env.NEXT_PUBLIC_BASE_RPC_URL,
-]
-  .filter((url, index, list): url is string => Boolean(url) && list.indexOf(url) === index)
-  .filter((url) => !url.includes('alchemy.com'));
+/** Prefer configured RPC (e.g. Alchemy via BASE_RPC_URL); fall back to public Base. */
+const RPC_FALLBACKS = [resolveBaseRpcUrl(), 'https://mainnet.base.org'].filter(
+  (url, index, list): url is string => Boolean(url) && list.indexOf(url) === index,
+);
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 

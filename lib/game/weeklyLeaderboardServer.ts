@@ -1,4 +1,4 @@
-import { isSpacetimeHttpConfigured, mapSqlPlayerRow, querySql } from '@/lib/apis/spacetimeHttp';
+import { isSpacetimeHttpConfigured, mapSqlPlayerRow, querySqlSafe } from '@/lib/apis/spacetimeHttp';
 import type { Player } from '@/lib/spacetime/database';
 import {
   type WeeklyLeaderboardEntry,
@@ -27,7 +27,7 @@ export const getWeeklyLeaderboardEntries = async (
   if (isSpacetimeHttpConfigured()) {
     const wallets = Array.from(chainScores.keys()).map((w) => `'${w.toLowerCase().replace(/'/g, "''")}'`);
     const walletFilter = wallets.length > 0 ? ` OR wallet_address IN (${wallets.join(',')})` : '';
-    const rows = await querySql<Record<string, unknown>>(
+    const rows = await querySqlSafe<Record<string, unknown>>(
       `SELECT * FROM players WHERE weekly_session_id = ${sessionCounter}${walletFilter}`,
     );
     players = rows.map(mapSqlPlayerRow);

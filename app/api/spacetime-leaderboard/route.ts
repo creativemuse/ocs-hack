@@ -3,7 +3,7 @@ import {
   isSpacetimeHttpConfigured,
   mapSqlGuestPlayerRow,
   mapSqlPlayerRow,
-  querySql,
+  querySqlSafe,
 } from '@/lib/apis/spacetimeHttp';
 
 export async function GET(req: NextRequest) {
@@ -26,7 +26,7 @@ export async function GET(req: NextRequest) {
     const leaderboard =
       type === 'paid'
         ? (
-            await querySql<Record<string, unknown>>(
+            await querySqlSafe<Record<string, unknown>>(
               `SELECT * FROM players
                WHERE total_earnings >= 0 OR weekly_best_score > 0
                ORDER BY weekly_best_score DESC
@@ -34,7 +34,7 @@ export async function GET(req: NextRequest) {
             )
           ).map(mapSqlPlayerRow)
         : (
-            await querySql<Record<string, unknown>>(
+            await querySqlSafe<Record<string, unknown>>(
               `SELECT * FROM guest_players
                ORDER BY best_score DESC
                LIMIT ${safeLimit}`,

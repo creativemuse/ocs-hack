@@ -189,3 +189,14 @@ export async function querySql<T = unknown>(sql: string): Promise<T[]> {
     ? (data as { rows: T[] }).rows ?? []
     : [];
 }
+
+/** Best-effort SQL read: returns [] and logs on auth/network errors instead of throwing. */
+export async function querySqlSafe<T = unknown>(sql: string): Promise<T[]> {
+  try {
+    return await querySql<T>(sql);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('SpacetimeDB SQL read failed (non-fatal):', message);
+    return [];
+  }
+}
