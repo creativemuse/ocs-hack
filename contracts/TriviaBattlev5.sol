@@ -236,19 +236,17 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
     }
 
     /// @notice Submit scores for a specific session. Allows late score submission after rollover.
-    function submitScoresForSession(
-        uint256 sessionId,
-        address[] calldata playerAddresses,
-        uint256[] calldata scores
-    ) external onlyOwnerOrChainlink nonReentrant {
+    function submitScoresForSession(uint256 sessionId, address[] calldata playerAddresses, uint256[] calldata scores)
+        external
+        onlyOwnerOrChainlink
+        nonReentrant
+    {
         _submitScoresForSession(sessionId, playerAddresses, scores);
     }
 
-    function _submitScoresForSession(
-        uint256 sessionId,
-        address[] calldata playerAddresses,
-        uint256[] calldata scores
-    ) internal {
+    function _submitScoresForSession(uint256 sessionId, address[] calldata playerAddresses, uint256[] calldata scores)
+        internal
+    {
         Session storage session = sessions[sessionId];
         if (sessionId == 0 || session.startTime == 0) {
             revert TriviaBattle__SessionNotFound();
@@ -388,7 +386,8 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         Session storage session = sessions[sessionId];
         PlayerScore[] memory playerScoresArray = new PlayerScore[](session.players.length);
         for (uint256 i = 0; i < session.players.length; i++) {
-            playerScoresArray[i] = PlayerScore({player: session.players[i], score: session.playerScores[session.players[i]]});
+            playerScoresArray[i] =
+                PlayerScore({player: session.players[i], score: session.playerScores[session.players[i]]});
         }
 
         if (playerScoresArray.length <= 1) {
@@ -510,13 +509,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         LINK_TOKEN.safeTransfer(address(chainlinkFunctions), CHAINLINK_FEE);
 
         bytes32 requestId = chainlinkFunctions.requestOracleData{value: 0}(
-            chainlinkOracle,
-            params,
-            bytes32(0),
-            bytes4(0),
-            block.chainid,
-            address(this),
-            bytes32(0)
+            chainlinkOracle, params, bytes32(0), bytes4(0), block.chainid, address(this), bytes32(0)
         );
 
         emit ChainlinkRequestSent(requestId, msg.sender, functionToCall);

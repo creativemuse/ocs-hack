@@ -97,7 +97,9 @@ contract DeployTriviaBattle is Script {
         console.log("");
         console.log("POST-DEPLOYMENT CHECKLIST:");
         console.log("1. Set NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS env to the address above.");
-        console.log("2. Update chainlink-cre-workflows/weekly-prize-distribution/config.production.json contractAddress.");
+        console.log(
+            "2. Update chainlink-cre-workflows/weekly-prize-distribution/config.production.json contractAddress."
+        );
         console.log("3. Call setChainlinkOracle(<CRE_FORWARDER>) so onReport can receive workflow reports.");
         console.log("4. Re-deploy/activate the CRE workflow if the report payload changed.");
 
