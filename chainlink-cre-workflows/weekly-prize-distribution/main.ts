@@ -140,6 +140,16 @@ const SUBMIT_SCORES_FOR_SESSION_ABI = [
   },
 ] as const
 
+const HAS_ANY_SCORES_FOR_SESSION_ABI = [
+  {
+    inputs: [{ name: "sessionId", type: "uint256" }],
+    name: "hasAnyScoresForSession",
+    outputs: [{ type: "bool" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const
+
 // ─── Main handler ────────────────────────────────────────────────────────────
 
 const onWeeklyDistribution = (
@@ -428,30 +438,29 @@ function verifyScoresExistForSession(
   const evmClient = new cre.capabilities.EVMClient(chainSelector)
   const contractAddress = evmConfig.contractAddress as `0x${string}`
 
-  // Get players for this session
-  const playersCall = encodeFunctionData({
-    abi: GET_CURRENT_PLAYERS_FOR_SESSION_ABI,
-    functionName: "getCurrentPlayersForSession",
+  // Single RPC call to check if any player in the session has a non-zero score.
+  // This replaces up to MAX_PLAYERS sequential getPlayerScoreForSession calls.
+  const call = encodeFunctionData({
+    abi: HAS_ANY_SCORES_FOR_SESSION_ABI,
+    functionName: "hasAnyScoresForSession",
     args: [sessionId],
   })
-  const playersResult = evmClient
+  const result = evmClient
     .callContract(runtime, {
-      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: playersCall }),
+      call: encodeCallMsg({ from: zeroAddress, to: contractAddress, data: call }),
       blockNumber: LAST_FINALIZED_BLOCK_NUMBER,
     })
     .result()
-  const players = decodeFunctionResult({
-    abi: GET_CURRENT_PLAYERS_FOR_SESSION_ABI,
-    functionName: "getCurrentPlayersForSession",
-    data: bytesToHex(playersResult.data),
-  }) as `0x${string}`[]
+  const hasScores = decodeFunctionResult({
+    abi: HAS_ANY_SCORES_FOR_SESSION_ABI,
+    functionName: "hasAnyScoresForSession",
+    data: bytesToHex(result.data),
+  }) as boolean
 
-  if (players.length === 0) {
-    runtime.log(`No players found in session ${sessionId}`)
-    return false
+  if (!hasScores) {
+    runtime.log(`No scores found in session ${sessionId}`)
   }
-
-  return verifyScoresForPlayersInSession(runtime, chainSelector, evmConfig, sessionId, players)
+  return hasScores
 }
 
 function verifyScoresForPlayersInSession(
@@ -610,7 +619,13 @@ function syncScoresFromRankingsApi(
     return { synced: false, addresses: [], scores: [] }
   }
 
-  const playerEntries = parsed.players ?? []
+  // Defensive: JSON.parse("null") returns null — guard before property access
+  if (!parsed || typeof parsed !== "object") {
+    runtime.log("Session rankings API returned invalid JSON (not an object)")
+    return { synced: false, addresses: [], scores: [] }
+  }
+
+  const playerEntries = Array.isArray(parsed.players) ? parsed.players : []
   if (playerEntries.length === 0) {
     runtime.log("Session rankings API returned no scored players")
     return { synced: false, addresses: [], scores: [] }

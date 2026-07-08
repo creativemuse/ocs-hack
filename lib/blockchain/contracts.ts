@@ -1075,6 +1075,17 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
+    "name": "hasAnyScoresForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "bool", "internalType": "bool" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "canCreateNewSession",
     "inputs": [],
     "outputs": [

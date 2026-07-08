@@ -6,7 +6,7 @@ import {
   mapSqlPlayerRow,
   querySqlSafe,
 } from '@/lib/apis/spacetimeHttp';
-import { fetchWeeklyScoresFromChain } from '@/lib/game/weeklyLeaderboard';
+import { fetchWeeklyScoresFromChain, fetchWeeklyScoresFromChainForSession } from '@/lib/game/weeklyLeaderboard';
 
 export type PlayerWeeklyScore = {
   address: `0x${string}`;
@@ -24,6 +24,10 @@ export type WeeklyScoresLookupOptions = {
 /**
  * Resolve weekly scores for on-chain session players from SpacetimeDB (server cache)
  * plus paid game_sessions for the current sessionCounter. On-chain scores win when present.
+ *
+ * When `options.sessionCounter` is provided, queries target that specific session
+ * instead of the live on-chain sessionCounter. This is critical for CRE distribution
+ * workflows that operate on closed sessions after rollover.
  */
 export const getWeeklyScoresForPlayers = async (
   playerAddresses: readonly `0x${string}`[],
@@ -36,6 +40,11 @@ export const getWeeklyScoresForPlayers = async (
     const chain = await fetchWeeklyScoresFromChain();
     sessionCounter = chain.sessionCounter;
     chainScores = chain.chainScores;
+  } else if (chainScores.size === 0) {
+    // When a specific sessionCounter is passed but no chain scores supplied,
+    // fetch on-chain scores for that specific session.
+    const chain = await fetchWeeklyScoresFromChainForSession(sessionCounter);
+    chainScores = chain;
   }
 
   const sessionId = BigInt(sessionCounter);

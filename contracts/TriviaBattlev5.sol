@@ -354,11 +354,6 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         uint256 platformFee = (totalPrizePool * PLATFORM_FEE_PERCENTAGE) / 100;
         uint256 winnerPool = totalPrizePool - platformFee;
 
-        if (platformFee > 0) {
-            USDC_TOKEN.safeTransfer(owner(), platformFee);
-            emit PlatformFeeDistributed(sessionId, owner(), platformFee);
-        }
-
         address[] memory topPlayers = _findTopPlayers(sessionId, 3);
         if (topPlayers.length == 0) {
             revert("No winners found");
@@ -374,12 +369,19 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
             revert("Prize overflow");
         }
 
+        // Effects: mark session state before any external calls (CEI pattern)
+        session.distributed = true;
+        session.isActive = false;
+
+        // Interactions: external token transfers
+        if (platformFee > 0) {
+            USDC_TOKEN.safeTransfer(owner(), platformFee);
+            emit PlatformFeeDistributed(sessionId, owner(), platformFee);
+        }
+
         _transferPrizes(topPlayers, prizeAmounts);
 
         emit PrizesDistributed(sessionId, topPlayers, prizeAmounts);
-
-        session.distributed = true;
-        session.isActive = false;
     }
 
     function _findTopPlayers(uint256 sessionId, uint256 numWinners) private view returns (address[] memory) {
@@ -482,16 +484,23 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
             revert TriviaBattle__TimeLockActive(timeLockEnd);
         }
 
+        // Withdraw the minimum of the pending amount and the actual contract balance.
+        // This prevents a permanent lock if the contract balance decreased during the
+        // timelock (e.g., prizes were distributed by the CRE workflow).
         uint256 contractBalance = USDC_TOKEN.balanceOf(address(this));
-        if (amount > contractBalance) {
+        uint256 withdrawAmount = amount > contractBalance ? contractBalance : amount;
+        if (withdrawAmount == 0) {
             revert TriviaBattle__InsufficientUSDCBalance();
         }
 
-        USDC_TOKEN.safeTransfer(owner(), amount);
+        // Effects
         pendingWithdrawals[owner()] = 0;
         timeLockEnd = 0;
 
-        emit WithdrawalExecuted(owner(), amount);
+        // Interactions
+        USDC_TOKEN.safeTransfer(owner(), withdrawAmount);
+
+        emit WithdrawalExecuted(owner(), withdrawAmount);
     }
 
     // --- Chainlink Integration ---
@@ -576,6 +585,18 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
 
     function getPlayerScoreForSession(uint256 sessionId, address player) external view returns (uint256) {
         return sessions[sessionId].playerScores[player];
+    }
+
+    /// @notice Check if any player in a session has a non-zero score (single RPC call).
+    /// @dev Replaces up to MAX_PLAYERS sequential getPlayerScoreForSession calls in the CRE workflow.
+    function hasAnyScoresForSession(uint256 sessionId) external view returns (bool) {
+        Session storage session = sessions[sessionId];
+        for (uint256 i = 0; i < session.players.length; i++) {
+            if (session.playerScores[session.players[i]] > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     function getPendingWithdrawal(address account) external view returns (uint256) {

@@ -68,8 +68,8 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ success: true, message: 'No players in current session', submitted: 0 });
     }
 
-    if (await scoresAlreadySyncedOnChain(publicClient, players)) {
-      const onChain = await readOnChainPlayerScores(publicClient, players);
+    if (await scoresAlreadySyncedOnChain(publicClient, players, targetSessionId)) {
+      const onChain = await readOnChainPlayerScores(publicClient, players, targetSessionId);
       return NextResponse.json({
         success: true,
         message: 'Scores already on-chain; sync skipped (idempotent)',
@@ -82,7 +82,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    const { sessionCounter, scores: resolvedScores } = await getWeeklyScoresForPlayers(players);
+    // Pass the targetSessionId so SpacetimeDB queries hit the correct session.
+    // Without this, getWeeklyScoresForPlayers fetches the *live* sessionCounter
+    // from chain, which may have rolled over to a new session.
+    const scoreOptions = targetSessionId !== undefined
+      ? { sessionCounter: Number(targetSessionId) }
+      : {};
+    const { sessionCounter, scores: resolvedScores } = await getWeeklyScoresForPlayers(players, scoreOptions);
     const addresses = resolvedScores.map((entry) => entry.address);
     const scores = resolvedScores.map((entry) => entry.score);
     const zeroScoreAddresses = resolvedScores
@@ -111,9 +117,9 @@ export async function POST(req: NextRequest) {
     const txHash = (await submitScoresOnChain(addresses, scores, targetSessionId)) as Hash | null;
 
     if (!txHash) {
-      const syncedAfterRace = await waitForNonZeroOnChainScores(publicClient, players);
+      const syncedAfterRace = await waitForNonZeroOnChainScores(publicClient, players, { sessionId: targetSessionId });
       if (syncedAfterRace) {
-        const onChain = await readOnChainPlayerScores(publicClient, players);
+        const onChain = await readOnChainPlayerScores(publicClient, players, targetSessionId);
         return NextResponse.json({
           success: true,
           message: 'Scores synced by concurrent request; no new tx required',
@@ -134,7 +140,7 @@ export async function POST(req: NextRequest) {
     }
 
     const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, confirmations: 1 });
-    const verified = await waitForNonZeroOnChainScores(publicClient, players, { attempts: 6, delayMs: 2000 });
+    const verified = await waitForNonZeroOnChainScores(publicClient, players, { attempts: 6, delayMs: 2000, sessionId: targetSessionId });
 
     if (!verified) {
       return NextResponse.json(

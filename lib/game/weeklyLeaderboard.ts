@@ -183,6 +183,65 @@ export const fetchWeeklyScoresFromChain = async (): Promise<{
 };
 
 /**
+ * Fetch on-chain scores for a specific session (v5 per-session).
+ * Returns a Map of wallet -> score for players in that session.
+ */
+export const fetchWeeklyScoresFromChainForSession = async (
+  sessionCounter: number,
+): Promise<Map<string, number>> => {
+  const playersListData = encodeFunctionData({
+    abi: TRIVIA_ABI,
+    functionName: 'getCurrentPlayersForSession',
+    args: [BigInt(sessionCounter)],
+  });
+
+  let playersRaw: string;
+  try {
+    playersRaw = await rpcEthCall(playersListData);
+  } catch {
+    return new Map();
+  }
+
+  let players: `0x${string}`[] = [];
+  if (playersRaw && playersRaw !== '0x') {
+    try {
+      players = decodeFunctionResult({
+        abi: TRIVIA_ABI,
+        functionName: 'getCurrentPlayersForSession',
+        data: playersRaw as `0x${string}`,
+      }) as `0x${string}`[];
+    } catch {
+      return new Map();
+    }
+  }
+
+  const chainScores = new Map<string, number>();
+  if (players.length === 0) {
+    return chainScores;
+  }
+
+  const scoreCallData = players.map((player) =>
+    encodeFunctionData({
+      abi: TRIVIA_ABI,
+      functionName: 'getPlayerScoreForSession',
+      args: [BigInt(sessionCounter), player],
+    }),
+  );
+
+  const scoreRaws = await rpcBatchEthCall(scoreCallData);
+
+  players.forEach((player, index) => {
+    const wallet = player.toLowerCase();
+    const score = Number(safeBigIntFromHex(scoreRaws[index]));
+    if (score > 0) {
+      chainScores.set(wallet, score);
+    }
+  });
+
+  return chainScores;
+};
+
+/**
  * Merge on-chain scores with SpacetimeDB weekly session scores.
  * Weekly ranking uses each player's **latest** score (not best-of-week).
  * On-chain scores are authoritative when present; Spacetime fills gaps while
