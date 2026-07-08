@@ -2,7 +2,7 @@
 
 After updating `config.production.json`, run everything from the **`chainlink-cre-workflows`** directory (parent of this folder).
 
-**Repo default:** `config.production.json` uses Base mainnet `TriviaBattle.sol` at `0xaBa9e6116b6CF85527A31b7BA1d1E9D66A551556`. Replace when you redeploy; see `docs/DEPLOY_TRIVIA_BATTLE_BASE.md`.
+**Repo default:** `config.production.json` uses Base mainnet `TriviaBattlev5.sol` at `0x50F9dF4f6EBFa9E2D8D040075dBb6bC647EC1Fd3`. Update when you redeploy; see `docs/TICKETED_SESSION_MIGRATION_GUIDE.md`.
 
 ## 1. RPC for `project.yaml`
 

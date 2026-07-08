@@ -10,7 +10,8 @@ const getOwnerKey = (): string | undefined =>
 
 export const submitScoresOnChain = async (
   addresses: `0x${string}`[],
-  scores: bigint[]
+  scores: bigint[],
+  sessionId?: bigint
 ): Promise<string | null> => {
   const ownerKey = getOwnerKey();
   if (!ownerKey || addresses.length === 0) {
@@ -20,14 +21,25 @@ export const submitScoresOnChain = async (
   const rpcUrl = resolveBaseRpcUrl();
   const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
 
-  const isActive = await publicClient.readContract({
-    address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-    abi: TRIVIA_ABI,
-    functionName: 'isSessionActive',
-  });
-
-  if (!isActive) {
-    return null;
+  // If a specific session is provided (v5 per-session), validate it exists.
+  // Otherwise fall back to the legacy live-session path.
+  if (sessionId !== undefined) {
+    try {
+      const sessionInfo = await publicClient.readContract({
+        address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+        abi: TRIVIA_ABI,
+        functionName: 'getSessionInfo',
+        args: [sessionId],
+      });
+      // sessionInfo: [isActive, distributed, startTime, endTime, prizePool, playerCount]
+      const distributed = sessionInfo[1] as boolean;
+      if (distributed) {
+        console.warn(`submitScoresOnChain: session ${sessionId} already distributed, skipping`);
+        return null;
+      }
+    } catch {
+      // getSessionInfo not available (old contract?) — fall through to legacy path
+    }
   }
 
   const account = privateKeyToAccount(ownerKey as `0x${string}`);
@@ -37,13 +49,16 @@ export const submitScoresOnChain = async (
     transport: http(rpcUrl),
   });
 
+  const functionName = sessionId !== undefined ? 'submitScoresForSession' : 'submitScores';
+  const args = sessionId !== undefined ? [sessionId, addresses, scores] : [addresses, scores];
+
   const hash = await enqueueOwnerTx(() =>
     walletClient.writeContract({
       address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
       abi: TRIVIA_ABI,
-      functionName: 'submitScores',
-      args: [addresses, scores],
-    })
+      functionName,
+      args,
+    } as Parameters<typeof walletClient.writeContract>[0])
   );
 
   return hash;

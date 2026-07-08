@@ -3,7 +3,7 @@
   "evms": [
     {
       "chainName": "ethereum-testnet-sepolia-base-1",
-      "contractAddress": "0xe72Fc03137A1412354ca97282071d173Ae592D96",
+      "contractAddress": "0xc17232929a5d7263a39Fb62520575DA66a620Bdb",
       "gasLimit": "500000"
     }
   ]

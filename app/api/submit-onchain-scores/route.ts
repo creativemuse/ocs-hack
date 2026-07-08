@@ -35,14 +35,34 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Parse optional sessionId from request body (v5 per-session).
+  // CRE workflow sends { sessionId: "N" } to target a specific closed session.
+  let targetSessionId: bigint | undefined;
+  try {
+    const body = await req.json();
+    if (body?.sessionId !== undefined && body?.sessionId !== null && body?.sessionId !== '') {
+      targetSessionId = BigInt(body.sessionId);
+    }
+  } catch {
+    // Body may be empty or not JSON — that's fine, use live session.
+  }
+
   try {
     const publicClient = createBasePublicClient();
 
-    const players = (await publicClient.readContract({
-      address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-      abi: TRIVIA_ABI,
-      functionName: 'getCurrentPlayers',
-    })) as `0x${string}`[];
+    // Use per-session player list if a target session is specified (v5).
+    const players = targetSessionId !== undefined
+      ? (await publicClient.readContract({
+          address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+          abi: TRIVIA_ABI,
+          functionName: 'getCurrentPlayersForSession',
+          args: [targetSessionId],
+        })) as `0x${string}`[]
+      : (await publicClient.readContract({
+          address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
+          abi: TRIVIA_ABI,
+          functionName: 'getCurrentPlayers',
+        })) as `0x${string}`[];
 
     if (players.length === 0) {
       return NextResponse.json({ success: true, message: 'No players in current session', submitted: 0 });
@@ -88,7 +108,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const txHash = (await submitScoresOnChain(addresses, scores)) as Hash | null;
+    const txHash = (await submitScoresOnChain(addresses, scores, targetSessionId)) as Hash | null;
 
     if (!txHash) {
       const syncedAfterRace = await waitForNonZeroOnChainScores(publicClient, players);
