@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getWeeklyLeaderboardEntries } from '@/lib/game/weeklyLeaderboardServer';
 
+export const maxDuration = 30;
+export const runtime = 'nodejs';
+
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);

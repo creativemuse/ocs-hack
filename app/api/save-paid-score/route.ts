@@ -3,6 +3,12 @@ import { callReducer } from '@/lib/apis/spacetimeHttp';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
+
+// On-chain score submission involves readContract + writeContract + waitForReceipt
+// which can take 10-20s. Default Vercel timeout (10s on Hobby) kills the function
+// before the transaction completes, causing silent on-chain submission failures.
+export const maxDuration = 60;
+export const runtime = 'nodejs';
 import { submitOnChainScoreWithRetry, readOnChainSessionCounter } from '@/lib/blockchain/submitOnChainScore';
 import { resolveAuthoritativeSessionId } from '@/lib/game/weeklyLeaderboard';
 
@@ -158,12 +164,9 @@ export async function POST(req: NextRequest) {
         spacetimeErr instanceof Error ? spacetimeErr.message : 'SpacetimeDB leaderboard update failed';
     }
 
-    // Leaderboard visibility depends on SpacetimeDB. If SpacetimeDB is unavailable,
-    // do not advertise leaderboardReady=true even if on-chain submission succeeds.
-    const leaderboardReady = spacetimeUpdated;
-
-    // Attempt on-chain score submission in the background. A failure here should not
-    // block the player from seeing their score on the SpacetimeDB-backed leaderboard.
+    // Attempt on-chain score submission. A failure here is non-fatal if
+    // SpacetimeDB already has the score, but we want to know the result
+    // before telling the client whether the leaderboard is ready.
     try {
       onChainResult = await submitOnChainScoreWithRetry(
         normalizedWallet,
@@ -178,6 +181,11 @@ export async function POST(req: NextRequest) {
       };
     }
 
+    // Leaderboard is ready if EITHER source has the score:
+    // - SpacetimeDB (real-time cache) OR
+    // - On-chain (authoritative, read by fetchWeeklyScoresFromChain)
+    const leaderboardReady = spacetimeUpdated || Boolean(onChainResult?.ok);
+
     if (!onChainResult || !onChainResult.ok) {
       const onChainError = onChainResult?.error;
       console.warn('On-chain score submission failed (non-fatal):', {
@@ -187,8 +195,8 @@ export async function POST(req: NextRequest) {
         error: onChainError,
       });
 
-      // Surface a warning to the client, but still report success because the score
-      // is already visible on the leaderboard via SpacetimeDB.
+      // Surface a warning to the client, but still report success if the score
+      // is visible via SpacetimeDB. If both failed, the warning is more serious.
       return NextResponse.json({
         success: true,
         authoritativeScore,
@@ -198,8 +206,9 @@ export async function POST(req: NextRequest) {
         leaderboardReady,
         onChainError,
         spacetimeError,
-        warning:
-          'Score saved to the leaderboard. On-chain sync will be retried.',
+        warning: spacetimeUpdated
+          ? 'Score saved to the leaderboard. On-chain sync will be retried.'
+          : 'Score could not be saved to the leaderboard. Please try again or contact support.',
       });
     }
 

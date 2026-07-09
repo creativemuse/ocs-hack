@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
 import { submitScoresOnChain } from '@/lib/blockchain/submitScoresOnChain';
+
+export const maxDuration = 60;
+export const runtime = 'nodejs';
 import {
   createBasePublicClient,
   readOnChainPlayerScores,
