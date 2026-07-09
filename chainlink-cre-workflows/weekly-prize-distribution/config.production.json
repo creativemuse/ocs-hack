@@ -5,7 +5,7 @@
   "evms": [
     {
       "chainName": "ethereum-mainnet-base-1",
-      "contractAddress": "0x50F9dF4f6EBFa9E2D8D040075dBb6bC647EC1Fd3",
+      "contractAddress": "0x147d35009a1992c95bDa1C85Eea210c226aCEDd4",
       "gasLimit": "500000"
     }
   ]

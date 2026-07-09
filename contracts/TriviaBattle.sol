@@ -62,7 +62,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     event EmergencyWithdrawalInitiated(address indexed initiator, uint256 amount, uint256 releaseTime);
     event WithdrawalExecuted(address indexed recipient, uint256 amount);
     event ChainlinkRequestSent(bytes32 indexed requestId, address indexed sender, string functionName);
-    event ChainlinkResponseReceived(bytes32 indexed requestId, bytes response, bytes error);
+    event ChainlinkResponseReceived(bytes32 indexed requestId, bytes response, bytes errorData);
 
     // --- Errors ---
     error TriviaBattle__SessionAlreadyActive();
@@ -526,11 +526,11 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         emit ChainlinkRequestSent(requestId, msg.sender, functionToCall);
     }
 
-    function fulfillOracleRequest(bytes32 requestId, bytes memory response, bytes memory error)
+    function fulfillOracleRequest(bytes32 requestId, bytes memory response, bytes memory errorData)
         external
         onlyOwnerOrChainlink
     {
-        emit ChainlinkResponseReceived(requestId, response, error);
+        emit ChainlinkResponseReceived(requestId, response, errorData);
     }
 
     // --- Admin Functions ---

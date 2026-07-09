@@ -237,7 +237,7 @@ const TRIVIA_ABI_INLINE = [
         "internalType": "bytes"
       },
       {
-        "name": "error",
+        "name": "errorData",
         "type": "bytes",
         "internalType": "bytes"
       }
@@ -715,7 +715,7 @@ const TRIVIA_ABI_INLINE = [
         "internalType": "bytes"
       },
       {
-        "name": "error",
+        "name": "errorData",
         "type": "bytes",
         "indexed": false,
         "internalType": "bytes"
