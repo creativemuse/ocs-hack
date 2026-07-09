@@ -16,18 +16,18 @@ contract DeployTriviaBattle is Script {
     // Base Sepolia addresses
     address constant BASE_SEPOLIA_USDC = 0x036CbD53842c5426634e7929541eC2318f3dCF7e;
     address constant BASE_SEPOLIA_LINK = 0xE4aB69C077896252FAFBD49EFD26B5D171A32410;
-    // Chainlink Functions addresses - set to zero address if not using Chainlink Functions yet
+    // Chainlink Functions — zero until set via setChainlinkFunctions()
     address constant BASE_SEPOLIA_CHAINLINK_FUNCTIONS = address(0);
-    address constant BASE_SEPOLIA_CHAINLINK_ORACLE = address(0);
 
     // Base Mainnet addresses
     address constant BASE_MAINNET_USDC = 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913;
     address constant BASE_MAINNET_LINK = 0x88DFAAABAf06f3A41d260Bea10568C1B4794334C;
-    // Chainlink Functions addresses - set to zero address if not using Chainlink Functions yet
+    // Chainlink Functions — zero until set via setChainlinkFunctions()
     address constant BASE_MAINNET_CHAINLINK_FUNCTIONS = address(0);
-    /// @dev Base Keystone forwarder — CRE `writeReport` calls `onReport` from this address.
-    address constant BASE_MAINNET_KEYSTONE_FORWARDER = 0xF8344CFd5c43616a4366C34E3EEE75af79a74482;
-    address constant BASE_MAINNET_CHAINLINK_ORACLE = BASE_MAINNET_KEYSTONE_FORWARDER;
+
+    /// @dev Base / Base Sepolia Keystone forwarder — CRE `writeReport` calls `onReport` from this address.
+    /// See https://docs.chain.link/cre/guides/workflow/using-evm-client/forwarder-directory-ts
+    address constant BASE_KEYSTONE_FORWARDER = 0xF8344CFd5c43616a4366C34E3EEE75af79a74482;
 
     // Configuration constants
     /// @dev Weekly settlement interval (7 days). In-game round timers are separate (API/Spacetime).
@@ -52,24 +52,20 @@ contract DeployTriviaBattle is Script {
             usdcAddress = BASE_SEPOLIA_USDC;
             linkAddress = BASE_SEPOLIA_LINK;
             chainlinkFunctionsAddress = BASE_SEPOLIA_CHAINLINK_FUNCTIONS;
-            chainlinkOracleAddress = BASE_SEPOLIA_CHAINLINK_ORACLE;
+            chainlinkOracleAddress = BASE_KEYSTONE_FORWARDER;
 
-            // Warn if Chainlink addresses are zero (they can be set later)
-            if (BASE_SEPOLIA_CHAINLINK_FUNCTIONS == address(0) || BASE_SEPOLIA_CHAINLINK_ORACLE == address(0)) {
-                console.log("NOTE: Chainlink addresses are zero. This is allowed.");
-                console.log("Update them after deployment using:");
-                console.log("  - setChainlinkFunctions(address)");
-                console.log("  - setChainlinkOracle(address)");
+            if (BASE_SEPOLIA_CHAINLINK_FUNCTIONS == address(0)) {
+                console.log("NOTE: Chainlink Functions address is zero. Set via setChainlinkFunctions when ready.");
             }
+            console.log("Keystone forwarder (chainlinkOracle):", chainlinkOracleAddress);
         } else if (chainId == 8453) {
             // Base Mainnet
             networkName = "Base Mainnet";
             usdcAddress = BASE_MAINNET_USDC;
             linkAddress = BASE_MAINNET_LINK;
             chainlinkFunctionsAddress = BASE_MAINNET_CHAINLINK_FUNCTIONS;
-            chainlinkOracleAddress = BASE_MAINNET_CHAINLINK_ORACLE;
+            chainlinkOracleAddress = BASE_KEYSTONE_FORWARDER;
 
-            // Warn if Chainlink addresses are zero (they can be set later)
             if (BASE_MAINNET_CHAINLINK_FUNCTIONS == address(0)) {
                 console.log("NOTE: Chainlink Functions address is zero. Set via setChainlinkFunctions when ready.");
             }
@@ -100,7 +96,7 @@ contract DeployTriviaBattle is Script {
         console.log(
             "2. Update chainlink-cre-workflows/weekly-prize-distribution/config.production.json contractAddress."
         );
-        console.log("3. Call setChainlinkOracle(<CRE_FORWARDER>) so onReport can receive workflow reports.");
+        console.log("3. chainlinkOracle is set to the Keystone forwarder at deploy (CRE onReport).");
         console.log("4. Re-deploy/activate the CRE workflow if the report payload changed.");
 
         vm.stopBroadcast();

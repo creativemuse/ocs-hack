@@ -24,7 +24,7 @@ RESPONSE=$(cdpcurl -X POST \
       \"method\": \"POST\"
     },
     \"labels\": {
-      \"contract_address\": \"0x147d35009a1992c95bDa1C85Eea210c226aCEDd4\",
+      \"contract_address\": \"0x76B356d0DCAe65942751A8F2Da2644a83d7f165f\",
       \"event_name\": \"PrizeClaimed\",
       \"network\": \"base-mainnet\"
     },

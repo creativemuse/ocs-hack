@@ -1,9 +1,10 @@
 import { createCDPJWTGenerator } from '../cdp/jwt-generator';
 
 // Contract configuration
+const isSepolia = process.env.NEXT_PUBLIC_NETWORK === 'sepolia';
 export const CONTRACT_CONFIG = {
-  networkId: "base-mainnet",
-  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x147d35009a1992c95bDa1C85Eea210c226aCEDd4",
+  networkId: isSepolia ? "base-sepolia" : "base-mainnet",
+  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || (isSepolia ? "0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB" : "0x76B356d0DCAe65942751A8F2Da2644a83d7f165f"),
   contractName: "TriviaBattlev5",
   protocolName: "public"
 } as const;

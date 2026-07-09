@@ -1,8 +1,9 @@
 // CDP Configuration (client-side)
+const isSepolia = process.env.NEXT_PUBLIC_NETWORK === 'sepolia';
 export const CDP_CONFIG = {
-  // TriviaBattle Contract Configuration
-  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x147d35009a1992c95bDa1C85Eea210c226aCEDd4",
-  NETWORK: "base-mainnet",
+  // TriviaBattlev5 Contract Configuration
+  CONTRACT_ADDRESS: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || (isSepolia ? "0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB" : "0x76B356d0DCAe65942751A8F2Da2644a83d7f165f"),
+  NETWORK: isSepolia ? "base-sepolia" : "base-mainnet",
   CONTRACT_NAME: "TriviaBattlev5",
   PROTOCOL_NAME: "public"
 } as const;

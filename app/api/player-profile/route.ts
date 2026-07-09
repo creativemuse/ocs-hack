@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createCDPSQLClient } from '@/lib/cdp/sql-api';
 
 // Contract addresses from environment
-const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || '0x147d35009a1992c95bDa1C85Eea210c226aCEDd4';
-const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS || '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913';
+const isSepolia = process.env.NEXT_PUBLIC_NETWORK === 'sepolia';
+const TRIVIA_CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS ||
+  (isSepolia ? '0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB' : '0x76B356d0DCAe65942751A8F2Da2644a83d7f165f');
+const USDC_ADDRESS = process.env.NEXT_PUBLIC_USDC_ADDRESS ||
+  (isSepolia ? '0x036CbD53842c5426634e7929541eC2318f3dCF7e' : '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913');
 
 export async function GET(req: NextRequest) {
   try {
@@ -18,8 +21,9 @@ export async function GET(req: NextRequest) {
     }
 
     // Check if CDP API is configured (support both old and new env var names)
-    const hasConfig = (process.env.CDP_API_KEY && process.env.CDP_API_SECRET) || 
-                      (process.env.KEY_NAME && process.env.KEY_SECRET);
+    const hasConfig = (process.env.CDP_API_KEY && process.env.CDP_API_SECRET) ||
+                      (process.env.KEY_NAME && process.env.KEY_SECRET) ||
+                      (process.env.CDP_API_KEY_NAME && process.env.CDP_API_KEY_PRIVATE_KEY && process.env.CDP_PROJECT_ID);
     
     if (!hasConfig) {
       return NextResponse.json(
