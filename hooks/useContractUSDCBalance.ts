@@ -21,6 +21,7 @@ export interface ContractUSDCBalanceState {
   sessionInterval: number;
   playerCount: number;
   isSessionActive: boolean;
+  sessionCounter: number;
 }
 
 // Helper function to decode ABI-encoded string
@@ -50,6 +51,52 @@ async function rpcCall(method: string, params: unknown[]): Promise<string> {
   return json.result;
 }
 
+// Wrapper that returns a fallback value instead of throwing — prevents one
+// reverted call from killing the entire Promise.all batch.
+async function rpcCallSafe(method: string, params: unknown[], fallback = '0x'): Promise<string> {
+  try {
+    return await rpcCall(method, params);
+  } catch {
+    return fallback;
+  }
+}
+
+// Function selectors (keccak256 of signature, first 4 bytes)
+const SELECTORS = {
+  balanceOf: '0x70a08231',          // balanceOf(address)
+  decimals: '0x313ce567',           // decimals()
+  symbol: '0x95d89b41',             // symbol()
+  entryFee: '0x072ea61c',           // entryFee()
+  lastSessionTime: '0xcf0902af',    // lastSessionTime()
+  sessionInterval: '0x36dc7bc0',    // sessionInterval()
+  getCurrentPlayers: '0x02cac05c',  // getCurrentPlayers()
+  isSessionActive: '0x031a65f4',    // isSessionActive()
+  sessionCounter: '0xcc64e2af',      // sessionCounter()
+  getSessionInfo: '0x9e10acf0',     // getSessionInfo(uint256)
+} as const;
+
+// Decode getSessionInfo() return: (bool isActive, bool distributed, uint256 startTime, uint256 endTime, uint256 prizePool, uint256 playerCount)
+function decodeSessionInfo(hex: string): {
+  isActive: boolean;
+  distributed: boolean;
+  startTime: number;
+  endTime: number;
+  prizePool: bigint;
+  playerCount: number;
+} {
+  if (!hex || hex === '0x') {
+    return { isActive: false, distributed: false, startTime: 0, endTime: 0, prizePool: BigInt(0), playerCount: 0 };
+  }
+  const data = hex.slice(2);
+  const isActive = BigInt('0x' + data.slice(0, 64)) !== BigInt(0);
+  const distributed = BigInt('0x' + data.slice(64, 128)) !== BigInt(0);
+  const startTime = Number(BigInt('0x' + data.slice(128, 192)));
+  const endTime = Number(BigInt('0x' + data.slice(192, 256)));
+  const prizePool = BigInt('0x' + data.slice(256, 320));
+  const playerCount = Number(BigInt('0x' + data.slice(320, 384)));
+  return { isActive, distributed, startTime, endTime, prizePool, playerCount };
+}
+
 export function useContractUSDCBalance() {
   const [state, setState] = useState<ContractUSDCBalanceState>({
     balance: 0,
@@ -65,6 +112,7 @@ export function useContractUSDCBalance() {
     sessionInterval: 0,
     playerCount: 0,
     isSessionActive: false,
+    sessionCounter: 0,
   });
 
   const hasFetchedOnce = useRef(false);
@@ -76,31 +124,39 @@ export function useContractUSDCBalance() {
     }
 
     try {
-      // Batch all RPC calls in parallel for better latency
-      const [balanceWei, decimals, symbol, entryFeeRaw, sessionPrizePoolRaw, lastSessionTimeRaw, sessionIntervalRaw, currentPlayersRaw, isSessionActiveRaw] = await Promise.all([
-        // USDC contract reads
-        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: `0x70a08231${TRIVIA_CONTRACT_ADDRESS.slice(2).padStart(64, '0')}` }, 'latest']),
-        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: '0x313ce567' }, 'latest']),
-        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: '0x95d89b41' }, 'latest']),
-        // Trivia contract reads
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0x072ea61c' }, 'latest']), // entryFee()
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0x1a7dd42a' }, 'latest']), // currentSessionPrizePool()
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0xcf0902af' }, 'latest']), // lastSessionTime()
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0x36dc7bc0' }, 'latest']), // sessionInterval()
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0x02cac05c' }, 'latest']), // getCurrentPlayers()
-        rpcCall('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: '0x031a65f4' }, 'latest']), // isSessionActive()
+      // Phase 1: Fetch sessionCounter first — we need it to call getSessionInfo().
+      // In parallel, fetch everything that doesn't depend on sessionCounter.
+      const [balanceWei, decimals, symbol, entryFeeRaw, lastSessionTimeRaw, sessionIntervalRaw, currentPlayersRaw, isSessionActiveRaw, sessionCounterRaw] = await Promise.all([
+        // USDC contract reads (standard ERC-20 — always present)
+        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: `${SELECTORS.balanceOf}${TRIVIA_CONTRACT_ADDRESS.slice(2).padStart(64, '0')}` }, 'latest']),
+        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: SELECTORS.decimals }, 'latest']),
+        rpcCall('eth_call', [{ to: USDC_CONTRACT_ADDRESS, data: SELECTORS.symbol }, 'latest']),
+        // Trivia contract reads (use rpcCallSafe — deployed version may vary)
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.entryFee }, 'latest']),
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.lastSessionTime }, 'latest']),
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.sessionInterval }, 'latest']),
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.getCurrentPlayers }, 'latest']),
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.isSessionActive }, 'latest']),
+        rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.sessionCounter }, 'latest']),
       ]);
 
       const balanceWeiBigInt = BigInt(balanceWei);
-      const decimalsNum = parseInt(decimals, 16);
+      const decimalsNum = parseInt(decimals, 16) || 6; // fallback to 6 (USDC) if parse fails
       const symbolStr = decodeString(symbol);
       const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);
-      const entryFee = Number(BigInt(entryFeeRaw)) / (10 ** decimalsNum);
-      const sessionPrizePoolWei = (sessionPrizePoolRaw && sessionPrizePoolRaw !== '0x') ? BigInt(sessionPrizePoolRaw) : BigInt(0);
+      const entryFee = (entryFeeRaw && entryFeeRaw !== '0x') ? Number(BigInt(entryFeeRaw)) / (10 ** decimalsNum) : 0;
+      const lastSessionTime = (lastSessionTimeRaw && lastSessionTimeRaw !== '0x') ? Number(BigInt(lastSessionTimeRaw)) : 0;
+      const sessionInterval = (sessionIntervalRaw && sessionIntervalRaw !== '0x') ? Number(BigInt(sessionIntervalRaw)) : 0;
+      const isSessionActive = (isSessionActiveRaw && isSessionActiveRaw !== '0x') ? BigInt(isSessionActiveRaw) !== BigInt(0) : false;
+      const sessionCounter = (sessionCounterRaw && sessionCounterRaw !== '0x') ? Number(BigInt(sessionCounterRaw)) : 0;
+
+      // Phase 2: Fetch getSessionInfo(sessionCounter) to read the per-session prize pool.
+      // This replaces the old currentSessionPrizePool() call that doesn't exist on v5.
+      const sessionInfoArg = sessionCounter.toString(16).padStart(64, '0');
+      const sessionInfoRaw = await rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: `${SELECTORS.getSessionInfo}${sessionInfoArg}` }, 'latest']);
+      const sessionInfo = decodeSessionInfo(sessionInfoRaw);
+      const sessionPrizePoolWei = sessionInfo.prizePool;
       const sessionPrizePool = Number(sessionPrizePoolWei) / (10 ** decimalsNum);
-      const lastSessionTime = Number(BigInt(lastSessionTimeRaw));
-      const sessionInterval = Number(BigInt(sessionIntervalRaw));
-      const isSessionActive = BigInt(isSessionActiveRaw) !== BigInt(0);
 
       // Decode getCurrentPlayers() using viem for proper ABI handling
       let playerCount = 0;
@@ -129,6 +185,7 @@ export function useContractUSDCBalance() {
         sessionInterval,
         playerCount,
         isSessionActive,
+        sessionCounter,
       });
     } catch (error) {
       console.error('Error fetching contract data:', error);
