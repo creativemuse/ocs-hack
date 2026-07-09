@@ -117,7 +117,7 @@ const getRecentEvents = async () => {
       scoreSubmitted: scoreSubmitted.map((event: any) => ({
         sessionId: event.data.sessionId,
         playerCount: event.data.playerCount,
-        timestamp: event.data.timestamp,
+        timestamp: event.timestamp,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash
       })),

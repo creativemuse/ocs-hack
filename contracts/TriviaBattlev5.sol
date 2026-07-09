@@ -100,6 +100,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
     error TriviaBattle__NoPendingWithdrawal();
     error TriviaBattle__MaxPlayersReached();
     error TriviaBattle__EntryAfterDeadline();
+    error TriviaBattle__NoScoresSubmitted();
 
     // --- Modifier ---
     modifier onlyOwnerOrChainlink() {
@@ -308,6 +309,11 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
 
     /// @notice Owner-only session end (legacy name preserved for ABI compatibility).
     function endSession() external onlyOwner nonReentrant {
+        _endSession();
+    }
+
+    /// @dev Internal helper for ending the current session. Shared by endSession() and onReport().
+    function _endSession() internal {
         Session storage live = sessions[sessionCounter];
         if (!live.isActive) {
             revert TriviaBattle__SessionNotActive();
@@ -351,7 +357,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         // Require at least one player to have a non-zero score — prevents
         // distributing prizes based on join order when scores were never submitted.
         if (!hasAnyScoresForSession(sessionId)) {
-            revert("No scores submitted for this session");
+            revert TriviaBattle__NoScoresSubmitted();
         }
 
         // Prize pool is the full amount collected in this session (entry fee = 1 USDC)
@@ -694,15 +700,9 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
             return;
         }
         if (selector == SEL_END_SESSION) {
-            Session storage live = sessions[sessionCounter];
-            if (!live.isActive) revert TriviaBattle__SessionNotActive();
-            if (block.timestamp < live.endTime) revert TriviaBattle__SessionDeadlineNotElapsed();
-            if (live.players.length < MIN_PLAYERS) revert TriviaBattle__NotEnoughPlayers();
-            live.isActive = false;
+            _endSession();
             return;
         }
-
-        revert TriviaBattle__Unauthorized();
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {

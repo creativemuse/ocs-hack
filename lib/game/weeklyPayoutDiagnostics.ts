@@ -92,11 +92,11 @@ const readDiagnosticsViaBatch = async (rpcUrl: string) => {
   // First fetch sessionCounter (needed for getSessionInfo arg)
   const counterData = encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionCounter' });
   const counterHex = await rpcBatchEthCall([counterData], rpcUrl);
-  const [sessionCounter] = decodeFunctionResult({
+  const sessionCounter = decodeFunctionResult({
     abi: TRIVIA_ABI,
     functionName: 'sessionCounter',
     data: counterHex[0] as `0x${string}`,
-  }) as unknown as readonly [bigint];
+  }) as unknown as bigint;
 
   const callData = [
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'isSessionActive' }),

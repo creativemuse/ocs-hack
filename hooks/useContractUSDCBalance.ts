@@ -88,6 +88,9 @@ function decodeSessionInfo(hex: string): {
     return { isActive: false, distributed: false, startTime: 0, endTime: 0, prizePool: BigInt(0), playerCount: 0 };
   }
   const data = hex.slice(2);
+  if (data.length < 384) {
+    return { isActive: false, distributed: false, startTime: 0, endTime: 0, prizePool: BigInt(0), playerCount: 0 };
+  }
   const isActive = BigInt('0x' + data.slice(0, 64)) !== BigInt(0);
   const distributed = BigInt('0x' + data.slice(64, 128)) !== BigInt(0);
   const startTime = Number(BigInt('0x' + data.slice(128, 192)));
@@ -140,7 +143,7 @@ export function useContractUSDCBalance() {
         rpcCallSafe('eth_call', [{ to: TRIVIA_CONTRACT_ADDRESS, data: SELECTORS.sessionCounter }, 'latest']),
       ]);
 
-      const balanceWeiBigInt = BigInt(balanceWei);
+      const balanceWeiBigInt = (balanceWei && balanceWei !== '0x') ? BigInt(balanceWei) : BigInt(0);
       const decimalsNum = parseInt(decimals, 16) || 6; // fallback to 6 (USDC) if parse fails
       const symbolStr = decodeString(symbol);
       const balance = Number(balanceWeiBigInt) / (10 ** decimalsNum);

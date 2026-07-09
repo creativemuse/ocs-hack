@@ -30,29 +30,29 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.foundry/bin
+            ~/.foundry
           key: foundry-v1.7.1-${{ runner.os }}
 
       - name: Install Foundry
-        if: steps.cache-foundry.outputs.cache-hit != 'true'
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: v1.7.1
+        continue-on-error: true
 
-      - name: Add Foundry to PATH
-        if: steps.cache-foundry.outputs.cache-hit == 'true'
-        run: echo "$HOME/.foundry/bin" >> $GITHUB_PATH
-
-      - name: Retry install Foundry (fallback)
-        if: steps.cache-foundry.outputs.cache-hit != 'true' && failure()
+      - name: Retry Foundry install (fallback)
+        if: steps.cache-foundry.outputs.cache-hit != 'true'
         run: |
-          for i in 1 2 3; do
-            curl -L https://foundry.paradigm.xyz | bash && \
-            foundryup --install v1.7.1 && break || {
-              echo "Attempt $i failed, retrying in 15s..."
-              sleep 15
-            }
-          done
+          if ! command -v forge &>/dev/null; then
+            for i in 1 2 3; do
+              echo "Attempt $i: installing Foundry via foundryup..."
+              curl -L https://foundry.paradigm.xyz | bash
+              export PATH="$HOME/.foundry/bin:$PATH"
+              foundryup --install v1.7.1 && break || {
+                echo "Attempt $i failed, retrying in 15s..."
+                sleep 15
+              }
+            done
+          fi
           echo "$HOME/.foundry/bin" >> $GITHUB_PATH
 
       - name: Show Forge version

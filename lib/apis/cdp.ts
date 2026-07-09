@@ -117,7 +117,7 @@ export const fetchScoreSubmittedEvents = async (fromBlock?: number, toBlock?: nu
   return events.map((event: any) => ({
     sessionId: event.data.sessionId,
     playerCount: event.data.playerCount,
-    timestamp: event.data.timestamp,
+    timestamp: event.timestamp,
     blockNumber: event.blockNumber,
     transactionHash: event.transactionHash
   }));
