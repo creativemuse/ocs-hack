@@ -108,7 +108,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
     }
 
     function _onlyOwnerOrChainlink() internal view {
-        if (msg.sender != owner() && msg.sender != chainlinkOracle && msg.sender != address(this)) {
+        if (msg.sender != owner() && msg.sender != chainlinkOracle) {
             revert TriviaBattle__Unauthorized();
         }
     }
@@ -128,6 +128,9 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
 
         USDC_TOKEN = IERC20(_usdcAddress);
         LINK_TOKEN = IERC20(_linkAddress);
+        if (_chainlinkOracle == address(0)) {
+            revert TriviaBattle__ZeroAddress();
+        }
         if (_chainlinkFunctionsAddress != address(0)) {
             chainlinkFunctions = IChainlinkFunctions(_chainlinkFunctionsAddress);
         }
@@ -244,7 +247,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         _submitScoresForSession(sessionId, playerAddresses, scores);
     }
 
-    function _submitScoresForSession(uint256 sessionId, address[] calldata playerAddresses, uint256[] calldata scores)
+    function _submitScoresForSession(uint256 sessionId, address[] memory playerAddresses, uint256[] memory scores)
         internal
     {
         Session storage session = sessions[sessionId];
@@ -343,6 +346,12 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
         }
         if (session.players.length < MIN_PLAYERS) {
             revert TriviaBattle__NotEnoughPlayers();
+        }
+
+        // Require at least one player to have a non-zero score — prevents
+        // distributing prizes based on join order when scores were never submitted.
+        if (!hasAnyScoresForSession(sessionId)) {
+            revert("No scores submitted for this session");
         }
 
         // Prize pool is the full amount collected in this session (entry fee = 1 USDC)
@@ -589,7 +598,7 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
 
     /// @notice Check if any player in a session has a non-zero score (single RPC call).
     /// @dev Replaces up to MAX_PLAYERS sequential getPlayerScoreForSession calls in the CRE workflow.
-    function hasAnyScoresForSession(uint256 sessionId) external view returns (bool) {
+    function hasAnyScoresForSession(uint256 sessionId) public view returns (bool) {
         Session storage session = sessions[sessionId];
         for (uint256 i = 0; i < session.players.length; i++) {
             if (session.playerScores[session.players[i]] > 0) {
@@ -641,23 +650,59 @@ contract TriviaBattlev5 is ReentrancyGuard, Ownable, IReceiver {
     }
 
     // --- Chainlink CRE Integration ---
-    function onReport(bytes calldata, bytes calldata report) external {
+
+    /// @dev Allowed function selectors that onReport may invoke.
+    bytes4 private constant SEL_SYNC_AND_DISTRIBUTE =
+        bytes4(keccak256("syncAndDistributeForSession(uint256,address[],uint256[])"));
+    bytes4 private constant SEL_DISTRIBUTE_PRIZES = bytes4(keccak256("distributePrizes(uint256)"));
+    bytes4 private constant SEL_SUBMIT_SCORES =
+        bytes4(keccak256("submitScoresForSession(uint256,address[],uint256[])"));
+    bytes4 private constant SEL_END_SESSION = bytes4(keccak256("endSession()"));
+
+    function onReport(bytes calldata, bytes calldata report) external nonReentrant {
         if (msg.sender != chainlinkOracle) {
             revert TriviaBattle__Unauthorized();
         }
 
-        (bool success, bytes memory returnData) = address(this).call(report);
-
-        if (!success) {
-            if (returnData.length > 0) {
-                assembly {
-                    let returndata_size := mload(returnData)
-                    revert(add(32, returnData), returndata_size)
-                }
-            } else {
-                revert("TriviaBattle__ReportExecutionFailed");
-            }
+        // Restrict to whitelisted function selectors — prevents the oracle from
+        // calling arbitrary privileged functions (setEntryFee, setChainlinkOracle, etc.).
+        bytes4 selector = bytes4(report);
+        bool allowed = selector == SEL_SYNC_AND_DISTRIBUTE || selector == SEL_DISTRIBUTE_PRIZES
+            || selector == SEL_SUBMIT_SCORES || selector == SEL_END_SESSION;
+        if (!allowed) {
+            revert TriviaBattle__Unauthorized();
         }
+
+        // Dispatch internally — avoids address(this).call() which would need
+        // address(this) in the access control modifier (a security risk).
+        if (selector == SEL_SYNC_AND_DISTRIBUTE) {
+            (uint256 sid, address[] memory players, uint256[] memory scores) =
+                abi.decode(report[4:], (uint256, address[], uint256[]));
+            _submitScoresForSession(sid, players, scores);
+            _distributePrizesForSession(sid);
+            return;
+        }
+        if (selector == SEL_DISTRIBUTE_PRIZES) {
+            (uint256 sid) = abi.decode(report[4:], (uint256));
+            _distributePrizesForSession(sid);
+            return;
+        }
+        if (selector == SEL_SUBMIT_SCORES) {
+            (uint256 sid, address[] memory players, uint256[] memory scores) =
+                abi.decode(report[4:], (uint256, address[], uint256[]));
+            _submitScoresForSession(sid, players, scores);
+            return;
+        }
+        if (selector == SEL_END_SESSION) {
+            Session storage live = sessions[sessionCounter];
+            if (!live.isActive) revert TriviaBattle__SessionNotActive();
+            if (block.timestamp < live.endTime) revert TriviaBattle__SessionDeadlineNotElapsed();
+            if (live.players.length < MIN_PLAYERS) revert TriviaBattle__NotEnoughPlayers();
+            live.isActive = false;
+            return;
+        }
+
+        revert TriviaBattle__Unauthorized();
     }
 
     function supportsInterface(bytes4 interfaceId) external pure returns (bool) {
