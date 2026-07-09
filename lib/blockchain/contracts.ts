@@ -11,12 +11,13 @@ export const USDC_CONTRACT_ADDRESS =
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // Base Mainnet default
 
 // Trivia Battle smart contract address
-// Base Mainnet: 0x50F9dF4f6EBFa9E2D8D040075dBb6bC647EC1Fd3 (production, TriviaBattlev5 ticketed per-session)
+// Base Mainnet: 0x147d35009a1992c95bDa1C85Eea210c226aCEDd4 (production, TriviaBattlev5 ticketed per-session, reviewed)
+// Legacy: 0x50F9dF4f6EBFa9E2D8D040075dBb6bC647EC1Fd3 (TriviaBattlev5 pre-review fixes)
 // Legacy: 0x9b33f82357CC0a263A533599633fB0AA5CFD907c (TriviaBattle v1, live-session only)
 // Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to v5 mainnet.
 export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0x50F9dF4f6EBFa9E2D8D040075dBb6bC647EC1Fd3'; // Base Mainnet v5 default
+  '0x147d35009a1992c95bDa1C85Eea210c226aCEDd4'; // Base Mainnet v5 default (reviewed)
 
 // Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
 // NOTE: This is a session-based contract, not game-based. It does NOT have:
