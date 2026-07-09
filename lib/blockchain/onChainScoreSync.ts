@@ -18,6 +18,7 @@ export type BasePublicClient = ReturnType<typeof createBasePublicClient>;
 export const readOnChainPlayerScores = async (
   publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
+  sessionId?: bigint,
 ): Promise<OnChainPlayerScore[]> => {
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
   const results: OnChainPlayerScore[] = [];
@@ -26,8 +27,8 @@ export const readOnChainPlayerScores = async (
     const score = await publicClient.readContract({
       address: contract,
       abi: TRIVIA_ABI,
-      functionName: 'getPlayerScore',
-      args: [address],
+      functionName: sessionId !== undefined ? 'getPlayerScoreForSession' : 'getPlayerScore',
+      args: sessionId !== undefined ? [sessionId, address] : [address],
     });
     results.push({ address, score: score as bigint });
   }
@@ -46,11 +47,12 @@ export const hasNonZeroOnChainScores = (scores: readonly OnChainPlayerScore[]): 
 export const scoresAlreadySyncedOnChain = async (
   publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
+  sessionId?: bigint,
 ): Promise<boolean> => {
   if (players.length === 0) {
     return true;
   }
-  const onChain = await readOnChainPlayerScores(publicClient, players);
+  const onChain = await readOnChainPlayerScores(publicClient, players, sessionId);
   return hasNonZeroOnChainScores(onChain);
 };
 
@@ -60,13 +62,14 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 export const waitForNonZeroOnChainScores = async (
   publicClient: ReadContractClient,
   players: readonly `0x${string}`[],
-  options: { attempts?: number; delayMs?: number } = {},
+  options: { attempts?: number; delayMs?: number; sessionId?: bigint } = {},
 ): Promise<boolean> => {
   const attempts = options.attempts ?? 8;
   const delayMs = options.delayMs ?? 1500;
+  const sessionId = options.sessionId;
 
   for (let attempt = 0; attempt < attempts; attempt++) {
-    if (await scoresAlreadySyncedOnChain(publicClient, players)) {
+    if (await scoresAlreadySyncedOnChain(publicClient, players, sessionId)) {
       return true;
     }
     if (attempt < attempts - 1) {
