@@ -7,7 +7,7 @@
 #
 # Usage:
 #   export CONTRACT_OWNER_PRIVATE_KEY=0x...
-#   export TRIVIA_CONTRACT_ADDRESS=0x9b33f82357CC0a263A533599633fB0AA5CFD907c
+#   export TRIVIA_CONTRACT_ADDRESS=0x147d35009a1992c95bDa1C85Eea210c226aCEDd4
 #   export BASE_RPC_URL=https://mainnet.base.org
 #   ./scripts/set-chainlink-oracle.sh
 

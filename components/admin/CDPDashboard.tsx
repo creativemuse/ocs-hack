@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from 'react';
+import React from 'react';
 import { useCDPEvents } from '@/hooks/useCDPEvents';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -10,11 +10,8 @@ import {
   Users, 
   Trophy, 
   Play, 
-  Square, 
   RefreshCw, 
   TrendingUp,
-  Clock,
-  DollarSign,
   Activity
 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,24 +38,10 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
     return formatDistanceToNow(new Date(timestamp * 1000), { addSuffix: true });
   };
 
-  const formatUSDC = (amount: string) => {
-    const num = parseInt(amount) / 1e6; // Assuming 6 decimals for USDC
-    return `${num.toFixed(2)} USDC`;
-  };
-
   // Calculate statistics
   const totalPlayers = events.playerJoined.length;
   const totalScores = events.scoreSubmitted.length;
   const totalSessions = events.sessionStarted.length;
-  const totalTrialPlayers = events.trialPlayerJoined.length;
-  
-  const totalEntryFees = events.playerJoined.reduce((sum, event) => {
-    return sum + parseInt(event.entryFee) / 1e6;
-  }, 0);
-
-  const totalPlatformFees = events.playerJoined.reduce((sum, event) => {
-    return sum + parseInt(event.platformFee) / 1e6;
-  }, 0);
 
   if (!isInitialized) {
     return (
@@ -106,7 +89,7 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
             <div>
               <CardTitle className="flex items-center gap-2">
                 <Activity className="h-5 w-5 text-blue-500" />
-                TriviaBattle Analytics
+                TriviaBattlev5 Analytics
               </CardTitle>
               <CardDescription>
                 Real-time contract events and analytics from Base network
@@ -132,16 +115,15 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="overview" className="w-full">
-            <TabsList className="grid w-full grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3">
               <TabsTrigger value="overview">Overview</TabsTrigger>
               <TabsTrigger value="players">Players</TabsTrigger>
               <TabsTrigger value="sessions">Sessions</TabsTrigger>
-              <TabsTrigger value="trial">Trial</TabsTrigger>
             </TabsList>
             
             <TabsContent value="overview" className="space-y-4">
               {/* Statistics Cards */}
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2">
@@ -169,22 +151,10 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
                 <Card>
                   <CardContent className="p-4">
                     <div className="flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-green-500" />
-                      <div>
-                        <p className="text-sm font-medium">Total Revenue</p>
-                        <p className="text-2xl font-bold">{totalEntryFees.toFixed(2)} USDC</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardContent className="p-4">
-                    <div className="flex items-center gap-2">
                       <TrendingUp className="h-4 w-4 text-purple-500" />
                       <div>
-                        <p className="text-sm font-medium">Platform Fees</p>
-                        <p className="text-2xl font-bold">{totalPlatformFees.toFixed(2)} USDC</p>
+                        <p className="text-sm font-medium">Sessions</p>
+                        <p className="text-2xl font-bold">{totalSessions}</p>
                       </div>
                     </div>
                   </CardContent>
@@ -204,14 +174,15 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
                       .map((event, index) => (
                         <div key={index} className="flex items-center justify-between p-2 bg-muted rounded">
                           <div className="flex items-center gap-2">
-                            {'score' in event ? (
+                            {'playerCount' in event ? (
                               <Trophy className="h-4 w-4 text-yellow-500" />
                             ) : (
                               <Users className="h-4 w-4 text-blue-500" />
                             )}
                             <span className="text-sm">
-                              {formatAddress(event.player)}
-                              {'score' in event ? ` scored ${event.score}` : ' joined'}
+                              {'playerCount' in event
+                                ? `Session ${event.sessionId} • ${event.playerCount} players`
+                                : `${formatAddress(event.player)} joined`}
                             </span>
                           </div>
                           <span className="text-xs text-muted-foreground">
@@ -240,9 +211,6 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
                           <div className="flex justify-between items-start">
                             <div>
                               <p className="font-medium">{formatAddress(event.player)}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Entry: {formatUSDC(event.entryFee)} • Fee: {formatUSDC(event.platformFee)}
-                              </p>
                             </div>
                             <span className="text-xs text-muted-foreground">
                               {formatTimestamp(event.timestamp)}
@@ -267,9 +235,9 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
                         <div key={index} className="p-2 bg-muted rounded">
                           <div className="flex justify-between items-start">
                             <div>
-                              <p className="font-medium">{formatAddress(event.player)}</p>
+                              <p className="font-medium">Session: {event.sessionId}</p>
                               <p className="text-sm text-muted-foreground">
-                                Score: {event.score}
+                                Players: {event.playerCount}
                               </p>
                             </div>
                             <span className="text-xs text-muted-foreground">
@@ -301,89 +269,7 @@ export const CDPDashboard: React.FC<CDPDashboardProps> = ({ className }) => {
                             <div>
                               <p className="font-medium">Session #{index + 1}</p>
                               <p className="text-sm text-muted-foreground">
-                                Duration: {parseInt(event.duration)}s
-                              </p>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(event.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Square className="h-5 w-5 text-red-500" />
-                      Sessions Ended ({events.sessionEnded.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {events.sessionEnded.map((event, index) => (
-                        <div key={index} className="p-2 bg-muted rounded">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">Session #{index + 1}</p>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(event.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-            </TabsContent>
-            
-            <TabsContent value="trial" className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5 text-purple-500" />
-                      Trial Players ({events.trialPlayerJoined.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {events.trialPlayerJoined.map((event, index) => (
-                        <div key={index} className="p-2 bg-muted rounded">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">Session: {event.sessionId}</p>
-                            </div>
-                            <span className="text-xs text-muted-foreground">
-                              {formatTimestamp(event.timestamp)}
-                            </span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Trophy className="h-5 w-5 text-purple-500" />
-                      Trial Scores ({events.trialScoreSubmitted.length})
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="space-y-2 max-h-64 overflow-y-auto">
-                      {events.trialScoreSubmitted.map((event, index) => (
-                        <div key={index} className="p-2 bg-muted rounded">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="font-medium">Session: {event.sessionId}</p>
-                              <p className="text-sm text-muted-foreground">
-                                Score: {event.score}
+                                Start: {parseInt(event.startTime)} • End: {parseInt(event.endTime)}
                               </p>
                             </div>
                             <span className="text-xs text-muted-foreground">

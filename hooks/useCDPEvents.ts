@@ -6,16 +6,10 @@ import {
   fetchScoreSubmittedEvents,
   fetchPrizesDistributedEvents,
   fetchSessionStartedEvents,
-  fetchSessionEndedEvents,
-  fetchTrialPlayerJoinedEvents,
-  fetchTrialScoreSubmittedEvents,
   type PlayerJoinedEvent,
   type ScoreSubmittedEvent,
   type PrizesDistributedEvent,
-  type SessionStartedEvent,
-  type SessionEndedEvent,
-  type TrialPlayerJoinedEvent,
-  type TrialScoreSubmittedEvent
+  type SessionStartedEvent
 } from '@/lib/apis/cdp';
 import { CDP_CONFIG, validateCDPConfig } from '@/lib/config/cdp';
 
@@ -24,9 +18,6 @@ export interface CDPEventsData {
   scoreSubmitted: ScoreSubmittedEvent[];
   prizesDistributed: PrizesDistributedEvent[];
   sessionStarted: SessionStartedEvent[];
-  sessionEnded: SessionEndedEvent[];
-  trialPlayerJoined: TrialPlayerJoinedEvent[];
-  trialScoreSubmitted: TrialScoreSubmittedEvent[];
 }
 
 export interface UseCDPEventsReturn {
@@ -43,10 +34,7 @@ export const useCDPEvents = (pollInterval: number = 30000): UseCDPEventsReturn =
     playerJoined: [],
     scoreSubmitted: [],
     prizesDistributed: [],
-    sessionStarted: [],
-    sessionEnded: [],
-    trialPlayerJoined: [],
-    trialScoreSubmitted: []
+    sessionStarted: []
   });
   
   const [loading, setLoading] = useState(false);
@@ -245,7 +233,6 @@ export const useScoreSubmittedEvents = (pollInterval: number = 30000) => {
 
 export const useSessionEvents = (pollInterval: number = 30000) => {
   const [sessionStarted, setSessionStarted] = useState<SessionStartedEvent[]>([]);
-  const [sessionEnded, setSessionEnded] = useState<SessionEndedEvent[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isInitialized, setIsInitialized] = useState(false);
@@ -267,12 +254,8 @@ export const useSessionEvents = (pollInterval: number = 30000) => {
     setError(null);
 
     try {
-      const [started, ended] = await Promise.all([
-        fetchSessionStartedEvents(),
-        fetchSessionEndedEvents()
-      ]);
+      const started = await fetchSessionStartedEvents();
       setSessionStarted(started);
-      setSessionEnded(ended);
     } catch (err) {
       setError(`Failed to fetch session events: ${err instanceof Error ? err.message : 'Unknown error'}`);
     } finally {
@@ -296,7 +279,6 @@ export const useSessionEvents = (pollInterval: number = 30000) => {
 
   return { 
     sessionStarted, 
-    sessionEnded, 
     loading, 
     error, 
     refresh: fetchEvents 

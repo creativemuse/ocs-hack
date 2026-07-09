@@ -38,10 +38,14 @@ export function useUnclaimedGames(maxGamesToCheck: number = 10) {
     functionName: 'isSessionActive',
   });
 
-  const { data: currentSessionPrizePool } = useReadContract({
+  const { data: sessionInfo } = useReadContract({
     address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
     abi: TRIVIA_ABI,
-    functionName: 'currentSessionPrizePool',
+    functionName: 'getSessionInfo',
+    args: sessionCounter ? [sessionCounter] : undefined,
+    query: {
+      enabled: !!sessionCounter,
+    },
   });
 
   const { data: currentPlayers } = useReadContract({
@@ -72,7 +76,7 @@ export function useUnclaimedGames(maxGamesToCheck: number = 10) {
       const playersList = (currentPlayers as `0x${string}`[] | undefined) || [];
       const isPlayerInSession = playersList.includes(address as `0x${string}`);
       const sessionActive = Boolean(isSessionActive ?? false);
-      const prizePool = currentSessionPrizePool?.toString() || '0';
+      const prizePool = (sessionInfo as readonly [boolean, boolean, bigint, bigint, bigint, bigint] | undefined)?.[4]?.toString() || '0';
       const score = playerScore || BigInt(0);
 
       // NOTE: TriviaBattle.sol doesn't store past sessions
@@ -99,7 +103,7 @@ export function useUnclaimedGames(maxGamesToCheck: number = 10) {
     } finally {
       setIsLoading(false);
     }
-  }, [address, isConnected, sessionCounter, isSessionActive, currentSessionPrizePool, currentPlayers, playerScore]);
+  }, [address, isConnected, sessionCounter, isSessionActive, sessionInfo, currentPlayers, playerScore]);
 
   return {
     unclaimedGames,

@@ -168,12 +168,19 @@ async function printState(label: string): Promise<void> {
   const publicClient = createReadClient();
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
 
-  const [pool, active, counter, players] = await Promise.all([
-    publicClient.readContract({ address: contract, abi: TRIVIA_ABI, functionName: 'currentSessionPrizePool' }),
-    publicClient.readContract({ address: contract, abi: TRIVIA_ABI, functionName: 'isSessionActive' }),
+  const [counter, active, players] = await Promise.all([
     publicClient.readContract({ address: contract, abi: TRIVIA_ABI, functionName: 'sessionCounter' }),
+    publicClient.readContract({ address: contract, abi: TRIVIA_ABI, functionName: 'isSessionActive' }),
     publicClient.readContract({ address: contract, abi: TRIVIA_ABI, functionName: 'getCurrentPlayers' }),
   ]);
+
+  const sessionInfo = await publicClient.readContract({
+    address: contract,
+    abi: TRIVIA_ABI,
+    functionName: 'getSessionInfo',
+    args: [counter],
+  }) as readonly [boolean, boolean, bigint, bigint, bigint, bigint];
+  const pool = sessionInfo[4];
 
   console.log(`\n--- ${label} ---`);
   console.log('sessionCounter:', counter.toString());

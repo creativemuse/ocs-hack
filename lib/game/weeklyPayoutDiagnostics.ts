@@ -65,7 +65,7 @@ type DiagnosticsViewFunction =
   | 'entryFee'
   | 'lastSessionTime'
   | 'sessionInterval'
-  | 'currentSessionPrizePool'
+  | 'getSessionInfo'
   | 'getCurrentPlayers'
   | 'chainlinkOracle';
 
@@ -89,27 +89,38 @@ const RPC_FALLBACKS = [resolveBaseRpcUrl(), 'https://mainnet.base.org'].filter(
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 const readDiagnosticsViaBatch = async (rpcUrl: string) => {
+  // First fetch sessionCounter (needed for getSessionInfo arg)
+  const counterData = encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionCounter' });
+  const counterHex = await rpcBatchEthCall([counterData], rpcUrl);
+  const [sessionCounter] = decodeFunctionResult({
+    abi: TRIVIA_ABI,
+    functionName: 'sessionCounter',
+    data: counterHex[0] as `0x${string}`,
+  }) as unknown as readonly [bigint];
+
   const callData = [
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'isSessionActive' }),
-    encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionCounter' }),
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'entryFee' }),
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'lastSessionTime' }),
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'sessionInterval' }),
-    encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'currentSessionPrizePool' }),
+    encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'getSessionInfo', args: [sessionCounter] }),
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'getCurrentPlayers' }),
     encodeFunctionData({ abi: TRIVIA_ABI, functionName: 'chainlinkOracle' }),
   ] as `0x${string}`[];
 
   const results = await rpcBatchEthCall(callData, rpcUrl);
+
+  const sessionInfo = decodeView<readonly [boolean, boolean, bigint, bigint, bigint, bigint]>('getSessionInfo', results[4]);
+
   return {
     isSessionActive: decodeView<boolean>('isSessionActive', results[0]),
-    sessionCounter: decodeView<bigint>('sessionCounter', results[1]),
-    entryFee: decodeView<bigint>('entryFee', results[2]),
-    lastSessionTime: decodeView<bigint>('lastSessionTime', results[3]),
-    sessionInterval: decodeView<bigint>('sessionInterval', results[4]),
-    prizePool: decodeView<bigint>('currentSessionPrizePool', results[5]),
-    playerList: decodeView<`0x${string}`[]>('getCurrentPlayers', results[6]),
-    chainlinkOracle: decodeView<string>('chainlinkOracle', results[7]),
+    sessionCounter,
+    entryFee: decodeView<bigint>('entryFee', results[1]),
+    lastSessionTime: decodeView<bigint>('lastSessionTime', results[2]),
+    sessionInterval: decodeView<bigint>('sessionInterval', results[3]),
+    prizePool: sessionInfo[4],
+    playerList: decodeView<`0x${string}`[]>('getCurrentPlayers', results[5]),
+    chainlinkOracle: decodeView<string>('chainlinkOracle', results[6]),
   };
 };
 
@@ -117,7 +128,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
   const publicClient = createPublicClient({ chain: base, transport: http(rpcUrl) });
   const contract = TRIVIA_CONTRACT_ADDRESS as `0x${string}`;
 
-  const read = async <T>(functionName: DiagnosticsViewFunction) => {
+  const read = async <T>(functionName: DiagnosticsViewFunction, args?: readonly unknown[]) => {
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
         if (attempt > 0) await sleep(1000 * attempt);
@@ -125,6 +136,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
           address: contract,
           abi: TRIVIA_ABI,
           functionName,
+          args: args as never,
         })) as T;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
@@ -141,7 +153,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
   const entryFee = await read<bigint>('entryFee');
   const lastSessionTime = await read<bigint>('lastSessionTime');
   const sessionInterval = await read<bigint>('sessionInterval');
-  const prizePool = await read<bigint>('currentSessionPrizePool');
+  const sessionInfo = await read<readonly [boolean, boolean, bigint, bigint, bigint, bigint]>('getSessionInfo', [sessionCounter]);
   const playerList = await read<`0x${string}`[]>('getCurrentPlayers');
   const chainlinkOracle = await read<string>('chainlinkOracle');
 
@@ -151,7 +163,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
     entryFee,
     lastSessionTime,
     sessionInterval,
-    prizePool,
+    prizePool: sessionInfo[4],
     playerList,
     chainlinkOracle,
   };

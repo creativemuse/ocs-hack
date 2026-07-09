@@ -26,6 +26,7 @@ const SESSION_STARTED_ABI = [
     inputs: [
       { name: "sessionId", type: "uint256", indexed: true },
       { name: "startTime", type: "uint256", indexed: false },
+      { name: "endTime", type: "uint256", indexed: false },
     ],
   },
 ] as const
@@ -37,7 +38,7 @@ const PLAYER_JOINED_ABI = [
     name: "PlayerJoined",
     inputs: [
       { name: "player", type: "address", indexed: true },
-      { name: "sessionId", type: "uint256", indexed: false },
+      { name: "sessionId", type: "uint256", indexed: true },
     ],
   },
 ] as const
@@ -58,7 +59,7 @@ const initWorkflow = (config: Config) => {
   const evmClient = new cre.capabilities.EVMClient(network.chainSelector.selector)
 
   // Compute event signature hashes
-  const sessionStartedEventHash = keccak256(toBytes("SessionStarted(uint256,uint256)"))
+  const sessionStartedEventHash = keccak256(toBytes("SessionStarted(uint256,uint256,uint256)"))
   const playerJoinedEventHash = keccak256(toBytes("PlayerJoined(address,uint256)"))
 
   // Monitor SessionStarted events
@@ -94,7 +95,7 @@ const onSessionStarted = (
     })
 
     runtime.log(
-      `Session Started - Session ID: ${decoded.args.sessionId}, Start Time: ${decoded.args.startTime}`
+      `Session Started - Session ID: ${decoded.args.sessionId}, Start Time: ${decoded.args.startTime}, End Time: ${decoded.args.endTime}`
     )
 
     return `SessionStarted processed: ${decoded.args.sessionId}`

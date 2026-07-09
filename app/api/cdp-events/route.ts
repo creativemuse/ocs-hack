@@ -4,8 +4,8 @@ import { Coinbase, SmartContract } from "@coinbase/coinbase-sdk";
 // Contract configuration
 const CONTRACT_CONFIG = {
   networkId: "base-mainnet",
-  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x9b33f82357CC0a263A533599633fB0AA5CFD907c",
-  contractName: "TriviaBattle",
+  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0x147d35009a1992c95bDa1C85Eea210c226aCEDd4",
+  contractName: "TriviaBattlev5",
   protocolName: "public"
 } as const;
 
@@ -99,32 +99,24 @@ const getRecentEvents = async () => {
       playerJoined,
       scoreSubmitted,
       prizesDistributed,
-      sessionStarted,
-      sessionEnded,
-      trialPlayerJoined,
-      trialScoreSubmitted
+      sessionStarted
     ] = await Promise.all([
       fetchContractEvents("PlayerJoined", fromBlock, currentBlock),
-      fetchContractEvents("ScoreSubmitted", fromBlock, currentBlock),
+      fetchContractEvents("ScoresSubmitted", fromBlock, currentBlock),
       fetchContractEvents("PrizesDistributed", fromBlock, currentBlock),
-      fetchContractEvents("SessionStarted", fromBlock, currentBlock),
-      fetchContractEvents("SessionEnded", fromBlock, currentBlock),
-      fetchContractEvents("TrialPlayerJoined", fromBlock, currentBlock),
-      fetchContractEvents("TrialScoreSubmitted", fromBlock, currentBlock)
+      fetchContractEvents("SessionStarted", fromBlock, currentBlock)
     ]);
 
     return {
       playerJoined: playerJoined.map((event: any) => ({
         player: event.data.player,
-        entryFee: event.data.entryFee,
-        platformFee: event.data.platformFee,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
         timestamp: event.timestamp
       })),
       scoreSubmitted: scoreSubmitted.map((event: any) => ({
-        player: event.data.player,
-        score: event.data.score,
+        sessionId: event.data.sessionId,
+        playerCount: event.data.playerCount,
         timestamp: event.data.timestamp,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash
@@ -139,29 +131,10 @@ const getRecentEvents = async () => {
       })),
       sessionStarted: sessionStarted.map((event: any) => ({
         startTime: event.data.startTime,
-        duration: event.data.duration,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-        timestamp: event.timestamp
-      })),
-      sessionEnded: sessionEnded.map((event: any) => ({
         endTime: event.data.endTime,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
         timestamp: event.timestamp
-      })),
-      trialPlayerJoined: trialPlayerJoined.map((event: any) => ({
-        sessionId: event.data.sessionId,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-        timestamp: event.timestamp
-      })),
-      trialScoreSubmitted: trialScoreSubmitted.map((event: any) => ({
-        sessionId: event.data.sessionId,
-        score: event.data.score,
-        timestamp: event.data.timestamp,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash
       }))
     };
   } catch (error) {

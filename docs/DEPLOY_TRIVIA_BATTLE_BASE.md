@@ -5,7 +5,7 @@ Your app and CRE workflow expect **`contracts/TriviaBattle.sol`** (session model
 ## What was fixed in-repo
 
 - `script/DeployTriviaBattle.s.sol` sets **Base mainnet** `chainlinkOracle` to the **Keystone forwarder** `0xF8344CFd5c43616a4366C34E3EEE75af79a74482` at deploy time (no separate `setChainlinkOracle` tx needed for new deploys).
-- Repo defaults target **`TriviaBattle.sol`** on Base mainnet at `0x9b33f82357CC0a263A533599633fB0AA5CFD907c` (update `.env.local` / Vercel when you deploy again).
+- Repo defaults target **`TriviaBattle.sol`** on Base mainnet at `0x147d35009a1992c95bDa1C85Eea210c226aCEDd4` (update `.env.local` / Vercel when you deploy again).
 
 ## Deploy a fresh contract (optional)
 
