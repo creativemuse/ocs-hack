@@ -806,7 +806,7 @@ const TRIVIA_ABI_INLINE = [
       {
         "name": "sessionId",
         "type": "uint256",
-        "indexed": false,
+        "indexed": true,
         "internalType": "uint256"
       }
     ],
@@ -825,7 +825,7 @@ const TRIVIA_ABI_INLINE = [
       {
         "name": "sessionId",
         "type": "uint256",
-        "indexed": false,
+        "indexed": true,
         "internalType": "uint256"
       }
     ],
@@ -868,6 +868,12 @@ const TRIVIA_ABI_INLINE = [
       },
       {
         "name": "startTime",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
+      },
+      {
+        "name": "endTime",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
