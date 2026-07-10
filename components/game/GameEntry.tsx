@@ -871,17 +871,13 @@ export default function GameEntry({
                     )}
                   </div>
 
-                  <div className="text-sm text-gray-300 text-center mb-4">
-                    {playerModeChoice === 'paid_multiplayer'
-                      ? 'Same weekly pool as solo — lobby only syncs start time. Each entry adds 1 USDC.'
-                      : 'Arcade pay-to-play: each entry adds 1 USDC to this week\'s pool. Latest score ranks you.'}
-                  </div>
-
                   <div
                     className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-gray-300"
                     role="status"
                   >
-                    Play Again = another 1 USDC toward the pool. Your <span className="text-white font-medium">most recent score</span> is what ranks you for the weekly top 3 payout.
+                    {playerModeChoice === 'paid_multiplayer'
+                      ? 'Same weekly pool as solo — lobby only syncs start time. Each entry adds 1 USDC.'
+                      : 'Arcade pay-to-play: each entry adds 1 USDC to this week\'s pool. Your most recent score is what ranks you for the weekly top 3 payout.'}
                   </div>
                   
                   {/* Session-busy info banner — paid players can still enter (auto-reset) */}
