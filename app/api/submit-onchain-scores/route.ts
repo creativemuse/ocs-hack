@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { checkAdminAuth } from '@/lib/utils/adminAuthMiddleware';
 import { submitScoresOnChain } from '@/lib/blockchain/submitScoresOnChain';
-
-export const maxDuration = 60;
-export const runtime = 'nodejs';
 import {
   createBasePublicClient,
   readOnChainPlayerScores,
@@ -17,6 +14,9 @@ import {
 } from '@/lib/game/weeklyScoresForPlayers';
 import { safeErrorMessage } from '@/lib/utils/safeErrorMessage';
 import { type Hash } from 'viem';
+
+export const maxDuration = 60;
+export const runtime = 'nodejs';
 
 /**
  * POST /api/submit-onchain-scores

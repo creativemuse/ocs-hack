@@ -3,14 +3,14 @@ import { callReducer } from '@/lib/apis/spacetimeHttp';
 import { verifyEntryToken } from '@/lib/utils/jwt';
 import { finalizePaidScoreLedger } from '@/lib/game/paidScoreLedger';
 import { verifyScoreReceipt } from '@/lib/game/scoreReceipt';
+import { submitOnChainScoreWithRetry, readOnChainSessionCounter } from '@/lib/blockchain/submitOnChainScore';
+import { resolveAuthoritativeSessionId } from '@/lib/game/weeklyLeaderboard';
 
 // On-chain score submission involves readContract + writeContract + waitForReceipt
 // which can take 10-20s. Default Vercel timeout (10s on Hobby) kills the function
 // before the transaction completes, causing silent on-chain submission failures.
 export const maxDuration = 60;
 export const runtime = 'nodejs';
-import { submitOnChainScoreWithRetry, readOnChainSessionCounter } from '@/lib/blockchain/submitOnChainScore';
-import { resolveAuthoritativeSessionId } from '@/lib/game/weeklyLeaderboard';
 
 const MAX_GAME_SCORE = 3000;
 
@@ -195,10 +195,10 @@ export async function POST(req: NextRequest) {
         error: onChainError,
       });
 
-      // Surface a warning to the client, but still report success if the score
-      // is visible via SpacetimeDB. If both failed, the warning is more serious.
+      // Surface a warning to the client. If SpacetimeDB also failed, the score
+      // is not visible anywhere — return failure so the client knows.
       return NextResponse.json({
-        success: true,
+        success: spacetimeUpdated,
         authoritativeScore,
         onChainSessionId,
         spacetimeUpdated,
@@ -209,6 +209,8 @@ export async function POST(req: NextRequest) {
         warning: spacetimeUpdated
           ? 'Score saved to the leaderboard. On-chain sync will be retried.'
           : 'Score could not be saved to the leaderboard. Please try again or contact support.',
+      }, {
+        status: spacetimeUpdated ? 200 : 500,
       });
     }
 
