@@ -54,14 +54,17 @@ export const getWeeklyScoresForPlayers = async (
   const sessionScores = new Map<string, { score: number; startedAt: number }>();
 
   if (!options.skipSpacetime && isSpacetimeHttpConfigured()) {
-    const wallets = playerAddresses.map((a) => `'${a.toLowerCase().replace(/'/g, "''")}'`);
-    const walletFilter = wallets.length > 0 ? `wallet_address IN (${wallets.join(',')})` : 'FALSE';
+    // SpacetimeDB SQL does not support IN lists, so fetch players by session
+    // and filter to the requested wallets in-memory.
     const playerRows = await querySqlSafe<Record<string, unknown>>(
-      `SELECT * FROM players WHERE ${walletFilter} OR weekly_session_id = ${sessionCounter}`,
+      `SELECT * FROM players WHERE weekly_session_id = ${sessionCounter}`,
     );
+    const requestedWallets = new Set(playerAddresses.map((a) => a.toLowerCase()));
     for (const row of playerRows) {
       const player = mapSqlPlayerRow(row);
-      playersByWallet.set(player.walletAddress.toLowerCase(), player);
+      if (requestedWallets.has(player.walletAddress.toLowerCase())) {
+        playersByWallet.set(player.walletAddress.toLowerCase(), player);
+      }
     }
 
     const sessionRows = await querySqlSafe<Record<string, unknown>>(

@@ -20,6 +20,20 @@ describe('getWeeklyPayoutStatus', () => {
     assert.equal(status.timerLabel, 'AWAITING SCORE SYNC');
   });
 
+  it('shows session complete when prizes have already been distributed', () => {
+    const status = getWeeklyPayoutStatus({
+      isLoading: false,
+      isSessionActive: false,
+      sessionPrizePool: 8,
+      distributed: true,
+      countdownExpired: true,
+      hasOnChainScores: true,
+      sessionCounter: 1,
+    });
+    assert.equal(status.phase, 'session_complete');
+    assert.equal(status.timerLabel, 'WEEK COMPLETE');
+  });
+
   it('shows payout processing when scores exist but pool remains', () => {
     const status = getWeeklyPayoutStatus({
       isLoading: false,

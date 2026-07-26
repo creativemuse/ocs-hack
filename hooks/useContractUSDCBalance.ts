@@ -22,6 +22,7 @@ export interface ContractUSDCBalanceState {
   playerCount: number;
   isSessionActive: boolean;
   sessionCounter: number;
+  distributed: boolean;
 }
 
 // Helper function to decode ABI-encoded string
@@ -116,6 +117,7 @@ export function useContractUSDCBalance() {
     playerCount: 0,
     isSessionActive: false,
     sessionCounter: 0,
+    distributed: false,
   });
 
   const hasFetchedOnce = useRef(false);
@@ -189,6 +191,7 @@ export function useContractUSDCBalance() {
         playerCount,
         isSessionActive,
         sessionCounter,
+        distributed: sessionInfo.distributed,
       });
     } catch (error) {
       console.error('Error fetching contract data:', error);

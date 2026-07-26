@@ -38,22 +38,21 @@ const formatTimestamp = (ts: bigint): string => {
   return new Date(Number(ts) * 1000).toISOString();
 };
 
-const evaluateCreSkip = (params: {
+export const evaluateCreSkip = (params: {
   sessionCounter: bigint;
   isSessionActive: boolean;
+  distributed: boolean;
   prizePool: bigint;
   endTime: bigint;
   hasOnChainScores: boolean;
   now: bigint;
 }): CreSkipReason => {
-  const { sessionCounter, isSessionActive, prizePool, endTime, hasOnChainScores, now } = params;
+  const { sessionCounter, isSessionActive, distributed, prizePool, endTime, hasOnChainScores, now } = params;
   const isSessionEnded = !isSessionActive || now > endTime;
-  const prizesDistributedHeuristic =
-    sessionCounter > BigInt(0) && !isSessionActive && prizePool === BigInt(0);
 
   if (sessionCounter === BigInt(0)) return 'no_session_started';
+  if (distributed) return 'prizes_already_distributed';
   if (!isSessionEnded) return 'session_still_active';
-  if (prizesDistributedHeuristic) return 'prizes_already_distributed';
   if (prizePool === BigInt(0)) return 'empty_prize_pool';
   if (!hasOnChainScores) return 'no_on_chain_scores';
   return 'none_ready_to_distribute';
@@ -119,6 +118,7 @@ const readDiagnosticsViaBatch = async (rpcUrl: string) => {
     lastSessionTime: decodeView<bigint>('lastSessionTime', results[2]),
     sessionInterval: decodeView<bigint>('sessionInterval', results[3]),
     prizePool: sessionInfo[4],
+    distributed: sessionInfo[1],
     playerList: decodeView<`0x${string}`[]>('getCurrentPlayers', results[5]),
     chainlinkOracle: decodeView<string>('chainlinkOracle', results[6]),
   };
@@ -164,6 +164,7 @@ const readDiagnosticsSequential = async (rpcUrl: string) => {
     lastSessionTime,
     sessionInterval,
     prizePool: sessionInfo[4],
+    distributed: sessionInfo[1],
     playerList,
     chainlinkOracle,
   };
@@ -177,6 +178,7 @@ const readOnChainSessionState = async (): Promise<{
   lastSessionTime: bigint;
   sessionInterval: bigint;
   prizePool: bigint;
+  distributed: boolean;
   playerList: `0x${string}`[];
   chainlinkOracle: string;
 }> => {
@@ -214,6 +216,7 @@ export const fetchWeeklyPayoutDiagnostics = async (): Promise<WeeklyPayoutDiagno
     prizePool,
     playerList,
     chainlinkOracle,
+    distributed,
   } = await readOnChainSessionState();
 
   const endTime = lastSessionTime + sessionInterval;
@@ -234,6 +237,7 @@ export const fetchWeeklyPayoutDiagnostics = async (): Promise<WeeklyPayoutDiagno
   const creSkipReason = evaluateCreSkip({
     sessionCounter,
     isSessionActive,
+    distributed,
     prizePool,
     endTime,
     hasOnChainScores,

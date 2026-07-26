@@ -16,6 +16,7 @@ type WeeklyPayoutStatusInput = {
   isLoading: boolean;
   isSessionActive: boolean;
   sessionPrizePool: number;
+  distributed?: boolean;
   countdownExpired: boolean;
   hasOnChainScores: boolean;
   sessionCounter: number;
@@ -26,6 +27,7 @@ export const getWeeklyPayoutStatus = ({
   isLoading,
   isSessionActive,
   sessionPrizePool,
+  distributed,
   countdownExpired,
   hasOnChainScores,
   sessionCounter,
@@ -48,6 +50,14 @@ export const getWeeklyPayoutStatus = ({
     return {
       phase: 'next_session_soon',
       timerLabel: 'NEXT SESSION OPENS SOON',
+      weekSubtitle,
+    };
+  }
+
+  if (distributed) {
+    return {
+      phase: 'session_complete',
+      timerLabel: 'WEEK COMPLETE',
       weekSubtitle,
     };
   }

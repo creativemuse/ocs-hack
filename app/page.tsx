@@ -107,6 +107,7 @@ function HomePage() {
     isSessionActive: onChainSessionActive,
     lastSessionTime: onChainLastSessionTime,
     sessionInterval: onChainSessionInterval,
+    distributed: onChainDistributed,
   } = useContractUSDCBalance();
 
   const settlementCountdown = useSessionCountdown(
@@ -141,6 +142,7 @@ function HomePage() {
     isLoading: contractBalanceLoading,
     isSessionActive: onChainSessionActive,
     sessionPrizePool,
+    distributed: onChainDistributed,
     countdownExpired: settlementCountdown?.isExpired ?? false,
     hasOnChainScores,
     sessionCounter: weeklySessionCounter,

@@ -10,6 +10,7 @@ import {
   bytesToHex,
   hexToBase64,
   consensusMedianAggregation,
+  consensusIdenticalAggregation,
 } from "@chainlink/cre-sdk"
 import { encodeFunctionData, decodeFunctionResult, zeroAddress } from "viem"
 
@@ -608,7 +609,7 @@ function syncScoresFromRankingsApi(
     return new TextDecoder().decode(resp.body ?? new Uint8Array())
   }
 
-  const body = runtime.runInNodeMode(fetchRankings, consensusMedianAggregation())().result()
+  const body = runtime.runInNodeMode(fetchRankings, consensusIdenticalAggregation<string>())().result()
   if (!body) return { synced: false, addresses: [], scores: [] }
 
   let parsed: { players?: { address: string; score: number }[] }
@@ -765,7 +766,7 @@ function syncScoresFromApp(runtime: Runtime<Config>, sessionId: bigint): boolean
     return status >= 200 && status < 300 ? 1 : 0
   }
 
-  const result = runtime.runInNodeMode(syncScore, consensusMedianAggregation())().result()
+  const result = runtime.runInNodeMode(syncScore, consensusIdenticalAggregation<number>())().result()
   return result >= 1
 }
 
