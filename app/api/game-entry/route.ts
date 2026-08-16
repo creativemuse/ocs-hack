@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { spacetimeClient } from '@/lib/apis/spacetime';
-import { signEntryToken } from '@/lib/utils/jwt';
+import { signEntryToken, PAID_ENTRY_TOKEN_TTL_SEC, TRIAL_ENTRY_TOKEN_TTL_SEC } from '@/lib/utils/jwt';
 import { verifyPaidTxHash } from '@/lib/blockchain/verifyPaidTx';
+import { initPaidScoreLedger } from '@/lib/game/paidScoreLedger';
 
 // Naive sign/verify using a random token cookie for anon users.
 // In production, replace with JWT and proper signing/rotation.
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
       );
     }
     let anonId: string | undefined;
+    let onChainSessionId: string | undefined;
     const { anonId: ensuredAnon, resHeaders } = getOrSetAnonId(req);
     if (!walletAddress) {
       anonId = ensuredAnon;
@@ -98,7 +100,11 @@ export async function POST(req: NextRequest) {
           { status: 400, headers: resHeaders }
         );
       }
+      onChainSessionId = verification.onChainSessionId;
     }
+
+    const entryId = crypto.randomUUID();
+    const tokenTtlSec = isTrial ? TRIAL_ENTRY_TOKEN_TTL_SEC : PAID_ENTRY_TOKEN_TTL_SEC;
 
     // Create game entry in SpaceTimeDB (non-fatal — JWT can still be issued without it)
     try {
@@ -107,29 +113,31 @@ export async function POST(req: NextRequest) {
       console.warn('⚠️ SpacetimeDB createGameEntry failed (non-fatal):', spacetimeError);
     }
 
-    // Create a mock entry object for JWT generation
-    const entry = {
-      id: sessionId, // Use sessionId as the entry ID
-      session_id: sessionId,
-      wallet_address: walletAddress,
-      anon_id: anonId,
-      is_trial: isTrial,
-      paid_tx_hash: paidTxHash,
-      verified_at: new Date().toISOString(),
-    };
+    if (!isTrial && walletAddress && onChainSessionId) {
+      initPaidScoreLedger({
+        entryId,
+        walletAddress,
+        onChainSessionId,
+        paidTxHash: paidTxHash?.trim(),
+      });
+    }
 
-    // Create short-lived JWT (10 minutes)
     const token = signEntryToken({
-      entryId: entry!.id,
+      entryId,
       sessionId,
+      onChainSessionId,
       identity: { walletAddress, anonId },
       isTrial,
       playerType: isTrial ? 'trial' : 'paid',
       paidTxHash: paidTxHash,
-      exp: Math.floor(Date.now() / 1000) + 10 * 60,
+      exp: Math.floor(Date.now() / 1000) + tokenTtlSec,
     });
 
-    const response = NextResponse.json({ entryId: entry?.id, token });
+    const response = NextResponse.json({
+      entryId,
+      token,
+      onChainSessionId: onChainSessionId ?? null,
+    });
     // propagate cookie set for anon id if needed
     resHeaders.forEach((v, k) => response.headers.append(k, v));
     return response;

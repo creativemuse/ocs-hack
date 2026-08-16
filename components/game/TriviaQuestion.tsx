@@ -139,12 +139,10 @@ export default function TriviaQuestion({
         : 'bg-gray-50 border-gray-200 text-gray-500';
     }
 
-    if (resolvedCorrect !== null && index === resolvedCorrect) {
-      return 'bg-green-100 border-green-500 text-green-800';
-    }
-
-    if (index === selectedAnswer && resolvedCorrect !== null && index !== resolvedCorrect) {
-      return 'bg-red-100 border-red-500 text-red-800';
+    if (index === selectedAnswer && resolvedCorrect !== null) {
+      return index === resolvedCorrect
+        ? 'bg-green-100 border-green-500 text-green-800'
+        : 'bg-red-100 border-red-500 text-red-800';
     }
 
     return 'bg-gray-50 border-gray-200 text-gray-500';

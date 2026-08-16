@@ -154,6 +154,7 @@ export type GuestPlayer = __Infer<typeof GuestPlayer>;
 export const IdentityWalletMapping = __t.object("IdentityWalletMapping", {
   spacetimeIdentity: __t.identity(),
   walletAddress: __t.string(),
+  universalWalletAddress: __t.option(__t.string()),
   linkedAt: __t.timestamp(),
   lastSeen: __t.timestamp(),
 });
@@ -184,6 +185,8 @@ export const Player = __t.object("Player", {
   trialGamesRemaining: __t.u32(),
   trialCompleted: __t.bool(),
   walletConnected: __t.bool(),
+  weeklySessionId: __t.u64(),
+  weeklyBestScore: __t.u32(),
   createdAt: __t.timestamp(),
   updatedAt: __t.timestamp(),
 });
@@ -273,4 +276,15 @@ export const SessionStatus = __t.enum("SessionStatus", {
   Completed: __t.unit(),
 });
 export type SessionStatus = __Infer<typeof SessionStatus>;
+
+export const SocialIdentity = __t.object("SocialIdentity", {
+  walletAddress: __t.string(),
+  lensAccountId: __t.string(),
+  handle: __t.string(),
+  displayName: __t.option(__t.string()),
+  avatarUrl: __t.option(__t.string()),
+  linkedAt: __t.timestamp(),
+  verifiedAt: __t.timestamp(),
+});
+export type SocialIdentity = __Infer<typeof SocialIdentity>;
 

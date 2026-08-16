@@ -11,7 +11,7 @@ Create a `.env` file in the project root with the following variables:
 PRIVATE_KEY=your_64_character_private_key_without_0x
 
 # Contract Addresses (Base Mainnet) — align with chainlink-cre-workflows/weekly-prize-distribution/config.production.json
-NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6
+NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS=0x76B356d0DCAe65942751A8F2Da2644a83d7f165f
 NEXT_PUBLIC_USDC_ADDRESS=0x833589fcd6edb6e08f4c7c32d4f71b54bda02913
 
 # SpacetimeDB (production) — see docs/SPACETIMEDB_ENV_SETUP.md

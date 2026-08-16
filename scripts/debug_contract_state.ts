@@ -1,58 +1,58 @@
-import { createPublicClient, http, formatUnits } from 'viem';
-import { base } from 'viem/chains';
-import { TRIVIA_CONTRACT_ADDRESS } from '../lib/blockchain/contracts';
+import { fetchWeeklyPayoutDiagnostics } from '../lib/game/weeklyPayoutDiagnostics';
 
-const MINIMAL_ABI = [
-    { inputs: [], name: 'isSessionActive', outputs: [{ type: 'bool' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'sessionCounter', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'entryFee', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'lastSessionTime', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
-    { inputs: [], name: 'sessionInterval', outputs: [{ type: 'uint256' }], stateMutability: 'view', type: 'function' },
-];
-
-const publicClient = createPublicClient({
-    chain: base,
-    transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || (() => { throw new Error('NEXT_PUBLIC_BASE_RPC_URL is required. Set it in .env'); })()),
-});
+const RPC_URL =
+  process.env.BASE_RPC_URL ||
+  process.env.NEXT_PUBLIC_BASE_RPC_URL ||
+  'https://mainnet.base.org';
 
 async function main() {
-    console.log('🔍 Debugging Contract State');
-    console.log('Contract Address:', TRIVIA_CONTRACT_ADDRESS);
+  console.log('BEATME weekly payout diagnostics');
+  console.log('RPC:', RPC_URL);
+  console.log('');
 
-    try {
-        const code = await publicClient.getBytecode({ address: TRIVIA_CONTRACT_ADDRESS as `0x${string}` });
-        if (!code || code === '0x') {
-            console.error('❌ CRITICAL: No contract code found at address!');
-            return;
-        }
-        console.log('✅ Contract code exists.');
+  const diagnostics = await fetchWeeklyPayoutDiagnostics();
 
-        const abi = MINIMAL_ABI;
-
-        const isSessionActive = await publicClient.readContract({
-            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-            abi,
-            functionName: 'isSessionActive',
-        });
-        console.log('ℹ️ isSessionActive:', isSessionActive);
-
-        const sessionCounter = await publicClient.readContract({
-            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-            abi,
-            functionName: 'sessionCounter',
-        });
-        console.log('ℹ️ sessionCounter:', (sessionCounter as bigint).toString());
-
-        const entryFee = await publicClient.readContract({
-            address: TRIVIA_CONTRACT_ADDRESS as `0x${string}`,
-            abi,
-            functionName: 'entryFee',
-        });
-        console.log('ℹ️ entryFee:', formatUnits(entryFee as bigint, 6), 'USDC');
-
-    } catch (error) {
-        console.error('❌ Error querying contract:', error);
+  console.log('Contract:', diagnostics.contract);
+  console.log('');
+  console.log('--- Session ---');
+  console.log('sessionCounter:', diagnostics.sessionCounter);
+  console.log('isSessionActive:', diagnostics.isSessionActive);
+  console.log('entryFee:', diagnostics.entryFeeUsdc, 'USDC');
+  console.log('lastSessionTime:', diagnostics.lastSessionTime);
+  console.log('sessionInterval:', diagnostics.sessionIntervalSeconds, 'seconds');
+  console.log('sessionEndTime:', diagnostics.sessionEndTime);
+  console.log('currentSessionPrizePool:', diagnostics.prizePoolUsdc, 'USDC');
+  console.log('');
+  console.log('--- CRE wiring ---');
+  console.log('chainlinkOracle:', diagnostics.chainlinkOracle);
+  console.log(
+    diagnostics.oracleMatchesKeystone
+      ? 'OK: matches Keystone forwarder'
+      : 'WARN: oracle mismatch — CRE onReport may revert',
+  );
+  console.log('');
+  console.log('--- Players & scores ---');
+  if (diagnostics.players.length === 0) {
+    console.log('No players registered in current session');
+  } else {
+    for (const player of diagnostics.players) {
+      console.log(`  ${player.address} score=${player.score}`);
     }
+  }
+
+  console.log('');
+  console.log('--- CRE weekly-prize-dist-prod prediction ---');
+  if (diagnostics.creWouldExecute) {
+    console.log('Would EXECUTE distributePrizes() on next Sunday cron (or manual owner call now)');
+  } else {
+    console.log(`Would SKIP distribution: ${diagnostics.creSkipReason}`);
+    if (diagnostics.creSkipReason === 'no_on_chain_scores') {
+      console.log('Fix: POST /api/submit-onchain-scores then distributePrizes()');
+    }
+  }
 }
 
-main();
+main().catch((error) => {
+  console.error(error);
+  process.exit(1);
+});

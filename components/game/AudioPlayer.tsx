@@ -9,6 +9,7 @@ interface AudioPlayerProps {
   audioUrl: string;
   autoPlay?: boolean;
   onEnded?: () => void;
+  onPlay?: () => void;
   onTimeUpdate?: (currentTime: number, duration: number) => void;
   onError?: () => void;
   className?: string;
@@ -20,6 +21,7 @@ export default function AudioPlayer({
   audioUrl, 
   autoPlay = false, 
   onEnded, 
+  onPlay,
   onTimeUpdate,
   onError,
   className = '',
@@ -106,14 +108,20 @@ export default function AudioPlayer({
     setHasEnded(false);
     lastUpdateTimeRef.current = 0;
 
-    // Try local fallback first for faster loading
-    const localUrl = getLocalFallbackUrl(audioUrl);
-    if (localUrl && localUrl !== audioUrl) {
-      if (process.env.NODE_ENV === 'development') console.log('🔊 Using local file for faster loading:', localUrl);
-      audio.src = localUrl;
-      setUseLocalFallback(true);
-    } else {
+    const isGroveUrl = audioUrl.includes('api.grove.storage');
+
+    // Grove URLs must stream directly; local /music fallback breaks storage-key paths.
+    if (isGroveUrl) {
       audio.src = audioUrl;
+    } else {
+      const localUrl = getLocalFallbackUrl(audioUrl);
+      if (localUrl && localUrl !== audioUrl) {
+        if (process.env.NODE_ENV === 'development') console.log('🔊 Using local file for faster loading:', localUrl);
+        audio.src = localUrl;
+        setUseLocalFallback(true);
+      } else {
+        audio.src = audioUrl;
+      }
     }
 
     // Ensure appropriate preload for quickest start
@@ -164,6 +172,10 @@ export default function AudioPlayer({
       setIsPlaying(false);
       setHasEnded(true);
       onEnded?.();
+    };
+
+    const handlePlay = (): void => {
+      onPlay?.();
     };
 
     const handleLoadedMetadata = (): void => {
@@ -335,6 +347,7 @@ export default function AudioPlayer({
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('durationchange', handleDurationChange);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('play', handlePlay);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('loadeddata', handleLoadedData);
     audio.addEventListener('canplay', handleCanPlay);
@@ -344,12 +357,13 @@ export default function AudioPlayer({
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('durationchange', handleDurationChange);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('play', handlePlay);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('loadeddata', handleLoadedData);
       audio.removeEventListener('canplay', handleCanPlay);
       audio.removeEventListener('error', handleError);
     };
-  }, [audioUrl, autoPlay, onEnded, onTimeUpdate, clipDurationSeconds, clipStartSeconds]);
+  }, [audioUrl, autoPlay, onEnded, onPlay, onTimeUpdate, clipDurationSeconds, clipStartSeconds]);
 
   const togglePlayPause = (): void => {
     const audio = audioRef.current;

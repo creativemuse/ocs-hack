@@ -1,21 +1,89 @@
 import { NextResponse } from 'next/server';
+import { spacetimeClient } from '@/lib/apis/spacetime';
+import { formatWalletAddress } from '@/lib/identity/resolveBaseProfile';
 
-export const runtime = 'edge';
+export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 export async function GET() {
-  // Ultra-minimal static data - no dependencies, no dynamic generation
-  const players = [
-    { address: '0x838aD0EAE54F99F1926dA7C3b6bFbF617389B4D9', username: 'VITALIK.BASE.ETH', totalScore: 1000, gamesPlayed: 5, isWalletUser: true, lastActive: '2024-01-01T00:00:00.000Z' },
-    { address: '0x4bEf0221d6F7Dd0C969fe46a4e9b339a84F52FDF', username: 'PAULCRAMER.BASE.ETH', totalScore: 850, gamesPlayed: 3, isWalletUser: true, lastActive: '2024-01-01T00:00:00.000Z' },
-    { address: '0x1234567890abcdef1234567890abcdef12345678', username: 'ALICE.BASE.ETH', totalScore: 750, gamesPlayed: 7, isWalletUser: true, lastActive: '2024-01-01T00:00:00.000Z' },
-    { address: '0xabcdef1234567890abcdef1234567890abcdef12', username: 'BOB.BASE.ETH', totalScore: 650, gamesPlayed: 4, isWalletUser: true, lastActive: '2024-01-01T00:00:00.000Z' },
-    { address: '0x9876543210fedcba9876543210fedcba98765432', username: 'CHARLIE.BASE.ETH', totalScore: 550, gamesPlayed: 6, isWalletUser: true, lastActive: '2024-01-01T00:00:00.000Z' }
-  ];
+  try {
+    await spacetimeClient.initialize({ syncPlayers: true });
+    await spacetimeClient.waitForSync(12000).catch(() => undefined);
 
-  return NextResponse.json({ 
-    players, 
-    count: players.length, 
-    source: 'static-demo' 
-  });
+    if (!spacetimeClient.isConfigured()) {
+      return NextResponse.json({
+        players: [],
+        count: 0,
+        source: 'spacetime-unconfigured',
+      });
+    }
+
+    const poolRows = spacetimeClient.getPoolPlayersForActiveSessions();
+    const seen = new Set<string>();
+    const players: Array<{
+      address: string;
+      username: string;
+      avatarUrl: string | null;
+      totalScore: number;
+      gamesPlayed: number;
+      isWalletUser: boolean;
+      lastActive: string;
+    }> = [];
+
+    for (const row of poolRows) {
+      const wallet = row.walletAddress?.trim().toLowerCase();
+      if (!wallet || !wallet.startsWith('0x') || seen.has(wallet)) {
+        continue;
+      }
+      seen.add(wallet);
+
+      const player = spacetimeClient.getPlayerByWallet(wallet);
+      const username = player?.username ?? formatWalletAddress(wallet);
+
+      players.push({
+        address: wallet,
+        username,
+        avatarUrl: player?.avatarUrl ?? null,
+        totalScore: Math.round(player?.totalEarnings ?? 0),
+        gamesPlayed: player?.gamesPlayed ?? 0,
+        isWalletUser: true,
+        lastActive: new Date().toISOString(),
+      });
+    }
+
+    if (players.length === 0) {
+      const connections = spacetimeClient.getActiveConnections(16);
+      for (const conn of connections) {
+        const wallet = conn.walletAddress?.trim().toLowerCase();
+        if (!wallet || !wallet.startsWith('0x') || seen.has(wallet)) {
+          continue;
+        }
+        seen.add(wallet);
+        const player = spacetimeClient.getPlayerByWallet(wallet);
+        players.push({
+          address: wallet,
+          username: player?.username ?? formatWalletAddress(wallet),
+          avatarUrl: player?.avatarUrl ?? null,
+          totalScore: Math.round(player?.totalEarnings ?? 0),
+          gamesPlayed: player?.gamesPlayed ?? 0,
+          isWalletUser: true,
+          lastActive: conn.lastActivity.toISOString(),
+        });
+      }
+    }
+
+    return NextResponse.json({
+      players,
+      count: players.length,
+      source: players.length > 0 ? 'spacetime-live' : 'spacetime-empty',
+    });
+  } catch (error) {
+    console.error('❌ active-players-live failed:', error);
+    return NextResponse.json({
+      players: [],
+      count: 0,
+      source: 'spacetime-error',
+      error: error instanceof Error ? error.message : 'Failed to load players',
+    });
+  }
 }
-

@@ -4,6 +4,7 @@
  */
 
 import type { OneClickBuyOptions, OneClickBuyResult } from '@/types/onramp';
+import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 
 export interface FundingUrlParams {
   walletAddress: string;
@@ -27,22 +28,96 @@ export function generateFundingUrl({
   appId = process.env.NEXT_PUBLIC_CDP_PROJECT_ID || '5b09d242-5390-4db3-866f-bfc2ce575821',
   chains = ['base']
 }: FundingUrlParams): string {
-  // Use the correct One-Click-Buy URL path
-  const baseUrl = 'https://pay.coinbase.com/buy';
-  
-  // Build query parameters according to Coinbase One-Click-Buy requirements
-  // Note: addresses are already in the session token (from server-side API call)
-  // They should NOT be passed in the URL query parameters
-  const params = new URLSearchParams({
-    sessionToken: sessionToken,
-    defaultAsset: 'USDC',              // Required: specific asset to buy
-    fiatCurrency: 'USD',               // Required when using presetFiatAmount
-    presetFiatAmount: '2',            // Amount in USD (includes fees)
-    defaultPaymentMethod: 'CARD',      // CARD auto-upgrades to Apple Pay when available
-    defaultNetwork: 'base'             // Ensure it uses Base network
+  return generateAssetFundingUrl({
+    walletAddress,
+    sessionToken,
+    appId,
+    chains,
+    asset: 'USDC',
+    presetFiatAmount: '2',
   });
-  
+}
+
+export interface AssetFundingUrlParams extends FundingUrlParams {
+  asset: 'USDC' | 'ETH';
+  presetFiatAmount?: string;
+}
+
+/**
+ * Generates a Coinbase Pay One-Click-Buy URL for a specific asset (USDC or ETH).
+ */
+export function generateAssetFundingUrl({
+  sessionToken,
+  asset,
+  presetFiatAmount = asset === 'ETH' ? '5' : '2',
+}: AssetFundingUrlParams): string {
+  const baseUrl = 'https://pay.coinbase.com/buy';
+
+  const params = new URLSearchParams({
+    sessionToken,
+    defaultAsset: asset,
+    fiatCurrency: 'USD',
+    presetFiatAmount,
+    defaultPaymentMethod: 'CARD',
+    defaultNetwork: 'base',
+  });
+
   return `${baseUrl}?${params.toString()}`;
+}
+
+/** Buy-quote API path — preferred for ETH (fresh quote per tap, works in mobile wallets). */
+export async function generateEthBuyQuoteUrl(
+  walletAddress: string,
+  paymentAmount = '5.00'
+): Promise<OneClickBuyResult> {
+  return generateOneClickBuyUrl(walletAddress, {
+    paymentAmount,
+    paymentCurrency: 'USD',
+    purchaseCurrency: 'ETH',
+    purchaseNetwork: 'base',
+    paymentMethod: 'CARD',
+    country: 'US',
+  });
+}
+
+/** Open ETH onramp: buy-quote first, then session-token URL fallback. */
+export async function openEthGasFunding(options: {
+  walletAddress: string;
+  getSessionToken: (address: string) => Promise<string>;
+  cachedUrl?: string | null;
+}): Promise<{ opened: boolean; error?: string }> {
+  const { walletAddress, getSessionToken, cachedUrl } = options;
+
+  if (cachedUrl && openFundingUrl(cachedUrl)) {
+    return { opened: true };
+  }
+
+  try {
+    const quote = await generateEthBuyQuoteUrl(walletAddress);
+    if (quote.url && openFundingUrl(quote.url)) {
+      return { opened: true };
+    }
+  } catch (quoteErr) {
+    console.warn('ETH buy-quote failed, trying session token:', quoteErr);
+  }
+
+  try {
+    await clearBrowserCache();
+    const sessionToken = await getSessionToken(walletAddress);
+    const url = generateAssetFundingUrl({
+      walletAddress,
+      sessionToken,
+      asset: 'ETH',
+      presetFiatAmount: '5',
+    });
+    if (openFundingUrl(url)) {
+      return { opened: true };
+    }
+    return { opened: false, error: 'Could not open the funding page. Try the Base Account link below.' };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to start ETH purchase';
+    return { opened: false, error: message };
+  }
 }
 
 /**

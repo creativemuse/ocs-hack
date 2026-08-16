@@ -12,4 +12,5 @@ import {
 
 export default {
   walletAddress: __t.string(),
+  universalWalletAddress: __t.option(__t.string()),
 };

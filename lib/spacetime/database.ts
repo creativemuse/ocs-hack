@@ -4,17 +4,24 @@
  * This module manages the connection to SpacetimeDB using the new SDK
  */
 
+import { formatSpacetimeConnectError } from './connectErrors';
 import { DbConnection } from './index';
 
 // Configuration
+// SpacetimeDB identifies databases by a unique database id (SPACETIME_DATABASE), not the
+// module name. Using the module name as the database name causes silent failures.
 const SPACETIME_CONFIG = {
   host: process.env.SPACETIME_HOST || 'https://maincloud.spacetimedb.com',
-  module: process.env.SPACETIME_MODULE || 'beat-me',
+  database:
+    process.env.SPACETIME_DATABASE ||
+    process.env.NEXT_PUBLIC_SPACETIME_DATABASE ||
+    process.env.SPACETIME_MODULE ||
+    'beat-me',
 };
 
 export interface DatabaseConfig {
   host: string;
-  module: string;
+  database: string;
 }
 
 /**
@@ -28,7 +35,7 @@ export function createConnectionBuilder() {
   
   const builder = DbConnection.builder()
     .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-    .withDatabaseName(SPACETIME_CONFIG.module)
+    .withDatabaseName(SPACETIME_CONFIG.database)
     .onConnect((conn, identity, token) => {
       console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
       // Save token for future connections to maintain persistent identity
@@ -39,8 +46,8 @@ export function createConnectionBuilder() {
     .onDisconnect(() => {
       console.log('🔌 Disconnected from SpacetimeDB');
     })
-    .onConnectError((error) => {
-      console.error('❌ SpacetimeDB connection error:', error);
+    .onConnectError((_ctx, error) => {
+      console.error('❌ SpacetimeDB connection error:', formatSpacetimeConnectError(error).message);
     });
 
   // Pass saved token if available for persistent identity
@@ -68,7 +75,7 @@ export async function createConnection(): Promise<DbConnection> {
     
     const builder = DbConnection.builder()
       .withUri(SPACETIME_CONFIG.host)  // Just the host URL - SDK handles WebSocket conversion
-      .withDatabaseName(SPACETIME_CONFIG.module)
+      .withDatabaseName(SPACETIME_CONFIG.database)
       .onConnect((conn, identity, token) => {
         clearTimeout(timeout);
         console.log('✅ Connected to SpacetimeDB with identity:', identity.toHexString());
@@ -78,10 +85,11 @@ export async function createConnection(): Promise<DbConnection> {
         }
         resolve(conn);
       })
-      .onConnectError((error) => {
+      .onConnectError((_ctx, error) => {
         clearTimeout(timeout);
-        console.error('❌ SpacetimeDB connection error:', error);
-        reject(error);
+        const formatted = formatSpacetimeConnectError(error);
+        console.error('❌ SpacetimeDB connection error:', formatted.message);
+        reject(formatted);
       });
 
     // Pass saved token if available for persistent identity
@@ -97,7 +105,7 @@ export async function createConnection(): Promise<DbConnection> {
  * Check if SpacetimeDB is configured
  */
 export function isConfigured(): boolean {
-  return !!(SPACETIME_CONFIG.host && SPACETIME_CONFIG.module);
+  return !!(SPACETIME_CONFIG.host && SPACETIME_CONFIG.database);
 }
 
 /**

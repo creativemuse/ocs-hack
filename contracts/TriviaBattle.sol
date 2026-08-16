@@ -56,12 +56,13 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     // --- Events ---
     event SessionStarted(uint256 indexed sessionId, uint256 startTime);
     event PlayerJoined(address indexed player, uint256 sessionId);
+    event PlayerRejoined(address indexed player, uint256 sessionId);
     event PrizesDistributed(uint256 indexed sessionId, address[] winners, uint256[] prizeAmounts);
     event PlatformFeeDistributed(uint256 indexed sessionId, address indexed recipient, uint256 amount);
     event EmergencyWithdrawalInitiated(address indexed initiator, uint256 amount, uint256 releaseTime);
     event WithdrawalExecuted(address indexed recipient, uint256 amount);
     event ChainlinkRequestSent(bytes32 indexed requestId, address indexed sender, string functionName);
-    event ChainlinkResponseReceived(bytes32 indexed requestId, bytes response, bytes error);
+    event ChainlinkResponseReceived(bytes32 indexed requestId, bytes response, bytes errorData);
 
     // --- Errors ---
     error TriviaBattle__SessionAlreadyActive();
@@ -77,6 +78,7 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     error TriviaBattle__InsufficientUSDCBalance();
     error TriviaBattle__WithdrawalAmountTooLow();
     error TriviaBattle__NoPendingWithdrawal();
+    error TriviaBattle__MaxPlayersReached();
 
     // --- Modifier ---
     modifier onlyOwnerOrChainlink() {
@@ -85,7 +87,9 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
     }
 
     function _onlyOwnerOrChainlink() internal view {
-        if (msg.sender != owner() && msg.sender != chainlinkOracle) {
+        // Allow owner, Chainlink oracle, and self-calls (from onReport → distributePrizes flow)
+        // Self-call is safe because onReport() already verifies msg.sender == chainlinkOracle
+        if (msg.sender != owner() && msg.sender != chainlinkOracle && msg.sender != address(this)) {
             revert TriviaBattle__Unauthorized();
         }
     }
@@ -156,23 +160,17 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         _openNewSession();
     }
 
-    /// @notice Paid entry: if no session is active, opens one when allowed (same rules as startNewSession), then takes USDC and registers the player.
-    /// @dev Lets players start without an owner tx. Solo players can pay again: this closes their session, distributes prizes, opens a new session, then takes the new entry fee (arcade-style replay).
+    /// @notice Paid entry: if no session is active, opens one when allowed, then takes USDC.
+    /// @dev Arcade model: same wallet may pay multiple times per session; each payment adds to the prize pool.
+    ///      Only the first payment registers the wallet in `players[]`; later payments emit PlayerRejoined.
     function joinBattle() external nonReentrant {
-        if (isSessionActive && hasParticipated[msg.sender] && players.length == 1 && players[0] == msg.sender) {
-            isSessionActive = false;
-            _distributePrizes();
-            _openNewSession();
-        } else if (!isSessionActive) {
+        if (!isSessionActive) {
             _requireSessionIntervalElapsedForRestart();
             _openNewSession();
         }
 
-        // Check if player participated in current session
-        // If hasParticipated is true but player is not in current players array,
-        // they're from a previous session, so clear the flag and allow them to join
+        // Clear stale participation flag from a prior session (before players[] was reset)
         if (hasParticipated[msg.sender]) {
-            // Check if player is in current session's players array
             bool inCurrentSession = false;
             for (uint256 i = 0; i < players.length; i++) {
                 if (players[i] == msg.sender) {
@@ -180,31 +178,38 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
                     break;
                 }
             }
-            // If not in current session, clear stale flag from previous session
             if (!inCurrentSession) {
                 delete hasParticipated[msg.sender];
-            } else {
-                revert TriviaBattle__AlreadyParticipated();
             }
         }
 
-        // Check and transfer entry fee
         uint256 usdcBalance = USDC_TOKEN.balanceOf(msg.sender);
         if (usdcBalance < entryFee) {
             revert TriviaBattle__InsufficientEntryFee();
         }
 
         USDC_TOKEN.safeTransferFrom(msg.sender, address(this), entryFee);
-
-        // Track entry fee in current session's prize pool
         currentSessionPrizePool += entryFee;
 
-        // Register player
-        hasParticipated[msg.sender] = true;
-        players.push(msg.sender);
-        playerScores[msg.sender] = 0;
+        bool alreadyRegistered = false;
+        for (uint256 i = 0; i < players.length; i++) {
+            if (players[i] == msg.sender) {
+                alreadyRegistered = true;
+                break;
+            }
+        }
 
-        emit PlayerJoined(msg.sender, sessionCounter); // Bug 1 Fix: Use sessionCounter instead of block.timestamp
+        if (alreadyRegistered) {
+            emit PlayerRejoined(msg.sender, sessionCounter);
+        } else {
+            if (players.length >= MAX_PLAYERS) {
+                revert TriviaBattle__MaxPlayersReached();
+            }
+            hasParticipated[msg.sender] = true;
+            players.push(msg.sender);
+            playerScores[msg.sender] = 0;
+            emit PlayerJoined(msg.sender, sessionCounter);
+        }
     }
 
     function submitScores(address[] calldata playerAddresses, uint256[] calldata scores)
@@ -228,6 +233,46 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
             }
             playerScores[playerAddresses[i]] = scores[i];
         }
+    }
+
+    /**
+     * @dev Chainlink CRE helper: write scores then distribute in one onReport call.
+     *      Callable by owner or Keystone forwarder (via onReport self-call).
+     */
+    function syncAndDistribute(address[] calldata playerAddresses, uint256[] calldata scores)
+        external
+        onlyOwnerOrChainlink
+        nonReentrant
+    {
+        if (playerAddresses.length != scores.length) {
+            revert("Player addresses and scores length mismatch");
+        }
+        if (playerAddresses.length == 0) {
+            revert("No players provided");
+        }
+
+        if (isSessionActive) {
+            for (uint256 i = 0; i < playerAddresses.length; i++) {
+                if (!hasParticipated[playerAddresses[i]]) {
+                    revert("Player not registered in this session");
+                }
+                playerScores[playerAddresses[i]] = scores[i];
+            }
+        }
+
+        if (block.timestamp < lastSessionTime + sessionInterval) {
+            revert TriviaBattle__SessionIntervalNotElapsed();
+        }
+
+        if (isSessionActive) {
+            isSessionActive = false;
+        }
+
+        if (players.length < MIN_PLAYERS) {
+            revert TriviaBattle__NotEnoughPlayers();
+        }
+
+        _distributePrizes();
     }
 
     function endSession() external onlyOwner nonReentrant {
@@ -481,11 +526,11 @@ contract TriviaBattle is ReentrancyGuard, Ownable, IReceiver {
         emit ChainlinkRequestSent(requestId, msg.sender, functionToCall);
     }
 
-    function fulfillOracleRequest(bytes32 requestId, bytes memory response, bytes memory error)
+    function fulfillOracleRequest(bytes32 requestId, bytes memory response, bytes memory errorData)
         external
         onlyOwnerOrChainlink
     {
-        emit ChainlinkResponseReceived(requestId, response, error);
+        emit ChainlinkResponseReceived(requestId, response, errorData);
     }
 
     // --- Admin Functions ---

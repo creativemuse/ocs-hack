@@ -13,6 +13,7 @@ import {
 export default __t.row({
   spacetimeIdentity: __t.identity().primaryKey().name("spacetime_identity"),
   walletAddress: __t.string().name("wallet_address"),
+  universalWalletAddress: __t.option(__t.string()).name("universal_wallet_address"),
   linkedAt: __t.timestamp().name("linked_at"),
   lastSeen: __t.timestamp().name("last_seen"),
 });

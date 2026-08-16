@@ -45,7 +45,7 @@ export default function WalletConnect({
 
   const handleDisconnect = async () => {
     try {
-      disconnect();
+      await disconnect();
       onDisconnect?.();
     } catch (error) {
       console.error('❌ Wallet disconnect failed:', error);
@@ -100,8 +100,10 @@ export default function WalletConnect({
         </Alert>
         
         <SignInWithBaseButton
+          align="center"
+          variant="solid"
           colorScheme="light"
-          onClick={handleConnect}
+          onClick={isConnecting ? undefined : handleConnect}
         />
       </div>
     );
@@ -111,8 +113,10 @@ export default function WalletConnect({
   return (
     <div className={`space-y-3 ${className}`}>
       <SignInWithBaseButton
+        align="center"
+        variant="solid"
         colorScheme="light"
-        onClick={handleConnect}
+        onClick={isConnecting ? undefined : handleConnect}
       />
     </div>
   );

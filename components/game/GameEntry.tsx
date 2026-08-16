@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -10,13 +11,24 @@ import { useUSDCBalance } from '@/hooks/useUSDCBalance';
 import { useTriviaContract } from '@/hooks/useTriviaContract';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
-import { generateFundingUrl, clearBrowserCache } from '@/lib/utils/funding';
+import { generateFundingUrl, generateAssetFundingUrl, clearBrowserCache, openEthGasFunding } from '@/lib/utils/funding';
+import { openFundingUrl } from '@/lib/utils/openFundingUrl';
 import TrialStatusDisplay from './TrialStatusDisplay';
 import GamePayment from './GamePayment';
 import WalletWithBalance from '@/components/wallet/WalletWithBalance';
 import SubAccountDisplay from '@/components/base-account/SubAccountDisplay';
 import GaslessBadge from '@/components/base-account/GaslessBadge';
-import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import { Gamepad2, Crown, Coins, Play, DollarSign, AlertCircle, CheckCircle, Loader2, Wallet, LogOut } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 // Removed OnchainKit transaction imports - using Base Account native methods instead
 import { createBaseAccountPaidGameCalls } from '@/lib/transaction/baseAccountCalls';
 import BaseAccountTransaction, {
@@ -28,6 +40,11 @@ import { TRIVIA_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 import { base } from 'viem/chains';
 import type { GameStartOptions, PlayerModeChoice } from '@/types/game';
 import type { BaseAccountTxStatusExtras } from '@/components/base-account/BaseAccountTransaction';
+import {
+  savePendingPaidEntry,
+  loadPendingPaidEntry,
+  type PendingPaidEntry,
+} from '@/lib/game/pendingPaidEntry';
 
 interface GameEntryProps {
   onGameStart: (options: GameStartOptions) => void | Promise<void>;
@@ -40,6 +57,11 @@ interface GameEntryProps {
   sessionBusy?: boolean;
   /** seconds remaining in the active round (from server) */
   sessionTimeRemaining?: number;
+  /** Parent shows full-screen overlay while verifying payment + joining */
+  isJoiningAfterPayment?: boolean;
+  joinProgressMessage?: string;
+  /** Allow wallet switch on gameplay mode selection screen only */
+  allowDisconnect?: boolean;
 }
 
 export default function GameEntry({
@@ -51,10 +73,13 @@ export default function GameEntry({
   onDismissJoinStartError,
   sessionBusy = false,
   sessionTimeRemaining = 0,
+  isJoiningAfterPayment = false,
+  joinProgressMessage = 'Confirming payment on-chain and joining the session…',
+  allowDisconnect = false,
 }: GameEntryProps) {
   const isPaidMode = playerModeChoice === 'paid_solo' || playerModeChoice === 'paid_multiplayer';
   console.log('GameEntry received playerModeChoice:', playerModeChoice);
-  const { address, universalAddress, isConnected, connect } = useBaseAccount();
+  const { address, universalAddress, isConnected, connect, disconnect, isConnecting } = useBaseAccount();
   const { trialStatus, isLoading: trialLoading, incrementTrialGame } = useTrialStatus(address || undefined, entryToken || undefined);
   const { getSessionToken, isLoading: sessionLoading, error: sessionError } = useSessionToken();
   const { balance, hasEnoughForEntry, isLoading: balanceLoading, error: balanceError } = useUSDCBalance();
@@ -63,13 +88,56 @@ export default function GameEntry({
   const [error, setError] = useState<string | null>(null);
   const [transactionError, setTransactionError] = useState<TransactionError | null>(null);
   const [fundingUrl, setFundingUrl] = useState<string | null>(null);
+  const [ethFundingUrl, setEthFundingUrl] = useState<string | null>(null);
+  const [ethFundingLoading, setEthFundingLoading] = useState(false);
+  const [ethFundingError, setEthFundingError] = useState<string | null>(null);
   const [fundingSuccess, setFundingSuccess] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [awaitingWalletOpen, setAwaitingWalletOpen] = useState(false);
   const [isStartingGame, setIsStartingGame] = useState(false);
   const [paymentFlowId, setPaymentFlowId] = useState(0);
   const [isFundingUrlGenerating, setIsFundingUrlGenerating] = useState(false);
   const paidGameCalls = useMemo(() => createBaseAccountPaidGameCalls(), []);
   const paidTxRef = useRef<BaseAccountTransactionHandle>(null);
+  const generatingAddressRef = useRef<string | null>(null);
+  const paymasterConfigured = Boolean(process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT);
+  const [pendingPaidEntry, setPendingPaidEntry] = useState<PendingPaidEntry | null>(null);
+  const [showSwitchAccountConfirm, setShowSwitchAccountConfirm] = useState(false);
+  const [isSwitchingAccount, setIsSwitchingAccount] = useState(false);
+
+  const switchAccountDisabled =
+    isJoiningAfterPayment ||
+    isProcessingPayment ||
+    awaitingWalletOpen ||
+    isSwitchingAccount;
+
+  const performSwitchAccount = useCallback(async () => {
+    setIsSwitchingAccount(true);
+    try {
+      await disconnect();
+      setShowSwitchAccountConfirm(false);
+    } catch (err) {
+      console.error('Failed to switch account:', err);
+      setError('Could not switch account. Please try again.');
+    } finally {
+      setIsSwitchingAccount(false);
+    }
+  }, [disconnect]);
+
+  const handleSwitchAccountClick = useCallback(() => {
+    if (switchAccountDisabled) {
+      return;
+    }
+    if (pendingPaidEntry) {
+      setShowSwitchAccountConfirm(true);
+      return;
+    }
+    void performSwitchAccount();
+  }, [pendingPaidEntry, performSwitchAccount, switchAccountDisabled]);
+
+  useEffect(() => {
+    setPendingPaidEntry(loadPendingPaidEntry(address));
+  }, [address, joinStartError]);
 
   // Local countdown timer that ticks every second from the server-provided value
   const [localCountdown, setLocalCountdown] = useState(sessionTimeRemaining);
@@ -87,54 +155,58 @@ export default function GameEntry({
   const countdownSecs = localCountdown % 60;
   const countdownText = `${countdownMins}:${countdownSecs.toString().padStart(2, '0')}`;
 
-  useEffect(() => {
-    if (!isProcessingPayment) return;
-    const t = window.setTimeout(() => {
-      paidTxRef.current?.submit();
-    }, 0);
-    return () => window.clearTimeout(t);
-  }, [isProcessingPayment, paymentFlowId]);
 
-  // Reset funding URL when wallet address changes to prevent funding the wrong account
+  // Reset funding URLs when wallet address changes
   useEffect(() => {
     setFundingUrl(null);
+    setEthFundingUrl(null);
   }, [address]);
 
-  // Auto-generate funding URL with CDP session token when address is available
-  useEffect(() => {
-    const generateInitialFundingUrl = async () => {
-      if (!address || fundingUrl || isFundingUrlGenerating) return;
-      
-      try {
-        setIsFundingUrlGenerating(true);
-        console.log('🔄 Auto-generating CDP funding URL with session token for:', address);
-        
-        // Clear browser cache for fresh token
-        await clearBrowserCache();
-        
-        // Generate fresh session token
-        const sessionToken = await getSessionToken(address);
+  const generateOnrampUrls = useCallback(async (): Promise<string | null> => {
+    if (!address || generatingAddressRef.current === address) return null;
 
-        // Generate funding URL with session token
-        const url = generateFundingUrl({
+    generatingAddressRef.current = address;
+    setIsFundingUrlGenerating(true);
+
+    try {
+      await clearBrowserCache();
+      const sessionToken = await getSessionToken(address);
+
+      if (generatingAddressRef.current !== address) {
+        return null;
+      }
+
+      const usdcUrl = generateFundingUrl({ walletAddress: address, sessionToken });
+      setFundingUrl(usdcUrl);
+      setEthFundingUrl(
+        generateAssetFundingUrl({
           walletAddress: address,
-          sessionToken: sessionToken
-        });
-        
-        console.log('✅ CDP funding URL ready for onramp');
-        setFundingUrl(url);
-        setError(null);
-      } catch (err) {
-        console.error('❌ Failed to generate CDP funding URL:', err);
-        const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-        setError(`Failed to initialize onramp: ${errorMessage}`);
-      } finally {
+          sessionToken,
+          asset: 'ETH',
+          presetFiatAmount: '5',
+        })
+      );
+      setError(null);
+      return usdcUrl;
+    } catch (err) {
+      if (generatingAddressRef.current !== address) return null;
+      console.error('Failed to generate onramp URLs:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(`Failed to initialize onramp: ${errorMessage}`);
+      return null;
+    } finally {
+      if (generatingAddressRef.current === address) {
+        generatingAddressRef.current = null;
         setIsFundingUrlGenerating(false);
       }
-    };
+    }
+  }, [address, getSessionToken]);
 
-    generateInitialFundingUrl();
-  }, [address, fundingUrl, isFundingUrlGenerating, getSessionToken]);
+  // Auto-generate USDC + ETH onramp URLs when address is available
+  useEffect(() => {
+    if (!address || fundingUrl) return;
+    void generateOnrampUrls();
+  }, [address, fundingUrl, generateOnrampUrls]);
 
   // Handle transaction status updates
   const handleTransactionStatus = useCallback((
@@ -146,18 +218,38 @@ export default function GameEntry({
     
     if (status === 'success') {
       console.log('Paid game transaction successful!');
+      const paidTxHash = extras?.lastTxHash;
+      if (!paidTxHash) {
+        setError('Payment succeeded but no transaction hash was returned. Check your wallet activity and use Continue paid game.');
+        setIsProcessingPayment(false);
+        setAwaitingWalletOpen(true);
+        setIsStartingGame(false);
+        return;
+      }
+
+      if (address) {
+        savePendingPaidEntry({
+          paidTxHash,
+          playerMode: playerModeChoice,
+          walletAddress: address,
+          walletUniversalAddress: universalAddress ?? undefined,
+        });
+        setPendingPaidEntry(loadPendingPaidEntry(address));
+      }
+
       setIsProcessingPayment(false);
-      setIsStartingGame(false);
+      setAwaitingWalletOpen(false);
       setTransactionError(null);
       setError(null);
       void onGameStart({
         isTrial: false,
-        paidTxHash: extras?.lastTxHash,
+        paidTxHash,
         playerMode: playerModeChoice,
         walletUniversalAddress: universalAddress ?? undefined,
       });
     } else if (status === 'error') {
       setIsProcessingPayment(false);
+      setAwaitingWalletOpen(true);
       setIsStartingGame(false);
       
       // Check if user cancelled/rejected the transaction
@@ -213,6 +305,26 @@ export default function GameEntry({
           },
           { message: safeMessage }
         );
+        return;
+      }
+
+      const isInsufficientGas =
+        safeMessage.toLowerCase().includes('insufficient') &&
+        (safeMessage.toLowerCase().includes('eth') ||
+          safeMessage.toLowerCase().includes('gas') ||
+          safeMessage.toLowerCase().includes('fee'));
+
+      if (isInsufficientGas) {
+        const gasError: TransactionError = {
+          code: 'INSUFFICIENT_ETH_FOR_GAS',
+          message: 'Insufficient ETH for gas fees',
+          userMessage:
+            'Add USDC to play — gas can be paid in USDC when sponsorship is unavailable. If needed, add a small amount of ETH (~$0.02) using the button on your wallet card.',
+          recoverable: true,
+          retryable: true,
+        };
+        setTransactionError(gasError);
+        setError(gasError.userMessage);
         return;
       }
 
@@ -343,29 +455,69 @@ export default function GameEntry({
     console.log('USDC Balance:', balance, 'Has enough:', hasEnoughForEntry);
     setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
+    setAwaitingWalletOpen(true);
+    setIsStartingGame(false);
     setError(null);
+  };
 
-    try {
-      console.log('Paid entry: approve USDC then joinBattle (opens session on-chain if needed).');
-      
-      // The actual game start will be handled by the transaction success callback
-      console.log('Proceeding with paid game entry...');
-      
-    } catch (error) {
-      console.error('Error in paid game entry:', error);
-      setError(error instanceof Error ? error.message : 'Failed to start game session');
-      setIsProcessingPayment(false);
+  /** Must run synchronously from a user click so the wallet window is not blocked. */
+  const handleOpenWallet = () => {
+    setAwaitingWalletOpen(false);
+    setTransactionError(null);
+    setError(null);
+    paidTxRef.current?.submit();
+  };
+
+  const handleCancelPayment = () => {
+    setIsProcessingPayment(false);
+    setAwaitingWalletOpen(false);
+    setIsStartingGame(false);
+  };
+
+  useEffect(() => {
+    if (!isProcessingPayment || !awaitingWalletOpen) return;
+    toast.info('Tap Open wallet to approve USDC and join');
+  }, [isProcessingPayment, awaitingWalletOpen]);
+
+  const handleFundEth = async () => {
+    if (!address || ethFundingLoading) return;
+
+    setEthFundingLoading(true);
+    setEthFundingError(null);
+
+    const result = await openEthGasFunding({
+      walletAddress: address,
+      getSessionToken,
+      cachedUrl: ethFundingUrl,
+    });
+
+    setEthFundingLoading(false);
+
+    if (!result.opened) {
+      setEthFundingError(
+        result.error ??
+          'Could not open Coinbase Pay. Try “Fund wallet in Base Account app” below.'
+      );
     }
   };
 
   const handlePaymentSuccess = () => {
-    setError(null);
+    setError(
+      'USDC added to your wallet. Tap Start paid game to approve and join on-chain (one wallet confirmation).'
+    );
     setShowPayment(false);
-    // USDC onramp only — no joinBattle hash; server may reject paid verification until user completes on-chain join.
+  };
+
+  const handleContinuePendingPaid = () => {
+    const pending = pendingPaidEntry ?? loadPendingPaidEntry(address);
+    if (!pending?.paidTxHash) return;
+    setError(null);
+    onDismissJoinStartError?.();
     void onGameStart({
       isTrial: false,
-      playerMode: playerModeChoice,
-      walletUniversalAddress: universalAddress ?? undefined,
+      paidTxHash: pending.paidTxHash,
+      playerMode: pending.playerMode,
+      walletUniversalAddress: pending.walletUniversalAddress,
     });
   };
 
@@ -376,15 +528,16 @@ export default function GameEntry({
   const handleRetryTransaction = () => {
     setTransactionError(null);
     setError(null);
-    setIsStartingGame(true);
     setPaymentFlowId((n) => n + 1);
     setIsProcessingPayment(true);
+    setAwaitingWalletOpen(true);
   };
 
   const handleDismissError = () => {
     setTransactionError(null);
     setError(null);
     setIsProcessingPayment(false);
+    setAwaitingWalletOpen(false);
     setIsStartingGame(false);
   };
 
@@ -393,38 +546,27 @@ export default function GameEntry({
     setError(null);
   };
 
-  // Manual refresh of funding URL (if needed)
   const handleRefreshFundingUrl = async () => {
     if (!address) return;
-    
-    try {
-      setIsFundingUrlGenerating(true);
-      console.log('🔄 Manually refreshing CDP funding URL...');
-      
-      // Clear existing URL and cache
-      setFundingUrl(null);
-      setError(null);
-      await clearBrowserCache();
-      
-      // Generate fresh session token
-      const sessionToken = await getSessionToken(address);
 
-      // Generate new funding URL
-      const url = generateFundingUrl({
-        walletAddress: address,
-        sessionToken: sessionToken
-      });
-      
-      console.log('✅ New CDP funding URL generated');
-      setFundingUrl(url);
+    setFundingUrl(null);
+    setEthFundingUrl(null);
+    setError(null);
+    const url = await generateOnrampUrls();
+    if (url) {
       setFundingSuccess(true);
       setTimeout(() => setFundingSuccess(false), 2000);
-    } catch (err) {
-      console.error('❌ Failed to refresh funding URL:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
-      setError(`Failed to refresh onramp URL: ${errorMessage}`);
-    } finally {
-      setIsFundingUrlGenerating(false);
+    }
+  };
+
+  const handleBuyUsdc = async () => {
+    if (fundingUrl) {
+      openFundingUrl(fundingUrl);
+      return;
+    }
+    const url = await generateOnrampUrls();
+    if (url) {
+      openFundingUrl(url);
     }
   };
 
@@ -480,22 +622,57 @@ export default function GameEntry({
 
       {joinStartError ? (
         <div
-          className="rounded-lg border border-red-500/40 bg-red-950/40 px-3 py-3 text-sm text-red-200"
-          role="alert"
+          className="rounded-lg border border-red-500/60 bg-red-950/60 px-4 py-4 text-sm text-red-100 shadow-lg"
+          role="alertdialog"
+          aria-labelledby="join-error-title"
         >
-          <div className="flex items-start justify-between gap-2">
-            <span>{joinStartError}</span>
-            {onDismissJoinStartError ? (
-              <button
+          <p id="join-error-title" className="font-semibold text-red-50 mb-1">
+            Payment received — game did not start
+          </p>
+          <p className="mb-3">{joinStartError}</p>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            {(pendingPaidEntry ?? loadPendingPaidEntry(address)) ? (
+              <Button
                 type="button"
+                onClick={handleContinuePendingPaid}
+                className="bg-amber-500 hover:bg-amber-400 text-black"
+                aria-label="Retry starting game with your existing payment"
+              >
+                Retry with same payment
+              </Button>
+            ) : null}
+            {onDismissJoinStartError ? (
+              <Button
+                type="button"
+                variant="outline"
                 onClick={onDismissJoinStartError}
-                className="shrink-0 text-red-300 underline text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-400 rounded"
+                className="border-red-400/50 text-red-100"
                 aria-label="Dismiss error"
               >
                 Dismiss
-              </button>
+              </Button>
             ) : null}
           </div>
+        </div>
+      ) : null}
+
+      {pendingPaidEntry && !joinStartError && !isJoiningAfterPayment ? (
+        <div
+          className="rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-sm text-amber-100"
+          role="status"
+        >
+          <p className="font-medium text-amber-50">You have a paid entry waiting</p>
+          <p className="text-xs text-amber-200/80 mt-1 mb-3">
+            Your USDC payment is on-chain. Continue without paying again.
+          </p>
+          <Button
+            type="button"
+            onClick={handleContinuePendingPaid}
+            className="w-full bg-amber-500 hover:bg-amber-400 text-black"
+            aria-label="Continue paid game without paying again"
+          >
+            Continue paid game
+          </Button>
         </div>
       ) : null}
 
@@ -546,10 +723,43 @@ export default function GameEntry({
               {/* Base Account Display */}
               <div className="mb-4">
                 {isConnected ? (
-                  <SubAccountDisplay showActions={true} />
+                  <>
+                    <SubAccountDisplay
+                      showActions={true}
+                      onFundEth={handleFundEth}
+                      ethFundingLoading={ethFundingLoading}
+                      ethFundingError={ethFundingError}
+                      paymasterConfigured={paymasterConfigured}
+                    />
+                    {allowDisconnect && (
+                      <div className="mt-3 flex flex-col items-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={handleSwitchAccountClick}
+                          disabled={switchAccountDisabled}
+                          className="border-red-500/30 bg-red-950/20 text-red-400 hover:bg-red-500/10 hover:text-red-300 disabled:opacity-50"
+                          aria-label="Disconnect Base Account"
+                        >
+                          {isSwitchingAccount ? (
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          ) : (
+                            <LogOut className="h-4 w-4 mr-2" />
+                          )}
+                          {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
+                        </Button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center">
-                    <SignInWithBaseButton colorScheme="light" onClick={connect} />
+                    <SignInWithBaseButton
+                      align="center"
+                      variant="solid"
+                      colorScheme="light"
+                      onClick={isConnecting ? undefined : connect}
+                    />
                   </div>
                 )}
               </div>
@@ -590,8 +800,13 @@ export default function GameEntry({
               <div className="flex items-center justify-center gap-2 text-sm mb-4">
                 <Coins className="h-4 w-4 text-yellow-400" />
                 <span className="text-gray-300">Entry Fee: 1 USDC</span>
-                <GaslessBadge isGasless={true} />
+                <GaslessBadge isGasless={paymasterConfigured} />
               </div>
+              {paymasterConfigured && (
+                <p className="text-[10px] text-gray-500 text-center -mt-2 mb-2">
+                  *Gasless for eligible Coinbase One members; others need a small ETH balance
+                </p>
+              )}
 
               {!isConnected || !address ? (
                 <div className="text-center">
@@ -628,16 +843,12 @@ export default function GameEntry({
                       {hasEnoughForEntry ? 'Sufficient funds for entry' : 'Need 1 USDC to play'}
                     </div>
 
-                    {/* CDP Onramp - Buy USDC button when balance is insufficient */}
-                    {!hasEnoughForEntry && !balanceLoading && (
+                    {/* USDC onramp — always available so players can add more funds */}
+                    {!balanceLoading && (
                       <div className="mt-3 pt-3 border-t border-gray-700/50">
                         <Button
-                          onClick={() => {
-                            if (fundingUrl) {
-                              window.open(fundingUrl, '_blank', 'noopener,noreferrer');
-                            }
-                          }}
-                          disabled={!fundingUrl || isFundingUrlGenerating}
+                          onClick={handleBuyUsdc}
+                          disabled={isFundingUrlGenerating}
                           className="w-full !bg-gradient-to-r !from-blue-500 !to-indigo-500 hover:!from-blue-400 hover:!to-indigo-400 text-white text-sm cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                           size="sm"
                         >
@@ -649,28 +860,24 @@ export default function GameEntry({
                           ) : (
                             <>
                               <Coins className="h-3 w-3 mr-2" />
-                              Buy USDC with Card
+                              {hasEnoughForEntry ? 'Add More USDC' : fundingUrl ? 'Buy USDC with Card' : 'Retry Onramp Setup'}
                             </>
                           )}
                         </Button>
                         <p className="text-[10px] text-gray-400 text-center mt-1.5">
-                          Powered by Coinbase Onramp &middot; Card or Apple Pay
+                          USDC entry fee &middot; Powered by Coinbase Onramp
                         </p>
                       </div>
                     )}
-                  </div>
-
-                  <div className="text-sm text-gray-300 text-center mb-4">
-                    {playerModeChoice === 'paid_multiplayer'
-                      ? 'Compete with others — the prize pool grows when more players join.'
-                      : 'Play anytime — each entry adds to the prize pool.'}
                   </div>
 
                   <div
                     className="mb-4 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-left text-xs text-gray-300"
                     role="status"
                   >
-                    Entry is <span className="text-white font-medium">1 USDC</span> per session. You sign two steps: USDC approval, then join — the app waits for the first to confirm before sending the second (avoids wallet nonce errors). Sponsored gas depends on your CDP Paymaster rules.
+                    {playerModeChoice === 'paid_multiplayer'
+                      ? 'Same weekly pool as solo — lobby only syncs start time. Each entry adds 1 USDC.'
+                      : 'Arcade pay-to-play: each entry adds 1 USDC to this week\'s pool. Your most recent score is what ranks you for the weekly top 3 payout.'}
                   </div>
                   
                   {/* Session-busy info banner — paid players can still enter (auto-reset) */}
@@ -690,35 +897,14 @@ export default function GameEntry({
                   )}
 
                   {isProcessingPayment ? (
-                    <div className="space-y-4">
-                      <div
-                        className="rounded-lg border border-amber-500/30 bg-amber-950/20 px-4 py-5 text-center"
-                        role="status"
-                        aria-live="polite"
-                      >
-                        <p className="text-sm font-medium text-amber-200">Processing entry</p>
-                        <p className="mt-2 text-sm text-zinc-200">
-                          {playerModeChoice === 'paid_multiplayer'
-                            ? 'Approve USDC in your wallet, then confirm join. When both transactions confirm, you’ll enter the multiplayer lobby automatically.'
-                            : 'Approve USDC in your wallet, then confirm join. When both transactions confirm, your paid game will start automatically.'}
-                        </p>
-                      </div>
-                      <BaseAccountTransaction
-                        ref={paidTxRef}
-                        calls={paidGameCalls}
-                        onStatus={handleTransactionStatus}
-                        className="w-full"
-                        showSubmitButton={false}
-                        connectedAddress={address}
-                      />
-                      <Button
-                        type="button"
-                        onClick={() => { setIsProcessingPayment(false); setIsStartingGame(false); }}
-                        variant="outline"
-                        className="w-full border-white text-red-400 hover:text-red-500 hover:bg-red-500/20 hover:cursor-pointer"
-                      >
-                        Cancel
-                      </Button>
+                    <div
+                      className="rounded-lg border border-blue-500/30 bg-blue-950/20 px-4 py-3 text-center"
+                      role="status"
+                      aria-live="polite"
+                    >
+                      <p className="text-sm text-blue-200">
+                        Confirm in your wallet — see the overlay above.
+                      </p>
                     </div>
                   ) : (
                     <Button
@@ -780,6 +966,112 @@ export default function GameEntry({
           )}
         </CardContent>
       </Card>
+
+      {isProcessingPayment && !isJoiningAfterPayment ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="wallet-overlay-title"
+          aria-live="polite"
+        >
+          <div className="max-w-sm w-full rounded-xl border border-blue-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl space-y-4">
+            <BaseAccountTransaction
+              ref={paidTxRef}
+              key={paymentFlowId}
+              calls={paidGameCalls}
+              onStatus={handleTransactionStatus}
+              className="sr-only"
+              showSubmitButton={false}
+              connectedAddress={address}
+            />
+            {awaitingWalletOpen ? (
+              <>
+                <Wallet className="mx-auto h-10 w-10 text-blue-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Confirm in your wallet
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Step 1: Approve USDC spending. Step 2: Confirm join to start your game.
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleOpenWallet}
+                  className="w-full bg-white text-black hover:bg-gray-100 font-semibold"
+                  aria-label="Open wallet to sign transaction"
+                >
+                  <Wallet className="h-4 w-4 mr-2" />
+                  Open wallet
+                </Button>
+              </>
+            ) : (
+              <>
+                <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400" aria-hidden />
+                <p id="wallet-overlay-title" className="text-lg font-semibold text-white">
+                  Waiting for wallet confirmation
+                </p>
+                <p className="text-sm text-zinc-300">
+                  Confirm in your wallet, then wait for on-chain confirmation…
+                </p>
+              </>
+            )}
+            <Button
+              type="button"
+              onClick={handleCancelPayment}
+              variant="outline"
+              className="w-full border-white/20 text-red-400 hover:text-red-300 hover:bg-red-500/10"
+              aria-label="Cancel payment"
+            >
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : null}
+
+      {isJoiningAfterPayment ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 px-4"
+          role="status"
+          aria-live="polite"
+          aria-label="Starting game after payment"
+        >
+          <div className="max-w-sm rounded-xl border border-amber-500/40 bg-zinc-900 px-6 py-8 text-center shadow-xl">
+            <Loader2 className="mx-auto h-10 w-10 animate-spin text-amber-400 mb-4" aria-hidden />
+            <p className="text-lg font-semibold text-white">Starting your game</p>
+            <p className="mt-2 text-sm text-zinc-300">{joinProgressMessage}</p>
+            <p className="mt-4 text-xs text-zinc-500">
+              This usually takes a few seconds. On busy networks it can take up to a minute.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <AlertDialog open={showSwitchAccountConfirm} onOpenChange={setShowSwitchAccountConfirm}>
+        <AlertDialogContent className="bg-zinc-900 border-gray-700 text-white">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disconnect?</AlertDialogTitle>
+            <AlertDialogDescription className="text-gray-400">
+              You have a pending paid entry for this wallet. Disconnecting will sign you out
+              and you may need to recover your entry with the new wallet.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="border-gray-600 bg-transparent text-white hover:bg-white/10">
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={(event) => {
+                event.preventDefault();
+                void performSwitchAccount();
+              }}
+              disabled={isSwitchingAccount}
+              className="bg-amber-600 hover:bg-amber-500 text-white"
+            >
+              {isSwitchingAccount ? 'Disconnecting…' : 'Disconnect'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

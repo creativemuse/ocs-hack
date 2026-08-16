@@ -16,4 +16,5 @@ export default {
   gamesPlayed: __t.u32(),
   bestScore: __t.u32(),
   totalEarnings: __t.f64(),
+  username: __t.option(__t.string()),
 };

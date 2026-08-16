@@ -4,6 +4,10 @@ node_modules/
 .DS_Store
 dist/
 build/
-# CRE CLI compile output
-binary.wasm.br.b64
+# CRE CLI local compile artifacts (do not commit)
+.cre_build_tmp.wasm
+tmp.wasm
 binary.wasm
+.cre_build_tmp.js
+tmp.js
+# binary.wasm.br.b64 is committed per workflow for CRE deploy

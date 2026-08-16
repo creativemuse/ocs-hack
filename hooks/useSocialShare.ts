@@ -1,4 +1,5 @@
 import { useState, useCallback } from 'react';
+import { buildShareUrl, type ShareAchievementType } from '@/lib/social/buildShareUrl';
 
 export interface ShareData {
   title: string;
@@ -34,9 +35,11 @@ export const useSocialShare = () => {
       }
       
       // Fallback: copy to clipboard
-      const shareText = data.hashtags 
-        ? `${data.text}\n\n${data.hashtags.map(tag => `#${tag}`).join(' ')}`
-        : data.text;
+      const hashtagLine = data.hashtags
+        ? `\n\n${data.hashtags.map((tag) => `#${tag}`).join(' ')}`
+        : '';
+      const urlLine = data.url ? `\n\n${data.url}` : '';
+      const shareText = `${data.text}${urlLine}${hashtagLine}`;
         
       await navigator.clipboard.writeText(shareText);
       
@@ -53,17 +56,18 @@ export const useSocialShare = () => {
   }, []);
 
   const shareGameAchievement = useCallback((
-    achievementType: 'high-score' | 'game-complete' | 'round-win' | 'perfect-round',
+    achievementType: ShareAchievementType,
     score: number,
     additionalData: {
       round?: number;
       totalRounds?: number;
       playerCount?: number;
       playerName?: string;
+      rank?: number;
     } = {},
     options: SocialShareOptions = {}
   ) => {
-    const { round = 1, totalRounds = 3, playerCount = 0, playerName } = additionalData;
+    const { round = 1, totalRounds = 3, playerName, rank } = additionalData;
     
     const baseText = '🎵 Just played BEAT ME - the ultimate music trivia game!';
     let shareText = '';
@@ -91,13 +95,14 @@ export const useSocialShare = () => {
     }
     
     if (playerName) {
-      shareText = shareText.replace('Just played', `${playerName} just played`);
+      const handlePrefix = playerName.startsWith('@') ? playerName : `@${playerName}`;
+      shareText = shareText.replace('Just played', `${handlePrefix} just played`);
     }
     
     return share({
       title,
       text: shareText,
-      url: window.location.origin,
+      url: buildShareUrl({ score, type: achievementType, rank }),
       hashtags: ['BeatMe', 'MusicTrivia', 'Web3Gaming', 'Base']
     }, options);
   }, [share]);
@@ -119,7 +124,7 @@ export const useSocialShare = () => {
     
     switch (activityType) {
       case 'joined-game':
-        shareText = `🎵 ${playerName} just joined BEAT ME! The music trivia battle is heating up! 🎶`;
+        shareText = `🎵 ${playerName.startsWith('@') ? playerName : `@${playerName}`} just joined BEAT ME! The music trivia battle is heating up! 🎶`;
         title = `${playerName} Joined BEAT ME!`;
         break;
       case 'left-game':
@@ -135,7 +140,7 @@ export const useSocialShare = () => {
     return share({
       title,
       text: shareText,
-      url: window.location.origin,
+      url: buildShareUrl({ score, type: 'game-complete' }),
       hashtags: ['BeatMe', 'MusicTrivia', 'Web3Gaming', 'Base']
     }, options);
   }, [share]);

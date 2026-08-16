@@ -3,7 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { SignInWithBaseButton } from '@base-org/account-ui/react';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
-import { Shield, LogOut, CheckCircle } from 'lucide-react';
+import { LogOut, CheckCircle } from 'lucide-react';
 
 interface BaseAccountButtonProps {
   onConnect?: () => void;
@@ -13,26 +13,30 @@ interface BaseAccountButtonProps {
   size?: 'sm' | 'default' | 'lg';
 }
 
-export default function BaseAccountButton({ 
-  onConnect, 
-  onDisconnect, 
+export default function BaseAccountButton({
+  onConnect,
+  onDisconnect,
   className = '',
   variant = 'default',
-  size = 'default'
+  size = 'default',
 }: BaseAccountButtonProps) {
-  const { isConnected, connect, disconnect } = useBaseAccount();
+  const { isConnected, isConnecting, connect, disconnect } = useBaseAccount();
 
   const handleConnect = async () => {
+    if (isConnecting) {
+      return;
+    }
+
     try {
       await connect();
       onConnect?.();
     } catch (error) {
-      console.error('❌ Base Account connection failed:', error);
+      console.error('Base Account connection failed:', error);
     }
   };
 
-  const handleDisconnect = () => {
-    disconnect();
+  const handleDisconnect = async () => {
+    await disconnect();
     onDisconnect?.();
   };
 
@@ -53,8 +57,10 @@ export default function BaseAccountButton({
 
   return (
     <SignInWithBaseButton
+      align="center"
+      variant="solid"
       colorScheme="light"
-      onClick={handleConnect}
+      onClick={isConnecting ? undefined : handleConnect}
     />
   );
 }

@@ -15,6 +15,8 @@ jobs:
   check:
     name: Foundry project
     runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -23,8 +25,35 @@ jobs:
           # Recursive fetch pulls nested submodules from vendored libraries and can fail in CI.
           submodules: true
 
+      - name: Cache Foundry
+        id: cache-foundry
+        uses: actions/cache@v5
+        with:
+          path: |
+            ~/.foundry
+          key: foundry-v1.7.1-${{ runner.os }}
+
       - name: Install Foundry
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+        continue-on-error: true
+
+      - name: Retry Foundry install (fallback)
+        if: steps.cache-foundry.outputs.cache-hit != 'true'
+        run: |
+          if ! command -v forge &>/dev/null; then
+            for i in 1 2 3; do
+              echo "Attempt $i: installing Foundry via foundryup..."
+              curl -L https://foundry.paradigm.xyz | bash
+              export PATH="$HOME/.foundry/bin:$PATH"
+              foundryup --install v1.7.1 && break || {
+                echo "Attempt $i failed, retrying in 15s..."
+                sleep 15
+              }
+            done
+          fi
+          echo "$HOME/.foundry/bin" >> $GITHUB_PATH
 
       - name: Show Forge version
         run: forge --version

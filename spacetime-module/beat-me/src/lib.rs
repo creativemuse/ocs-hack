@@ -95,7 +95,14 @@ pub struct GameSession {
 }
 
 // Active game sessions for countdown management
-#[spacetimedb::table(accessor = active_game_sessions, public)]
+#[spacetimedb::table(
+    accessor = active_game_sessions,
+    public,
+    index(
+        accessor = idx_active_game_sessions_status,
+        btree(columns = [status])
+    ),
+)]
 #[derive(Clone)]
 pub struct ActiveGameSession {
     #[primary_key]
@@ -219,6 +226,10 @@ pub struct Player {
     pub trial_games_remaining: u32,
     pub trial_completed: bool,
     pub wallet_connected: bool,
+    /// On-chain TriviaBattle sessionCounter for the current weekly period.
+    pub weekly_session_id: u64,
+    /// Best score for the current weekly session (resets when sessionCounter changes).
+    pub weekly_best_score: u32,
     pub created_at: Timestamp,
     pub updated_at: Timestamp,
 }
@@ -232,9 +243,33 @@ pub struct IdentityWalletMapping {
     
     #[unique]
     pub wallet_address: String,
+
+    /// Base Account universal smart wallet (basename owner); sub-account is `wallet_address`.
+    pub universal_wallet_address: Option<String>,
     
     pub linked_at: Timestamp,
     pub last_seen: Timestamp,
+}
+
+/// Server-verified Orb/Lens social profile linked to a Base wallet.
+#[spacetimedb::table(accessor = social_identity, public)]
+#[derive(Clone)]
+pub struct SocialIdentity {
+    #[primary_key]
+    pub wallet_address: String,
+
+    pub lens_account_id: String,
+
+    #[unique]
+    pub handle: String,
+
+    pub display_name: Option<String>,
+
+    pub avatar_url: Option<String>,
+
+    pub linked_at: Timestamp,
+
+    pub verified_at: Timestamp,
 }
 
 // Game entries for tracking paid/trial status
@@ -712,13 +747,24 @@ pub fn get_trial_leaderboard(ctx: &ReducerContext, limit: u32) {
 // ACTIVE GAME SESSION MANAGEMENT
 // ============================================================================
 
+fn latest_session_with_statuses(
+    ctx: &ReducerContext,
+    statuses: &[SessionStatus],
+) -> Option<ActiveGameSession> {
+    let handle = ctx.db.active_game_sessions();
+    statuses
+        .iter()
+        .flat_map(|status| handle.idx_active_game_sessions_status().filter(*status))
+        .max_by_key(|s| s.created_at)
+}
+
 fn reconcile_lobbies_to_active(ctx: &ReducerContext) {
     let now = ctx.timestamp;
     let lobby_ids: Vec<u64> = ctx
         .db
         .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
+        .idx_active_game_sessions_status()
+        .filter(SessionStatus::Lobby)
         .map(|s| s.id)
         .collect();
     for lid in lobby_ids {
@@ -799,17 +845,14 @@ pub fn get_active_game_session(ctx: &ReducerContext) {
         }
     }
 
-    let active_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| {
-            matches!(
-                s.status,
-                SessionStatus::Active | SessionStatus::Waiting | SessionStatus::Lobby
-            )
-        })
-        .max_by_key(|s| s.created_at);
+    let active_session = latest_session_with_statuses(
+        ctx,
+        &[
+            SessionStatus::Active,
+            SessionStatus::Waiting,
+            SessionStatus::Lobby,
+        ],
+    );
 
     if let Some(session) = active_session {
         log::info!(
@@ -850,17 +893,14 @@ pub fn join_multiplayer_pool(
     let now = ctx.timestamp;
     let lobby_sec = lobby_duration_sec.clamp(1, 600);
 
-    let mut session_opt = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| {
-            matches!(
-                s.status,
-                SessionStatus::Waiting | SessionStatus::Lobby | SessionStatus::Active
-            )
-        })
-        .max_by_key(|s| s.created_at);
+    let mut session_opt = latest_session_with_statuses(
+        ctx,
+        &[
+            SessionStatus::Waiting,
+            SessionStatus::Lobby,
+            SessionStatus::Active,
+        ],
+    );
 
     if session_opt.is_none() {
         let new_session_id = format!("session_{}", ctx.timestamp);
@@ -998,12 +1038,7 @@ pub fn leave_multiplayer_pool(ctx: &ReducerContext, player_id: String) -> Result
 pub fn end_multiplayer_lobby(ctx: &ReducerContext) -> Result<(), String> {
     reconcile_lobbies_to_active(ctx);
     let now = ctx.timestamp;
-    let lobby_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
-        .max_by_key(|s| s.created_at);
+    let lobby_session = latest_session_with_statuses(ctx, &[SessionStatus::Lobby]);
     let Some(mut s) = lobby_session else {
         return Ok(());
     };
@@ -1021,12 +1056,7 @@ pub fn sync_multiplayer_lobby_ends_after_secs(
 ) -> Result<(), String> {
     reconcile_lobbies_to_active(ctx);
     let sec = duration_sec.clamp(30, 600);
-    let lobby_session = ctx
-        .db
-        .active_game_sessions()
-        .iter()
-        .filter(|s| s.status == SessionStatus::Lobby)
-        .max_by_key(|s| s.created_at);
+    let lobby_session = latest_session_with_statuses(ctx, &[SessionStatus::Lobby]);
     let Some(mut s) = lobby_session else {
         return Ok(());
     };
@@ -1042,9 +1072,10 @@ pub fn join_active_game_session(ctx: &ReducerContext, player_type: String) {
     let ptype = if player_type == "paid" { PlayerType::Paid } else { PlayerType::Trial };
     
     // Find active or waiting session
-    let active_session = ctx.db.active_game_sessions().iter()
-        .filter(|s| matches!(s.status, SessionStatus::Active | SessionStatus::Waiting))
-        .max_by_key(|s| s.created_at);
+    let active_session = latest_session_with_statuses(
+        ctx,
+        &[SessionStatus::Active, SessionStatus::Waiting],
+    );
     
     if let Some(mut session) = active_session {
         let is_first_player = session.player_count == 0;
@@ -1147,6 +1178,8 @@ pub fn create_player(ctx: &ReducerContext, wallet_address: String, username: Opt
             trial_games_remaining: 1,
             trial_completed: false,
             wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
             created_at: ctx.timestamp,
             updated_at: ctx.timestamp,
         });
@@ -1162,9 +1195,18 @@ pub fn create_player(ctx: &ReducerContext, wallet_address: String, username: Opt
 pub fn link_wallet_to_identity(
     ctx: &ReducerContext,
     wallet_address: String,
+    universal_wallet_address: Option<String>,
 ) {
     let identity = ctx.sender();
-    log::info!("🔗 Linking wallet {} to identity {:?}", wallet_address, identity);
+    let universal = universal_wallet_address
+        .map(|a| a.trim().to_lowercase())
+        .filter(|a| !a.is_empty() && a.starts_with("0x"));
+    log::info!(
+        "🔗 Linking wallet {} (universal {:?}) to identity {:?}",
+        wallet_address,
+        universal,
+        identity
+    );
     
     // Check if this identity is already linked
     if let Some(existing_mapping) = ctx.db.identity_wallet_mapping().spacetime_identity().find(&identity) {
@@ -1172,9 +1214,12 @@ pub fn link_wallet_to_identity(
             log::warn!("⚠️ Identity {:?} already linked to {}", identity, existing_mapping.wallet_address);
             return;
         }
-        // Same wallet, just update last_seen
+        // Same wallet, update last_seen and universal if provided
         let mut mapping = existing_mapping;
         mapping.last_seen = ctx.timestamp;
+        if universal.is_some() {
+            mapping.universal_wallet_address = universal.clone();
+        }
         ctx.db.identity_wallet_mapping().spacetime_identity().update(mapping);
         log::info!("✅ Updated existing link for {}", wallet_address);
         return;
@@ -1191,6 +1236,7 @@ pub fn link_wallet_to_identity(
     ctx.db.identity_wallet_mapping().insert(IdentityWalletMapping {
         spacetime_identity: identity,
         wallet_address: wallet_address.clone(),
+        universal_wallet_address: universal,
         linked_at: ctx.timestamp,
         last_seen: ctx.timestamp,
     });
@@ -1232,22 +1278,253 @@ pub fn link_wallet_to_identity(
     log::info!("✅ Successfully linked wallet {} to identity {:?}", wallet_address, identity);
 }
 
+/// Server-only: persist verified Orb/Lens profile for a wallet (admin reducer).
 #[spacetimedb::reducer]
-pub fn update_player_stats(ctx: &ReducerContext, wallet_address: String, total_score: u32, games_played: u32, best_score: u32, total_earnings: f64) {
-    log::info!("📊 Updating player stats: {} (score: {}, games: {}, best: {})", wallet_address, total_score, games_played, best_score);
-    
-    // Use efficient primary key lookup and atomic update
+pub fn set_verified_social_identity(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    lens_account_id: String,
+    handle: String,
+    display_name: Option<String>,
+    avatar_url: Option<String>,
+) -> Result<(), String> {
+    if !is_admin(ctx, &AdminLevel::Admin) {
+        return Err("Only admins may set verified social identity".into());
+    }
+
+    let wallet = wallet_address.trim().to_lowercase();
+    if wallet.is_empty() || !wallet.starts_with("0x") {
+        return Err("Invalid wallet address".into());
+    }
+
+    let handle_trimmed = handle.trim().trim_start_matches('@');
+    if handle_trimmed.is_empty() {
+        return Err("Handle cannot be empty".into());
+    }
+    let handle_owned = handle_trimmed.to_string();
+
+    let display = display_name
+        .map(|d| d.trim().to_string())
+        .filter(|d| !d.is_empty());
+
+    let avatar = avatar_url
+        .map(|u| u.trim().to_string())
+        .filter(|u| !u.is_empty());
+
+    let now = ctx.timestamp;
+
+    if let Some(existing) = ctx.db.social_identity().wallet_address().find(&wallet) {
+        if existing.handle != handle_owned {
+            if ctx.db.social_identity().handle().find(&handle_owned).is_some() {
+                return Err(format!("Handle '@{}' is already linked to another wallet", handle_owned));
+            }
+        }
+        let updated = SocialIdentity {
+            wallet_address: wallet.clone(),
+            lens_account_id: lens_account_id.clone(),
+            handle: handle_owned.clone(),
+            display_name: display.clone(),
+            avatar_url: avatar.clone(),
+            linked_at: existing.linked_at,
+            verified_at: now,
+        };
+        ctx.db.social_identity().wallet_address().update(updated);
+    } else {
+        if ctx.db.social_identity().handle().find(&handle_owned).is_some() {
+            return Err(format!("Handle '@{}' is already taken", handle_owned));
+        }
+        ctx.db.social_identity().insert(SocialIdentity {
+            wallet_address: wallet.clone(),
+            lens_account_id,
+            handle: handle_owned.clone(),
+            display_name: display.clone(),
+            avatar_url: avatar.clone(),
+            linked_at: now,
+            verified_at: now,
+        });
+    }
+
+    let username_for_player = Some(format!("@{}", handle_owned));
+    if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet) {
+        apply_username_if_available(ctx, &wallet, &mut player, username_for_player.clone());
+        if avatar.is_some() {
+            player.avatar_url = avatar.clone();
+        }
+        player.updated_at = now;
+        ctx.db.players().wallet_address().update(player);
+    } else {
+        ctx.db.players().insert(Player {
+            wallet_address: wallet.clone(),
+            username: username_for_player,
+            avatar_url: avatar.clone(),
+            total_score: 0,
+            games_played: 0,
+            best_score: 0,
+            total_earnings: 0.0,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
+            created_at: now,
+            updated_at: now,
+        });
+    }
+
+    log::info!("✅ Verified social identity for {} (@{})", wallet, handle_owned);
+    Ok(())
+}
+
+/// Assign username only when the value is free or already owned by this wallet.
+fn apply_username_if_available(
+    ctx: &ReducerContext,
+    wallet_address: &str,
+    player: &mut Player,
+    username: Option<String>,
+) {
+    let Some(name) = username else {
+        return;
+    };
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return;
+    }
+    let name_owned = trimmed.to_string();
+    // Option<String> unique columns are not FilterableValue in SpacetimeDB 2.1,
+    // so .username().find() cannot be used; scan until schema uses plain String.
+    let username_taken = ctx
+        .db
+        .players()
+        .iter()
+        .any(|p| p.username.as_deref() == Some(trimmed) && p.wallet_address != wallet_address);
+    if username_taken {
+        log::warn!(
+            "Username '{}' already taken, skipping for {}",
+            name_owned,
+            wallet_address
+        );
+        return;
+    }
+    player.username = Some(name_owned);
+}
+
+fn apply_weekly_score(player: &mut Player, on_chain_session_id: u64, game_score: u32) {
+    if on_chain_session_id == 0 {
+        return;
+    }
+    if player.weekly_session_id == on_chain_session_id {
+        // Weekly leaderboard ranks the latest run, not the best-of-week.
+        player.weekly_best_score = game_score;
+    } else if on_chain_session_id > player.weekly_session_id {
+        player.weekly_session_id = on_chain_session_id;
+        player.weekly_best_score = game_score;
+    }
+}
+
+/// Atomically record a completed paid game score (server-side accumulation).
+#[spacetimedb::reducer]
+pub fn record_paid_game_score(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    game_score: u32,
+    on_chain_session_id: u64,
+    username: Option<String>,
+) {
+    log::info!(
+        "🏆 Recording paid game score: {} (+{} pts)",
+        wallet_address,
+        game_score
+    );
+
+    if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet_address) {
+        player.total_score = player.total_score.saturating_add(game_score);
+        player.games_played = player.games_played.saturating_add(1);
+        player.best_score = std::cmp::max(player.best_score, game_score);
+        // total_earnings tracks real USDC prizes only; do not add game_score here.
+        apply_weekly_score(&mut player, on_chain_session_id, game_score);
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        player.updated_at = ctx.timestamp;
+        ctx.db.players().wallet_address().update(player);
+        log::info!("✅ Paid game score accumulated for {}", wallet_address);
+    } else {
+        let mut player = Player {
+            wallet_address: wallet_address.clone(),
+            username: None,
+            avatar_url: None,
+            total_score: game_score,
+            games_played: 1,
+            best_score: game_score,
+            total_earnings: 0.0,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            weekly_session_id: if on_chain_session_id > 0 {
+                on_chain_session_id
+            } else {
+                0
+            },
+            weekly_best_score: if on_chain_session_id > 0 {
+                game_score
+            } else {
+                0
+            },
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        };
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        ctx.db.players().insert(player);
+        log::info!("✅ Player created with paid game score: {}", wallet_address);
+    }
+}
+
+#[spacetimedb::reducer]
+pub fn update_player_stats(
+    ctx: &ReducerContext,
+    wallet_address: String,
+    total_score: u32,
+    games_played: u32,
+    best_score: u32,
+    total_earnings: f64,
+    username: Option<String>,
+) {
+    log::info!(
+        "📊 Updating player stats: {} (score: {}, games: {}, best: {})",
+        wallet_address,
+        total_score,
+        games_played,
+        best_score
+    );
+
     if let Some(mut player) = ctx.db.players().wallet_address().find(&wallet_address) {
         player.total_score = total_score;
         player.games_played = games_played;
         player.best_score = best_score;
         player.total_earnings = total_earnings;
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
         player.updated_at = ctx.timestamp;
-        
+
         ctx.db.players().wallet_address().update(player);
         log::info!("✅ Player stats updated: {}", wallet_address);
     } else {
-        log::warn!("❌ Player not found for update: {}", wallet_address);
+        let mut player = Player {
+            wallet_address: wallet_address.clone(),
+            username: None,
+            avatar_url: None,
+            total_score,
+            games_played,
+            best_score,
+            total_earnings,
+            trial_games_remaining: 0,
+            trial_completed: true,
+            wallet_connected: true,
+            weekly_session_id: 0,
+            weekly_best_score: 0,
+            created_at: ctx.timestamp,
+            updated_at: ctx.timestamp,
+        };
+        apply_username_if_available(ctx, &wallet_address, &mut player, username);
+        ctx.db.players().insert(player);
+        log::info!("✅ Player created with stats: {}", wallet_address);
     }
 }
 

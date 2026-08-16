@@ -11,6 +11,7 @@ import PlayerCount from '@/components/game/PlayerCount';
 import GameEntry from '@/components/game/GameEntry';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
 import { PlayerActivityMonitor } from '@/components/game/CDPEventMonitor';
 import type { TriviaQuestion, GameStartOptions } from '@/types/game';
 import { ASSETS } from '@/lib/config/assets';
@@ -25,7 +26,7 @@ import { useBaseAccount } from '@/hooks/useBaseAccount';
 
 export default function Game() {
   const router = useRouter();
-  const { leaveGame, joinGame, canJoin, timeRemaining: sessionTimeLeft } = useGameSession();
+  const { leaveGame, joinGame, canJoin, timeRemaining: sessionTimeLeft, entryToken } = useGameSession();
   const { shareGameAchievement } = useSocialShare();
   const [currentQuestion, setCurrentQuestion] = useState<TriviaQuestion | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -49,14 +50,21 @@ export default function Game() {
   const [showGuestMode, setShowGuestMode] = useState(true);
   const [pendingGuestSync, setPendingGuestSync] = useState<{score: number, gameData: any} | null>(null);
   const timerTriggeredRef = useRef(false);
-  const [highScores, setHighScores] = useState<Array<{score: number}>>([]);
+  const { entries: weeklyLeaderboardEntries, refresh: refreshWeeklyLeaderboard } = useWeeklyLeaderboard(10);
+  const weeklyHighScore =
+    weeklyLeaderboardEntries.length > 0
+      ? Math.max(...weeklyLeaderboardEntries.map((e) => e.bestScore))
+      : 0;
   const [selectedPlayer, setSelectedPlayer] = useState<ActivePlayer | null>(null);
   const [showPlayerProfile, setShowPlayerProfile] = useState(false);
   const [sessionIsTrial, setSessionIsTrial] = useState(false);
   const { address } = useBaseAccount();
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
+  const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
   const [verifiedCorrectAnswer, setVerifiedCorrectAnswer] = useState<number | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [scoreReceipt, setScoreReceipt] = useState<string | undefined>();
 
   const loadRandomQuestion = useCallback(async () => {
     setIsLoading(true);
@@ -81,8 +89,9 @@ export default function Game() {
       });
 
       const endpoints = [
+        '/api/grove-questions',
         '/api/lighthouse-questions',
-        '/api/spacetime-questions'
+        '/api/spacetime-questions',
       ];
       let lastError: Error | null = null;
       let data: { questions: TriviaQuestion[] } | null = null;
@@ -218,6 +227,8 @@ export default function Game() {
         body: JSON.stringify({
           questionToken: currentQuestion.questionToken,
           selectedAnswer: answerIndex,
+          entryToken,
+          scoreReceipt,
         }),
       });
 
@@ -226,7 +237,10 @@ export default function Game() {
         return;
       }
 
-      const { isCorrect, correctAnswer, pointsEarned } = await res.json();
+      const { isCorrect, correctAnswer, pointsEarned, scoreReceipt: nextScoreReceipt } = await res.json();
+      if (typeof nextScoreReceipt === 'string') {
+        setScoreReceipt(nextScoreReceipt);
+      }
       setVerifiedCorrectAnswer(correctAnswer);
 
       if (isCorrect) {
@@ -308,35 +322,24 @@ export default function Game() {
       await joinGame(!isTrial, paidTxHash, { playerMode: playerMode ?? 'paid_solo' });
       setSessionIsTrial(isTrial);
       paidScoreSavedRef.current = false;
+      setPaidScoreSaved(false);
+      setScoreReceipt(undefined);
       setGameStarted(true);
-      fetchHighScores();
       loadRandomQuestion();
     } catch (err) {
       console.error('Error joining game:', err);
     }
   };
 
-  const fetchHighScores = useCallback(async () => {
-    try {
-      const response = await fetch('/api/high-scores?limit=10');
-      if (response.ok) {
-        const data = await response.json();
-        setHighScores(data.highScores || []);
-      }
-    } catch (error) {
-      console.error('Failed to fetch high scores:', error);
-    }
-  }, []);
-
   const handleGuestStart = async (name: string) => {
     setGuestName(name);
     setIsGuestMode(true);
     setSessionIsTrial(true);
     paidScoreSavedRef.current = false;
+    setScoreReceipt(undefined);
     await GuestSessionManager.createGuestPlayer(name);
     setShowGuestMode(false);
     setGameStarted(true);
-    fetchHighScores(); // Fetch high scores when game starts
     loadRandomQuestion();
   };
 
@@ -368,29 +371,79 @@ export default function Game() {
   }, [gameCompleted, isGuestMode, pendingGuestSync, totalScore, currentRound, questionsPerRound]);
 
   useEffect(() => {
-    if (!gameCompleted || isGuestMode || sessionIsTrial || !address) return;
+    if (!gameCompleted || isGuestMode || sessionIsTrial || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     const wallet = address;
     const finalScore = totalScore;
+    let cancelled = false;
+    let completed = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress: wallet, finalScore }),
+          body: JSON.stringify({ walletAddress: wallet, finalScore, entryToken, scoreReceipt }),
         });
-        if (!res.ok) paidScoreSavedRef.current = false;
+        if (cancelled) return;
+        if (!res.ok) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          const errText = await res.text();
+          setPaidScoreWarning('Score could not be saved to the leaderboard.');
+          console.error('save-paid-score failed', errText);
+          return;
+        }
+        const data = await res.json();
+        if (cancelled) return;
+        const persisted = Boolean(data.leaderboardReady);
+        if (!persisted) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          setPaidScoreWarning(
+            data.warning ??
+              data.error ??
+              'Score could not be saved to the leaderboard. Please try again.',
+          );
+          return;
+        }
+        setPaidScoreSaved(true);
+        completed = true;
+        if (data.onChainSubmitted === false || data.leaderboardReady === false) {
+          setPaidScoreWarning(
+            data.warning ??
+              'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
+          );
+        } else {
+          setPaidScoreWarning(null);
+        }
+        for (let attempt = 0; attempt < 5; attempt++) {
+          if (cancelled) return;
+          refreshWeeklyLeaderboard();
+          if (attempt < 4) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
       } catch {
+        if (cancelled) return;
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
+        setPaidScoreWarning('Score could not be saved to the leaderboard.');
       }
     })();
-  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore]);
+    return () => {
+      cancelled = true;
+      if (!completed) {
+        paidScoreSavedRef.current = false;
+      }
+    };
+  }, [gameCompleted, isGuestMode, sessionIsTrial, address, totalScore, entryToken, refreshWeeklyLeaderboard]);
 
   // Show guest mode entry screen first
   if (showGuestMode) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
           <GuestModeEntry 
             onGuestStart={handleGuestStart}
@@ -404,7 +457,7 @@ export default function Game() {
   // Show regular game entry screen if wallet connect was chosen
   if (!gameStarted && !showGuestMode) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px]">
           <GameEntry
             onGameStart={handleGameStart}
@@ -452,6 +505,12 @@ export default function Game() {
               <p className="text-sm text-green-400 mb-2">Playing as {guestName}</p>
             )}
             <p className="text-lg font-bold text-yellow-400 mb-4">Total Score: {totalScore} USDC</p>
+            {paidScoreWarning && (
+              <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-4 text-left">
+                <p className="text-amber-300 text-sm font-medium mb-1">Leaderboard update pending</p>
+                <p className="text-amber-200/80 text-sm">{paidScoreWarning}</p>
+              </div>
+            )}
           </div>
           
           {/* High Score Display */}
@@ -465,6 +524,7 @@ export default function Game() {
               walletAddress={
                 !isGuestMode && !sessionIsTrial && address ? address : undefined
               }
+              scoreSaved={!isGuestMode && !sessionIsTrial && paidScoreSaved}
               className="w-full"
             />
           </div>
@@ -486,7 +546,7 @@ export default function Game() {
                 onShare={() => console.log('Game completion shared!')}
               />
               
-              {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && (
+              {weeklyHighScore > 0 && totalScore >= weeklyHighScore && (
                 <ComposeCastButton
                   achievementType="high-score"
                   score={totalScore}
@@ -509,6 +569,8 @@ export default function Game() {
                 setTotalScore(0);
                 setGameCompleted(false);
                 paidScoreSavedRef.current = false;
+                setPaidScoreSaved(false);
+                setScoreReceipt(undefined);
                 setGameStarted(false); // Reset to entry screen
               }}
               className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg"
@@ -569,16 +631,16 @@ export default function Game() {
           </div>
 
           {/* High Score Indicator */}
-          {highScores.length > 0 && (
+          {weeklyHighScore > 0 && (
             <div className="absolute left-1/2 -translate-x-1/2 top-[110px]">
               <div className="bg-yellow-500 text-black text-[10px] px-3 py-1 rounded-full border border-yellow-300 font-bold animate-pulse">
-                🏆 HIGH SCORE: {Math.max(...highScores.map(s => s.score))} USDC
+                🏆 HIGH SCORE: {weeklyHighScore.toLocaleString()} pts
               </div>
             </div>
           )}
 
           {/* You're in the Lead Indicator */}
-          {highScores.length > 0 && totalScore >= Math.max(...highScores.map(s => s.score)) && totalScore > 0 && (
+          {weeklyHighScore > 0 && totalScore >= weeklyHighScore && totalScore > 0 && (
             <div className="absolute left-1/2 -translate-x-1/2 top-[140px]">
               <div className="bg-green-500 text-white text-[10px] px-3 py-1 rounded-full border border-green-300 font-bold animate-bounce">
                 👑 YOU WIN!
@@ -667,10 +729,14 @@ export default function Game() {
               <div 
                 key={index}
                 className={`bg-[#ffffff] box-border content-stretch flex flex-col gap-3 h-[96px] items-start justify-start p-[16px] relative rounded-2xl shrink-0 w-full transition-colors ${
-                  selectedAnswer === index && verifiedCorrectAnswer !== null
-                    ? index === verifiedCorrectAnswer
-                      ? 'bg-green-200 border-2 border-green-500'
-                      : 'bg-red-200 border-2 border-red-500'
+                  selectedAnswer === index && isAnswered
+                    ? isVerifying
+                      ? 'bg-purple-100 border-2 border-purple-500 animate-pulse'
+                      : verifiedCorrectAnswer === null
+                        ? 'bg-amber-100 border-2 border-amber-500'
+                        : index === verifiedCorrectAnswer
+                          ? 'bg-green-200 border-2 border-green-500'
+                          : 'bg-red-200 border-2 border-red-500'
                     : isAnswered || timeRemaining <= 0
                     ? 'cursor-not-allowed opacity-50'
                     : 'cursor-pointer hover:bg-[#f0f0f0]'

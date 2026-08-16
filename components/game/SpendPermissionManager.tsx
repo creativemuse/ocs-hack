@@ -1,19 +1,21 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
-import { 
-  checkSpendPermission, 
-  requestGameSpendPermission, 
-  revokeSpendPermission, 
+import {
+  checkSpendPermission,
+  requestGameSpendPermission,
+  revokeSpendPermission,
   getSpendPermissionDetails,
-  ensureSpendPermission 
+  ensureSpendPermission,
+  isGameSpendPermissionsEnabled,
+  type SpendPermissionDetails,
 } from '@/lib/base-account/spendPermissions';
-import { Shield, CheckCircle, AlertTriangle, Clock, DollarSign, Zap } from 'lucide-react';
+import { Shield, CheckCircle, AlertTriangle, Clock, Zap } from 'lucide-react';
 
 interface SpendPermissionManagerProps {
   onPermissionGranted?: () => void;
@@ -21,45 +23,65 @@ interface SpendPermissionManagerProps {
   className?: string;
 }
 
-export default function SpendPermissionManager({ 
-  onPermissionGranted, 
-  onPermissionRevoked, 
-  className = '' 
+export default function SpendPermissionManager({
+  onPermissionGranted,
+  onPermissionRevoked,
+  className = '',
 }: SpendPermissionManagerProps) {
   const { address, isConnected } = useBaseAccount();
   const [hasPermission, setHasPermission] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [permissionDetails, setPermissionDetails] = useState<any>(null);
+  const [permissionDetails, setPermissionDetails] = useState<SpendPermissionDetails | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const isConfigured = isGameSpendPermissionsEnabled();
 
-  // Check permission status on mount and when address changes
-  useEffect(() => {
-    if (address && isConnected) {
-      const hasSpendPermission = checkSpendPermission(address);
-      setHasPermission(hasSpendPermission);
-      
-      if (hasSpendPermission) {
-        const details = getSpendPermissionDetails(address);
-        setPermissionDetails(details);
-      }
-    } else {
+  const refreshPermissionStatus = useCallback(async () => {
+    if (!address || !isConnected || !isConfigured) {
       setHasPermission(false);
       setPermissionDetails(null);
+      return;
     }
-  }, [address, isConnected]);
+
+    const active = await checkSpendPermission(address);
+    setHasPermission(active);
+
+    if (active) {
+      const details = await getSpendPermissionDetails(address);
+      setPermissionDetails(details);
+    } else {
+      setPermissionDetails(null);
+    }
+  }, [address, isConnected, isConfigured]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      if (cancelled) {
+        return;
+      }
+      await refreshPermissionStatus();
+    };
+
+    load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [refreshPermissionStatus]);
 
   const handleRequestPermission = async () => {
-    if (!address) return;
-    
+    if (!address) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const granted = await requestGameSpendPermission(address);
       if (granted) {
-        setHasPermission(true);
-        const details = getSpendPermissionDetails(address);
-        setPermissionDetails(details);
+        await refreshPermissionStatus();
         onPermissionGranted?.();
       } else {
         setError('Failed to grant spend permission');
@@ -72,11 +94,13 @@ export default function SpendPermissionManager({
   };
 
   const handleRevokePermission = async () => {
-    if (!address) return;
-    
+    if (!address) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       const revoked = await revokeSpendPermission(address);
       if (revoked) {
@@ -94,17 +118,19 @@ export default function SpendPermissionManager({
   };
 
   const handleEnsurePermission = async () => {
-    if (!address) return;
-    
+    if (!address) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
-      const hasPermission = await ensureSpendPermission(address);
-      setHasPermission(hasPermission);
-      
-      if (hasPermission) {
-        const details = getSpendPermissionDetails(address);
+      const ensured = await ensureSpendPermission(address);
+      setHasPermission(ensured);
+
+      if (ensured) {
+        const details = await getSpendPermissionDetails(address);
         setPermissionDetails(details);
         onPermissionGranted?.();
       } else {
@@ -121,17 +147,29 @@ export default function SpendPermissionManager({
     return null;
   }
 
+  if (!isConfigured) {
+    return (
+      <Alert className="border-yellow-500/20 bg-yellow-500/10">
+        <AlertTriangle className="w-4 h-4" />
+        <AlertDescription className="text-yellow-200 text-sm">
+          Treasury spend permissions are optional. Set{' '}
+          <code className="text-xs">NEXT_PUBLIC_SPEND_PERMISSION_SPENDER</code> to your server
+          wallet address to enable automated treasury charges.
+        </AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className={`space-y-4 ${className}`}>
       <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
         <CardHeader className="pb-3">
           <CardTitle className="flex items-center gap-2 text-lg text-white">
             <Shield className="h-5 w-5 text-purple-400" />
-            Spend Permissions
+            Treasury Spend Permissions
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          {/* Permission Status */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {hasPermission ? (
@@ -139,19 +177,20 @@ export default function SpendPermissionManager({
               ) : (
                 <AlertTriangle className="h-4 w-4 text-yellow-400" />
               )}
-              <span className="text-sm text-white">
-                {hasPermission ? 'Active' : 'Not Set'}
-              </span>
+              <span className="text-sm text-white">{hasPermission ? 'Active' : 'Not Set'}</span>
             </div>
-            <Badge 
-              variant={hasPermission ? "default" : "destructive"}
-              className={hasPermission ? "bg-green-500/20 text-green-400" : "bg-yellow-500/20 text-yellow-400"}
+            <Badge
+              variant={hasPermission ? 'default' : 'destructive'}
+              className={
+                hasPermission
+                  ? 'bg-green-500/20 text-green-400'
+                  : 'bg-yellow-500/20 text-yellow-400'
+              }
             >
               {hasPermission ? 'Enabled' : 'Disabled'}
             </Badge>
           </div>
 
-          {/* Permission Details */}
           {hasPermission && permissionDetails && (
             <div className="bg-white/5 rounded-lg p-3 space-y-2">
               <div className="flex items-center justify-between text-sm">
@@ -178,30 +217,24 @@ export default function SpendPermissionManager({
             </div>
           )}
 
-          {/* Benefits */}
           <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3">
             <div className="text-xs text-blue-300">
-              <p className="font-medium mb-1">Spend Permission Benefits:</p>
+              <p className="font-medium mb-1">Treasury spend permissions allow:</p>
               <ul className="space-y-1 text-blue-200/80">
-                <li>• Gasless game entry transactions</li>
-                <li>• Seamless gameplay without signing each transaction</li>
-                <li>• Enhanced security with Sub Account isolation</li>
-                <li>• Automatic funding from universal account</li>
+                <li>• Server-initiated USDC charges without per-tx signing</li>
+                <li>• Time-limited allowance with user approval</li>
+                <li>• Separate from sub-account auto-funding (SDK default)</li>
               </ul>
             </div>
           </div>
 
-          {/* Error Display */}
           {error && (
             <Alert className="border-red-500/20 bg-red-500/10">
               <AlertTriangle className="w-4 h-4" />
-              <AlertDescription className="text-red-300 text-sm">
-                {error}
-              </AlertDescription>
+              <AlertDescription className="text-red-300 text-sm">{error}</AlertDescription>
             </Alert>
           )}
 
-          {/* Action Buttons */}
           <div className="space-y-2">
             {!hasPermission ? (
               <Button
@@ -217,7 +250,7 @@ export default function SpendPermissionManager({
                 ) : (
                   <>
                     <Shield className="h-4 w-4 mr-2" />
-                    Enable Spend Permissions
+                    Enable Treasury Spend Permissions
                   </>
                 )}
               </Button>

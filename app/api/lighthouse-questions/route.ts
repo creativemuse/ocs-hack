@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import type { DifficultyLevel } from '@/types/game';
 import { signQuestionToken } from '@/lib/utils/questionToken';
+import { getLocalAudioCatalog } from '@/lib/grove/localCatalog';
 
 type Mode = 'name-that-tune' | 'artist-match';
 
@@ -36,59 +37,13 @@ const getTimeLimit = (difficulty: DifficultyLevel): number => {
   }
 };
 
-// Static list of available audio files as fallback
-const getLocalAudioFiles = (): Array<{ name: string; path: string; artistName: string; songTitle: string }> => {
-  const availableSongs = [
-    { name: "Chappell Roan - Pink Pony Club.mp3", artistName: "Chappell Roan", songTitle: "Pink Pony Club" },
-    { name: "The Spins.mp3", artistName: "Mac Miller", songTitle: "The Spins" },
-    { name: "Pierce The Veil - So Far So Fake.mp3", artistName: "Pierce The Veil", songTitle: "So Far So Fake" },
-    { name: "Travis Scott - HIGHEST IN THE ROOM.mp3", artistName: "Travis Scott", songTitle: "HIGHEST IN THE ROOM" },
-    { name: "Luke Combs - Fast Car.mp3", artistName: "Luke Combs", songTitle: "Fast Car" },
-    { name: "Bad Bunny - Tití Me Preguntó.mp3", artistName: "Bad Bunny", songTitle: "Tití Me Preguntó" },
-    { name: "Ed Sheeran - Perfect.mp3", artistName: "Ed Sheeran", songTitle: "Perfect" },
-    { name: "Radiohead - Creep.mp3", artistName: "Radiohead", songTitle: "Creep" },
-    { name: "Drake - One Dance.mp3", artistName: "Drake", songTitle: "One Dance" },
-    { name: "Chris Stapleton - Tennessee Whiskey.mp3", artistName: "Chris Stapleton", songTitle: "Tennessee Whiskey" },
-    { name: "will.i.am - Scream & Shout.mp3", artistName: "will.i.am", songTitle: "Scream & Shout" },
-    { name: "The Black Eyed Peas - Rock That Body.mp3", artistName: "The Black Eyed Peas", songTitle: "Rock That Body" },
-    { name: "Travis Scott - goosebumps  ft. Kendrick Lamar.mp3", artistName: "Travis Scott", songTitle: "goosebumps" },
-    { name: "The Weeknd - Blinding Lights.mp3", artistName: "The Weeknd", songTitle: "Blinding Lights" },
-    { name: "Billie Eilish - Ocean Eyes.mp3", artistName: "Billie Eilish", songTitle: "Ocean Eyes" },
-    { name: "Fuerza Regida - TU SANCHO.mp3", artistName: "Fuerza Regida", songTitle: "TU SANCHO" },
-    { name: "Ed Sheeran - Shape of You.mp3", artistName: "Ed Sheeran", songTitle: "Shape of You" },
-    { name: "Bad Bunny - DtMF.mp3", artistName: "Bad Bunny", songTitle: "DtMF" },
-    { name: "Future - WAIT FOR U.mp3", artistName: "Future", songTitle: "WAIT FOR U" },
-    { name: "Taylor Swift - Cruel Summer.mp3", artistName: "Taylor Swift", songTitle: "Cruel Summer" },
-    { name: "Sabrina Carpenter - Espresso.mp3", artistName: "Sabrina Carpenter", songTitle: "Espresso" },
-    { name: "NOKIA.mp3", artistName: "Unknown Artist", songTitle: "NOKIA" },
-    { name: "Shaboozey - A Bar Song (Tipsy).mp3", artistName: "Shaboozey", songTitle: "A Bar Song (Tipsy)" },
-    { name: "Teddy Swims - Lose Control.mp3", artistName: "Teddy Swims", songTitle: "Lose Control" },
-    { name: "SZA - 30 For 30 feat. Kendrick Lamar.mp3", artistName: "SZA", songTitle: "30 For 30" },
-    { name: "Billie Eilish - BIRDS OF A FEATHER.mp3", artistName: "Billie Eilish", songTitle: "BIRDS OF A FEATHER" },
-    { name: "Kendrick Lamar - luther.mp3", artistName: "Kendrick Lamar", songTitle: "luther" },
-    { name: "Gunna - wgft.mp3", artistName: "Gunna", songTitle: "wgft" },
-    { name: "Not Like Us.mp3", artistName: "Kendrick Lamar", songTitle: "Not Like Us" },
-    { name: "Post Malone - I Had Some Help.mp3", artistName: "Post Malone", songTitle: "I Had Some Help" },
-    { name: "ROSÉ & Bruno Mars - APT.mp3", artistName: "ROSÉ & Bruno Mars", songTitle: "APT" },
-    { name: "Sabrina Carpenter - Manchild.mp3", artistName: "Sabrina Carpenter", songTitle: "Manchild" },
-    { name: "Kehlani - Folded.mp3", artistName: "Kehlani", songTitle: "Folded" },
-    { name: "Lady Gaga, Bruno Mars - Die With A Smile.mp3", artistName: "Lady Gaga, Bruno Mars", songTitle: "Die With A Smile" },
-    { name: "BLACKPINK - JUMP.mp3", artistName: "BLACKPINK", songTitle: "JUMP" },
-    { name: "Chris Brown - It Depends (Audio) ft. Bryson Tiller.mp3", artistName: "Chris Brown", songTitle: "It Depends" },
-    { name: "Morgan Wallen, Tate McRae - What I Want.mp3", artistName: "Morgan Wallen, Tate McRae", songTitle: "What I Want" },
-    { name: "Justin Beiber-YUKON.mp3", artistName: "Justin Bieber", songTitle: "YUKON" },
-    { name: "Justin Beiber-DAISIES.mp3", artistName: "Justin Bieber", songTitle: "DAISIES" },
-    { name: "Alex Warren - Ordinary.mp3", artistName: "Alex Warren", songTitle: "Ordinary" },
-    { name: "Huntrix - Golden.mp3", artistName: "Huntrix", songTitle: "Golden" }
-  ];
-  
-  return availableSongs.map(song => ({
-    name: song.name,
-    path: `/music/${song.name}`,
-    artistName: song.artistName,
-    songTitle: song.songTitle
+const getLocalAudioFiles = () =>
+  getLocalAudioCatalog().map((file) => ({
+    name: file.name,
+    path: `/music/${file.name}`,
+    artistName: file.artistName,
+    songTitle: file.songTitle,
   }));
-};
 
 export async function GET(req: NextRequest) {
   try {

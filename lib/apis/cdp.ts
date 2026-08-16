@@ -1,10 +1,11 @@
 import { createCDPJWTGenerator } from '../cdp/jwt-generator';
 
 // Contract configuration
+const isSepolia = process.env.NEXT_PUBLIC_NETWORK === 'sepolia';
 export const CONTRACT_CONFIG = {
-  networkId: "base-mainnet",
-  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6",
-  contractName: "TriviaBattle",
+  networkId: isSepolia ? "base-sepolia" : "base-mainnet",
+  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || (isSepolia ? "0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB" : "0x76B356d0DCAe65942751A8F2Da2644a83d7f165f"),
+  contractName: "TriviaBattlev5",
   protocolName: "public"
 } as const;
 
@@ -48,16 +49,14 @@ export const initializeCDP = async () => {
 // Event types based on the contract ABI
 export interface PlayerJoinedEvent {
   player: string;
-  entryFee: string;
-  platformFee: string;
   blockNumber: number;
   transactionHash: string;
   timestamp: number;
 }
 
 export interface ScoreSubmittedEvent {
-  player: string;
-  score: string;
+  sessionId: string;
+  playerCount: string;
   timestamp: number;
   blockNumber: number;
   transactionHash: string;
@@ -74,32 +73,10 @@ export interface PrizesDistributedEvent {
 
 export interface SessionStartedEvent {
   startTime: string;
-  duration: string;
-  blockNumber: number;
-  transactionHash: string;
-  timestamp: number;
-}
-
-export interface SessionEndedEvent {
   endTime: string;
   blockNumber: number;
   transactionHash: string;
   timestamp: number;
-}
-
-export interface TrialPlayerJoinedEvent {
-  sessionId: string;
-  blockNumber: number;
-  transactionHash: string;
-  timestamp: number;
-}
-
-export interface TrialScoreSubmittedEvent {
-  sessionId: string;
-  score: string;
-  timestamp: number;
-  blockNumber: number;
-  transactionHash: string;
 }
 
 // Client-side API functions that call our server-side API routes
@@ -130,8 +107,6 @@ export const fetchPlayerJoinedEvents = async (fromBlock?: number, toBlock?: numb
   const events = await fetchContractEvents("PlayerJoined", fromBlock, toBlock);
   return events.map((event: any) => ({
     player: event.data.player,
-    entryFee: event.data.entryFee,
-    platformFee: event.data.platformFee,
     blockNumber: event.blockNumber,
     transactionHash: event.transactionHash,
     timestamp: event.timestamp
@@ -139,11 +114,11 @@ export const fetchPlayerJoinedEvents = async (fromBlock?: number, toBlock?: numb
 };
 
 export const fetchScoreSubmittedEvents = async (fromBlock?: number, toBlock?: number): Promise<ScoreSubmittedEvent[]> => {
-  const events = await fetchContractEvents("ScoreSubmitted", fromBlock, toBlock);
+  const events = await fetchContractEvents("ScoresSubmitted", fromBlock, toBlock);
   return events.map((event: any) => ({
-    player: event.data.player,
-    score: event.data.score,
-    timestamp: event.data.timestamp,
+    sessionId: event.data.sessionId,
+    playerCount: event.data.playerCount,
+    timestamp: event.timestamp,
     blockNumber: event.blockNumber,
     transactionHash: event.transactionHash
   }));
@@ -165,41 +140,10 @@ export const fetchSessionStartedEvents = async (fromBlock?: number, toBlock?: nu
   const events = await fetchContractEvents("SessionStarted", fromBlock, toBlock);
   return events.map((event: any) => ({
     startTime: event.data.startTime,
-    duration: event.data.duration,
-    blockNumber: event.blockNumber,
-    transactionHash: event.transactionHash,
-    timestamp: event.timestamp
-  }));
-};
-
-export const fetchSessionEndedEvents = async (fromBlock?: number, toBlock?: number): Promise<SessionEndedEvent[]> => {
-  const events = await fetchContractEvents("SessionEnded", fromBlock, toBlock);
-  return events.map((event: any) => ({
     endTime: event.data.endTime,
     blockNumber: event.blockNumber,
     transactionHash: event.transactionHash,
     timestamp: event.timestamp
-  }));
-};
-
-export const fetchTrialPlayerJoinedEvents = async (fromBlock?: number, toBlock?: number): Promise<TrialPlayerJoinedEvent[]> => {
-  const events = await fetchContractEvents("TrialPlayerJoined", fromBlock, toBlock);
-  return events.map((event: any) => ({
-    sessionId: event.data.sessionId,
-    blockNumber: event.blockNumber,
-    transactionHash: event.transactionHash,
-    timestamp: event.timestamp
-  }));
-};
-
-export const fetchTrialScoreSubmittedEvents = async (fromBlock?: number, toBlock?: number): Promise<TrialScoreSubmittedEvent[]> => {
-  const events = await fetchContractEvents("TrialScoreSubmitted", fromBlock, toBlock);
-  return events.map((event: any) => ({
-    sessionId: event.data.sessionId,
-    score: event.data.score,
-    timestamp: event.data.timestamp,
-    blockNumber: event.blockNumber,
-    transactionHash: event.transactionHash
   }));
 };
 

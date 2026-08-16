@@ -54,7 +54,7 @@ export interface PlayerWalletState {
 }
 
 export interface ContractEvent {
-  event: 'PlayerJoined' | 'ScoreSubmitted' | 'PrizesDistributed';
+  event: 'PlayerJoined' | 'ScoresSubmitted' | 'PrizesDistributed';
   player?: string;
   gameId?: string;
   amount?: number;

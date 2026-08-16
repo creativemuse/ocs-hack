@@ -1,58 +1,60 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Trophy, Medal, Award, TrendingUp, Clock, Target } from 'lucide-react';
+import { Trophy, Medal, Award, TrendingUp, Clock, Target, Loader2 } from 'lucide-react';
 import { BaseAvatar } from '@/components/identity/BaseAvatar';
 import { BaseName } from '@/components/identity/BaseName';
+import { AvatarSkeleton, DisplayNameSkeleton } from '@/components/identity/IdentitySkeleton';
+import { Skeleton } from '@/components/ui/skeleton';
 import type { LeaderboardEntry } from '@/types/game';
 import { useMiniAppProfile } from '@/hooks/useMiniAppProfile';
+import { useLeaderboardLive } from '@/hooks/useLeaderboardLive';
 
 interface LiveRankingsProps {
-  entries: LeaderboardEntry[];
+  entries?: LeaderboardEntry[];
   currentPlayerAddress?: string;
   refreshInterval?: number;
+  limit?: number;
   className?: string;
 }
 
 export default function LiveRankings({
-  entries,
+  entries: entriesProp,
   currentPlayerAddress,
-  refreshInterval = 5000,
+  refreshInterval = 30000,
+  limit = 10,
   className = '',
 }: LiveRankingsProps) {
-  const [displayEntries, setDisplayEntries] = useState<LeaderboardEntry[]>([]);
-  const [isUpdating, setIsUpdating] = useState(false);
+  const {
+    leaderboardEntries: liveEntries,
+    sessionCounter,
+    isLoading,
+    refresh,
+  } = useLeaderboardLive(limit, { type: 'paid' });
+
   const { user: currentUserProfile } = useMiniAppProfile();
 
   useEffect(() => {
-    // Filter for paid players only, sort by total score in descending order, take top 10
-    const paidPlayersOnly = entries.filter(entry => !entry.isTrialPlayer);
-    const sortedEntries = paidPlayersOnly
+    if (!refreshInterval || entriesProp) return;
+    const interval = setInterval(() => {
+      void refresh();
+    }, refreshInterval);
+    return () => clearInterval(interval);
+  }, [refreshInterval, refresh, entriesProp]);
+
+  const displayEntries = useMemo(() => {
+    const source = entriesProp ?? liveEntries;
+    return source
+      .filter((entry) => !entry.isTrialPlayer)
       .sort((a, b) => b.totalScore - a.totalScore)
-      .slice(0, 10) // Top 10 only
+      .slice(0, limit)
       .map((entry, index) => ({
         ...entry,
-        rank: index + 1 // Reassign ranks based on sorted position
+        rank: index + 1,
       }));
-    
-    setDisplayEntries(sortedEntries);
-  }, [entries]);
-
-  useEffect(() => {
-    if (!refreshInterval) return;
-
-    const interval = setInterval(() => {
-      setIsUpdating(true);
-      // Simulate real-time updates - in production this would fetch from server
-      setTimeout(() => {
-        setIsUpdating(false);
-      }, 500);
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [refreshInterval]);
+  }, [entriesProp, liveEntries, limit]);
 
   const getRankIcon = (rank: number) => {
     switch (rank) {
@@ -110,19 +112,38 @@ export default function LiveRankings({
         <CardTitle className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
             <TrendingUp className="h-6 w-6 text-blue-500" />
-            <span>Top 10 Leaderboard</span>
+            <span>Top {limit} Leaderboard</span>
           </div>
-          {isUpdating && (
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-              <span>Updating...</span>
-            </div>
+          {sessionCounter > 0 && (
+            <span className="text-xs text-gray-500 font-normal">
+              Week {sessionCounter} — new week on next join
+            </span>
+          )}
+          {isLoading && !entriesProp && (
+            <Loader2 className="h-4 w-4 animate-spin text-gray-400" />
           )}
         </CardTitle>
       </CardHeader>
 
       <CardContent className="space-y-3">
-        {displayEntries.length === 0 ? (
+        {isLoading && !entriesProp && displayEntries.length === 0 ? (
+          Array.from({ length: limit }).map((_, index) => (
+            <div
+              key={`live-ranking-skeleton-${index}`}
+              className="p-4 rounded-lg border-2 border-gray-200 bg-white"
+            >
+              <div className="flex items-center space-x-4">
+                <Skeleton className="h-6 w-6 rounded-full" />
+                <AvatarSkeleton className="h-8 w-8" />
+                <div className="space-y-2 flex-1">
+                  <DisplayNameSkeleton className="h-4 w-32" />
+                  <Skeleton className="h-3 w-24" />
+                </div>
+                <Skeleton className="h-4 w-16" />
+              </div>
+            </div>
+          ))
+        ) : displayEntries.length === 0 ? (
           <div className="text-center py-8 text-gray-500">
             <Trophy className="h-12 w-12 mx-auto mb-4 text-gray-300" />
             <p className="text-lg font-medium mb-2">No players yet</p>

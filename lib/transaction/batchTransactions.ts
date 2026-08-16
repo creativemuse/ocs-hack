@@ -1,6 +1,12 @@
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
 import { Interface } from 'ethers';
+import { base } from 'viem/chains';
+import { numberToHex } from 'viem';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
+import {
+  extractCallsId,
+  pollBatchCallsStatus,
+  type SendCallsResult,
+} from '@/lib/base-account/batchCalls';
 import { BUILDER_CODE_DATA_SUFFIX } from '@/lib/blockchain/builderCode';
 
 export interface BatchCall {
@@ -10,6 +16,7 @@ export interface BatchCall {
 }
 
 export interface BatchTransactionOptions {
+  from: string;
   calls: BatchCall[];
   atomicRequired?: boolean;
   gasless?: boolean;
@@ -27,15 +34,8 @@ export interface BatchTransactionResult {
  * @returns Promise with transaction result
  */
 export async function sendBatchCalls(options: BatchTransactionOptions): Promise<BatchTransactionResult> {
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: { creation: 'on-connect', defaultAccount: 'sub' },
-    paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-  });
-
-  const { calls, atomicRequired = true, gasless = true } = options;
+  const provider = getBaseAccountProvider();
+  const { from, calls, atomicRequired = true, gasless = true } = options;
 
   if (!calls || calls.length === 0) {
     throw new Error('No calls provided for batch transaction');
@@ -49,30 +49,44 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
       value: call.value || '0'
     })));
 
-    const provider = sdk.getProvider();
-    
-    // Use wallet_sendCalls for batch transactions
-    const result = (await provider.request({
+    const sendCallsResult = await provider.request({
       method: 'wallet_sendCalls',
-      params: {
-        calls: calls.map(call => ({
-          to: call.to,
-          data: call.data,
-          value: call.value || '0x0'
-        })),
-        atomicRequired,
-        gasless,
-        capabilities: {
-          dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true }
-        }
-      }
-    })) as { transactionHash?: string; hash?: string };
+      params: [
+        {
+          version: '2.0.0',
+          from,
+          chainId: numberToHex(base.id),
+          atomicRequired,
+          calls: calls.map((call) => ({
+            to: call.to,
+            data: call.data,
+            value: call.value || '0x0',
+          })),
+          ...(gasless
+            ? {
+                capabilities: {
+                  dataSuffix: { value: BUILDER_CODE_DATA_SUFFIX, optional: true },
+                },
+              }
+            : {}),
+        },
+      ],
+    });
 
-    console.log('Batch transaction result:', result);
+    const callsId = extractCallsId(sendCallsResult as SendCallsResult);
+
+    if (!callsId || typeof callsId !== 'string') {
+      throw new Error('wallet_sendCalls did not return a callsId');
+    }
+
+    console.log('Batch submitted, callsId:', callsId);
+
+    const transactionHash = (await pollBatchCallsStatus(provider, callsId)) ?? '';
 
     return {
-      transactionHash: (result?.transactionHash || result?.hash || '') as string,
-      success: true
+      transactionHash,
+      success: Boolean(transactionHash),
+      ...(transactionHash ? {} : { error: 'Batch completed without a transaction hash' }),
     };
 
   } catch (error) {
@@ -94,7 +108,7 @@ export async function sendBatchCalls(options: BatchTransactionOptions): Promise<
  */
 export async function sendGameBatchCalls(
   gameActions: BatchCall[],
-  options: Omit<BatchTransactionOptions, 'calls'> = {}
+  options: Omit<BatchTransactionOptions, 'calls'>
 ): Promise<BatchTransactionResult> {
   return sendBatchCalls({
     calls: gameActions,
@@ -114,7 +128,7 @@ export async function sendGameBatchCalls(
 export async function sendSpendPermissionAndGameEntry(
   spendPermissionCall: BatchCall,
   gameEntryCall: BatchCall,
-  options: Omit<BatchTransactionOptions, 'calls'> = {}
+  options: Omit<BatchTransactionOptions, 'calls'>
 ): Promise<BatchTransactionResult> {
   return sendBatchCalls({
     calls: [spendPermissionCall, gameEntryCall],
@@ -132,7 +146,7 @@ export async function sendSpendPermissionAndGameEntry(
  */
 export async function sendMultipleGameRounds(
   gameRoundCalls: BatchCall[],
-  options: Omit<BatchTransactionOptions, 'calls'> = {}
+  options: Omit<BatchTransactionOptions, 'calls'>
 ): Promise<BatchTransactionResult> {
   if (gameRoundCalls.length === 0) {
     throw new Error('No game round calls provided');
@@ -162,7 +176,7 @@ export async function sendCompleteGameSetup(
   fundingCall: BatchCall,
   spendPermissionCall: BatchCall,
   gameEntryCall: BatchCall,
-  options: Omit<BatchTransactionOptions, 'calls'> = {}
+  options: Omit<BatchTransactionOptions, 'calls'>
 ): Promise<BatchTransactionResult> {
   return sendBatchCalls({
     calls: [fundingCall, spendPermissionCall, gameEntryCall],

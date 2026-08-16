@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { Coinbase, SmartContract } from "@coinbase/coinbase-sdk";
 
 // Contract configuration
+const isSepolia = process.env.NEXT_PUBLIC_NETWORK === 'sepolia';
 const CONTRACT_CONFIG = {
-  networkId: "base-mainnet",
-  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || "0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6",
-  contractName: "TriviaBattle",
+  networkId: isSepolia ? "base-sepolia" : "base-mainnet",
+  contractAddress: process.env.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS || (isSepolia ? "0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB" : "0x76B356d0DCAe65942751A8F2Da2644a83d7f165f"),
+  contractName: "TriviaBattlev5",
   protocolName: "public"
 } as const;
 
@@ -99,33 +100,25 @@ const getRecentEvents = async () => {
       playerJoined,
       scoreSubmitted,
       prizesDistributed,
-      sessionStarted,
-      sessionEnded,
-      trialPlayerJoined,
-      trialScoreSubmitted
+      sessionStarted
     ] = await Promise.all([
       fetchContractEvents("PlayerJoined", fromBlock, currentBlock),
-      fetchContractEvents("ScoreSubmitted", fromBlock, currentBlock),
+      fetchContractEvents("ScoresSubmitted", fromBlock, currentBlock),
       fetchContractEvents("PrizesDistributed", fromBlock, currentBlock),
-      fetchContractEvents("SessionStarted", fromBlock, currentBlock),
-      fetchContractEvents("SessionEnded", fromBlock, currentBlock),
-      fetchContractEvents("TrialPlayerJoined", fromBlock, currentBlock),
-      fetchContractEvents("TrialScoreSubmitted", fromBlock, currentBlock)
+      fetchContractEvents("SessionStarted", fromBlock, currentBlock)
     ]);
 
     return {
       playerJoined: playerJoined.map((event: any) => ({
         player: event.data.player,
-        entryFee: event.data.entryFee,
-        platformFee: event.data.platformFee,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
         timestamp: event.timestamp
       })),
       scoreSubmitted: scoreSubmitted.map((event: any) => ({
-        player: event.data.player,
-        score: event.data.score,
-        timestamp: event.data.timestamp,
+        sessionId: event.data.sessionId,
+        playerCount: event.data.playerCount,
+        timestamp: event.timestamp,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash
       })),
@@ -139,29 +132,10 @@ const getRecentEvents = async () => {
       })),
       sessionStarted: sessionStarted.map((event: any) => ({
         startTime: event.data.startTime,
-        duration: event.data.duration,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-        timestamp: event.timestamp
-      })),
-      sessionEnded: sessionEnded.map((event: any) => ({
         endTime: event.data.endTime,
         blockNumber: event.blockNumber,
         transactionHash: event.transactionHash,
         timestamp: event.timestamp
-      })),
-      trialPlayerJoined: trialPlayerJoined.map((event: any) => ({
-        sessionId: event.data.sessionId,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash,
-        timestamp: event.timestamp
-      })),
-      trialScoreSubmitted: trialScoreSubmitted.map((event: any) => ({
-        sessionId: event.data.sessionId,
-        score: event.data.score,
-        timestamp: event.data.timestamp,
-        blockNumber: event.blockNumber,
-        transactionHash: event.transactionHash
       }))
     };
   } catch (error) {

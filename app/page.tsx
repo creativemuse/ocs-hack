@@ -5,7 +5,6 @@ import { useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import { ASSETS } from '@/lib/config/assets';
 import { useGameSession } from '@/hooks/useGameSession';
-import { formatTimeRemainingText } from '@/lib/utils/timeUtils';
 import GameEntry from '@/components/game/GameEntry';
 import MultiplayerLobby from '@/components/game/MultiplayerLobby';
 import GuestModeEntry from '@/components/game/GuestModeEntry';
@@ -14,16 +13,21 @@ import AudioPlayer from '@/components/game/AudioPlayer';
 import ActivePlayers from '@/components/game/ActivePlayers';
 import type { TriviaQuestion, PlayerModeChoice, GameStartOptions } from '@/types/game';
 import { useBaseAccount } from '@/hooks/useBaseAccount';
+import { useBasename } from '@/hooks/useBasename';
 import { useTrialStatus } from '@/hooks/useTrialStatus';
 import { useContractUSDCBalance } from '@/hooks/useContractUSDCBalance';
 import GameTitle from '@/components/ui/GameTitle';
 import HighScoreDisplay from '@/components/game/HighScoreDisplay';
 import TopEarners from '@/components/leaderboard/TopEarners';
+import { useWeeklyLeaderboard } from '@/hooks/useWeeklyLeaderboard';
+import { getWeeklyPayoutStatus } from '@/lib/game/weeklyPayoutStatus';
 // OnchainKit imports removed - using Base Account instead
 import { Card, CardContent } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
 import { isLobbySessionStatus } from '@/lib/utils/gameSessionStatus';
 import { ENTRY_FEE_USDC } from '@/lib/blockchain/contracts';
+import { useSessionCountdown } from '@/hooks/useSessionCountdown';
+import { retryWithBackoff } from '@/lib/game/retryWithBackoff';
 
 function HomePage() {
   const {
@@ -75,9 +79,20 @@ function HomePage() {
   const timerTriggeredRef = useRef(false);
   const lastGameWasPaidRef = useRef(false);
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
+  const countdownStartedAtRef = useRef<number | null>(null);
+  const [isCountdownActive, setIsCountdownActive] = useState(false);
+  const [paidScoreWarning, setPaidScoreWarning] = useState<string | null>(null);
+  const [userRequestedMainMenu, setUserRequestedMainMenu] = useState(false);
   // Add trial status hook
-  const { address } = useBaseAccount();
+  const { address, universalAddress } = useBaseAccount();
+  const { data: basename } = useBasename(address ?? undefined, universalAddress ?? undefined);
+  const playerDisplayName = basename ?? (address ? `${address.slice(0, 6)}...${address.slice(-4)}` : 'Player');
   const [joinGameStartError, setJoinGameStartError] = useState<string | null>(null);
+  const [isJoiningAfterPayment, setIsJoiningAfterPayment] = useState(false);
+  const [joinProgressMessage, setJoinProgressMessage] = useState('Confirming payment on-chain…');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const scoreReceiptRef = useRef<string | null>(null);
   const { trialStatus, incrementTrialGame } = useTrialStatus(address as string, entryToken ?? undefined);
   
   // Add contract USDC balance hook
@@ -92,7 +107,47 @@ function HomePage() {
     isSessionActive: onChainSessionActive,
     lastSessionTime: onChainLastSessionTime,
     sessionInterval: onChainSessionInterval,
+    distributed: onChainDistributed,
   } = useContractUSDCBalance();
+
+  const settlementCountdown = useSessionCountdown(
+    onChainLastSessionTime > 0 ? BigInt(onChainLastSessionTime) : undefined,
+    onChainSessionInterval > 0 ? BigInt(onChainSessionInterval) : undefined,
+  );
+  const { refresh: refreshWeeklyLeaderboard, entries: weeklyLeaderboardEntries, sessionCounter: weeklySessionCounter } = useWeeklyLeaderboard(10);
+  const [creSkipReason, setCreSkipReason] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const loadPayoutStatus = async () => {
+      try {
+        const res = await fetch('/api/weekly-payout-status', { cache: 'no-store' });
+        if (!res.ok) return;
+        const data = await res.json();
+        if (!cancelled && data.creSkipReason) {
+          setCreSkipReason(data.creSkipReason);
+        }
+      } catch {
+        // Non-blocking UI enrichment
+      }
+    };
+    void loadPayoutStatus();
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionPrizePool, onChainSessionActive, weeklySessionCounter]);
+
+  const hasOnChainScores = weeklyLeaderboardEntries.some((entry) => entry.bestScore > 0);
+  const weeklyPayoutStatus = getWeeklyPayoutStatus({
+    isLoading: contractBalanceLoading,
+    isSessionActive: onChainSessionActive,
+    sessionPrizePool,
+    distributed: onChainDistributed,
+    countdownExpired: settlementCountdown?.isExpired ?? false,
+    hasOnChainScores,
+    sessionCounter: weeklySessionCounter,
+    creSkipReason,
+  });
 
   // Automatically switch to paid solo if trial is exhausted
   useEffect(() => {
@@ -120,13 +175,16 @@ function HomePage() {
     }
   }, [searchParams]);
 
-  // Persist paid run to Spacetime (TOP EARNERS / bestScore). Trial scores never call this.
+  // Persist paid run to Spacetime (weekly top scores). Trial scores never call this.
   useEffect(() => {
-    if (!gameCompleted || !lastGameWasPaidRef.current || !address) return;
+    if (!gameCompleted || !lastGameWasPaidRef.current || !address || !entryToken) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     const finalScore = totalScore;
-    const wallet = address;
+    const wallet = address.toLowerCase();
+    let cancelled = false;
+    let completed = false;
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
@@ -135,21 +193,67 @@ function HomePage() {
           body: JSON.stringify({
             walletAddress: wallet,
             finalScore,
-            entryToken: entryToken ?? undefined,
+            entryToken,
+            scoreReceipt: scoreReceiptRef.current ?? undefined,
+            username: basename ?? undefined,
           }),
         });
+        if (cancelled) return;
         if (!res.ok) {
           paidScoreSavedRef.current = false;
-          console.error('save-paid-score failed', await res.text());
+          setPaidScoreSaved(false);
+          const errText = await res.text();
+          console.error('save-paid-score failed', errText);
           return;
         }
+        const data = await res.json();
+        if (cancelled) return;
+        const persisted = Boolean(data.leaderboardReady);
+        if (!persisted) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          setPaidScoreWarning(
+            data.warning ??
+              data.error ??
+              'Score could not be saved to the leaderboard. Please try again.',
+          );
+          return;
+        }
+        setPaidScoreSaved(true);
+        completed = true;
+        if (data.authoritativeScore != null) {
+          console.log('Paid score submitted:', data.authoritativeScore, 'tx', data.transactionHash);
+        }
+        if (data.onChainSubmitted === false || data.leaderboardReady === false) {
+          setPaidScoreWarning(
+            data.warning ??
+              'Score saved, but the weekly leaderboard update failed. Try playing again or contact support.',
+          );
+        } else {
+          setPaidScoreWarning(null);
+        }
         refreshContractUsdcBalance();
+        for (let attempt = 0; attempt < 5; attempt++) {
+          if (cancelled) return;
+          refreshWeeklyLeaderboard();
+          if (attempt < 4) {
+            await new Promise((resolve) => setTimeout(resolve, 2000));
+          }
+        }
       } catch (e) {
+        if (cancelled) return;
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
         console.error('save-paid-score error', e);
       }
     })();
-  }, [gameCompleted, address, totalScore, refreshContractUsdcBalance]);
+    return () => {
+      cancelled = true;
+      if (!completed) {
+        paidScoreSavedRef.current = false;
+      }
+    };
+  }, [gameCompleted, address, totalScore, entryToken, basename, refreshContractUsdcBalance, refreshWeeklyLeaderboard]);
 
   const loadRandomQuestion = useCallback(async () => {
     setGameLoading(true);
@@ -158,10 +262,13 @@ function HomePage() {
     setIsAnswered(false);
     setIsVerifying(false);
     setVerifiedCorrectAnswer(null);
+    setVerifyError(null);
     setStartTime(Date.now());
     setGameTimeRemaining(10);
     setAudioError(false);
     timerTriggeredRef.current = false;
+    countdownStartedAtRef.current = null;
+    setIsCountdownActive(false);
 
     try {
       const params = new URLSearchParams({
@@ -173,8 +280,9 @@ function HomePage() {
       });
 
       const endpoints = [
+        '/api/grove-questions',
         '/api/lighthouse-questions',
-        '/api/spacetime-questions'
+        '/api/spacetime-questions',
       ];
       let lastError: Error | null = null;
       let data: { questions: TriviaQuestion[] } | null = null;
@@ -221,6 +329,7 @@ function HomePage() {
 
   const handleJoinGame = async () => {
     setJoinGameStartError(null);
+    setUserRequestedMainMenu(false);
     setShowGameEntry(true);
   };
 
@@ -244,6 +353,7 @@ function HomePage() {
 
   const handleWalletConnect = () => {
     // Payment view removed — go straight to game entry with paid modes
+    setUserRequestedMainMenu(false);
     setShowGameEntry(true);
   };
 
@@ -254,13 +364,20 @@ function HomePage() {
     walletUniversalAddress,
   }: GameStartOptions) => {
     setJoinGameStartError(null);
+    if (!isTrial) {
+      setIsJoiningAfterPayment(true);
+      setJoinProgressMessage('Confirming payment on-chain…');
+    }
     try {
       const data = await joinGame(!isTrial, paidTxHash, {
         playerMode,
         lobbyDurationSec: 180,
         walletUniversalAddress: walletUniversalAddress ?? undefined,
+        onProgress: (message) => setJoinProgressMessage(message),
       });
       lastGameWasPaidRef.current = !isTrial;
+      scoreReceiptRef.current = null;
+      setVerifyError(null);
       setIsTrialGame(isTrial);
       setCompletedAsTrial(false);
       setShowGameEntry(false);
@@ -280,6 +397,8 @@ function HomePage() {
         error instanceof Error ? error.message : 'Could not join the game. Please try again.';
       setJoinGameStartError(message);
       setShowGameEntry(true);
+    } finally {
+      setIsJoiningAfterPayment(false);
     }
   };
 
@@ -293,6 +412,7 @@ function HomePage() {
       console.error('Error leaving game session:', error);
     } finally {
       setJoinGameStartError(null);
+      setUserRequestedMainMenu(true);
       setShowGameEntry(false);
       setShowGuestMode(false);
       setGameStarted(false);
@@ -300,6 +420,7 @@ function HomePage() {
       setGameCompleted(false);
       setCompletedAsTrial(false);
       paidScoreSavedRef.current = false;
+      setPaidScoreSaved(false);
       lastGameWasPaidRef.current = false;
       setScore(0);
       setTotalScore(0);
@@ -309,38 +430,82 @@ function HomePage() {
     }
   };
 
-  const handleAnswerSelect = async (answerIndex: number) => {
-    if (isAnswered || !currentQuestion || gameTimeRemaining <= 0) return;
+  const handleAnswerSelect = async (answerIndex: number, force = false) => {
+    if ((isAnswered && !force) || !currentQuestion || (gameTimeRemaining <= 0 && !force)) return;
 
-    // Optimistically highlight the selected answer immediately
     setSelectedAnswer(answerIndex);
     setIsAnswered(true);
     setIsVerifying(true);
+    setVerifyError(null);
 
     try {
-      const res = await fetch('/api/verify-answer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          questionToken: currentQuestion.questionToken,
-          selectedAnswer: answerIndex,
-        }),
-      });
+      const data = await retryWithBackoff(
+        async () => {
+          const res = await fetch('/api/verify-answer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              questionToken: currentQuestion.questionToken,
+              selectedAnswer: answerIndex,
+              entryToken: !isTrialGame ? entryToken ?? undefined : undefined,
+              scoreReceipt: !isTrialGame ? scoreReceiptRef.current ?? undefined : undefined,
+            }),
+          });
 
-      if (res.ok) {
-        const data = await res.json();
-        setVerifiedCorrectAnswer(data.correctAnswer);
+          if (!res.ok) {
+            let msg = `Verification failed (${res.status})`;
+            try {
+              const err = (await res.json()) as { error?: string };
+              if (err.error) msg = err.error;
+            } catch {
+              /* ignore */
+            }
+            throw new Error(msg);
+          }
+
+          return res.json() as Promise<{
+            correctAnswer: number;
+            isCorrect: boolean;
+            pointsEarned: number;
+            serverTotalScore?: number;
+            scoreReceipt?: string;
+          }>;
+        },
+        {
+          maxAttempts: 3,
+          initialDelayMs: 500,
+          shouldRetry: (error) => {
+            const message = error instanceof Error ? error.message.toLowerCase() : '';
+            return (
+              message.includes('network') ||
+              message.includes('fetch') ||
+              message.includes('timeout') ||
+              message.includes('verification failed') ||
+              message.includes('502') ||
+              message.includes('503')
+            );
+          },
+        },
+      );
+
+      setVerifiedCorrectAnswer(data.correctAnswer);
+      if (typeof data.scoreReceipt === 'string') {
+        scoreReceiptRef.current = data.scoreReceipt;
+      }
+      if (typeof data.serverTotalScore === 'number') {
+        setTotalScore(data.serverTotalScore);
         if (data.isCorrect && data.pointsEarned > 0) {
-          setScore(prev => prev + data.pointsEarned);
-          setTotalScore(prev => prev + data.pointsEarned);
+          setScore((prev) => prev + data.pointsEarned);
         }
-      } else {
-        // Verification failed (expired token, etc.) — treat as incorrect, no points
-        console.warn('Answer verification failed:', res.status);
+      } else if (data.isCorrect && data.pointsEarned > 0) {
+        setScore((prev) => prev + data.pointsEarned);
+        setTotalScore((prev) => prev + data.pointsEarned);
       }
     } catch (error) {
       console.error('Answer verification error:', error);
-      // Network error — treat as incorrect, no points
+      const message =
+        error instanceof Error ? error.message : 'Could not verify your answer. Please try again.';
+      setVerifyError(message);
     } finally {
       setIsVerifying(false);
     }
@@ -373,41 +538,63 @@ function HomePage() {
     loadRandomQuestion();
   };
 
+  const startQuestionCountdown = useCallback(() => {
+    if (countdownStartedAtRef.current !== null) return;
+    countdownStartedAtRef.current = Date.now();
+    setIsCountdownActive(true);
+  }, []);
+
   const handleAudioTimeUpdate = useCallback((currentTime: number, duration: number) => {
-    // Calculate remaining time based on audio progress, but cap at 10 seconds
+    if (currentTime > 0) {
+      startQuestionCountdown();
+    }
+
     const audioRemaining = Math.max(0, duration - currentTime);
-    const maxTime = 10; // 10 second limit
+    const maxTime = 10;
     const remaining = Math.min(audioRemaining, maxTime);
-    
-    // Round to nearest 0.1 seconds for smoother display
     const roundedRemaining = Math.round(remaining * 10) / 10;
-    
-    // Only update if the remaining time has actually changed (to prevent unnecessary re-renders)
-    setGameTimeRemaining(prev => {
-      if (Math.abs(prev - roundedRemaining) >= 0.1) {
+
+    setGameTimeRemaining((prev) => {
+      if (roundedRemaining < prev) {
         return roundedRemaining;
       }
       return prev;
     });
-  }, [currentQuestion]);
+  }, [startQuestionCountdown]);
 
-  // Add a safety timer that only triggers if audio doesn't update properly
+  const handleAudioPlay = useCallback(() => {
+    startQuestionCountdown();
+  }, [startQuestionCountdown]);
+
+  // Start countdown when audio begins; fallback if buffering fails
   useEffect(() => {
-    if (!currentQuestion || isAnswered) return;
-    
-    // Safety timer - only trigger if audio hasn't updated for too long
-    const safetyTimer = setTimeout(() => {
-      setGameTimeRemaining(prev => {
-        // Only force to 0 if we're still at the initial value (audio didn't update)
-        if (prev === 10) {
-          return 0;
-        }
-        return prev;
-      });
-    }, 11000); // 11 seconds - gives audio time to update
+    if (!currentQuestion || isAnswered || gameLoading || isCountdownActive) return;
 
-    return () => clearTimeout(safetyTimer);
-  }, [currentQuestion, isAnswered]);
+    const fallbackTimer = setTimeout(() => {
+      startQuestionCountdown();
+    }, 5000);
+
+    return () => clearTimeout(fallbackTimer);
+  }, [currentQuestion, isAnswered, gameLoading, isCountdownActive, startQuestionCountdown]);
+
+  // Wall-clock countdown after audio starts (or fallback fires)
+  useEffect(() => {
+    if (!isCountdownActive || !currentQuestion || isAnswered || gameLoading) return;
+
+    const clipMs = 10000;
+    const startedAt = countdownStartedAtRef.current ?? Date.now();
+
+    const tick = () => {
+      const elapsed = Date.now() - startedAt;
+      const remaining = Math.max(0, (clipMs - elapsed) / 1000);
+      const rounded = Math.round(remaining * 10) / 10;
+      setGameTimeRemaining((prev) => Math.min(prev, rounded));
+    };
+
+    tick();
+    const interval = setInterval(tick, 100);
+    return () => clearInterval(interval);
+  }, [isCountdownActive, currentQuestion, isAnswered, gameLoading]);
 
   const handleAudioError = () => {
     setAudioError(true);
@@ -439,15 +626,43 @@ function HomePage() {
     };
   }, [session, playerId, leaveGame]);
 
-  // Determine what to display in the timer area
-  const getTimerDisplay = () => {
-    if (isLoading) return 'Loading...';
-    
-    if (waitingForPaidPlayer) {
-      return 'WAITING FOR PAID PLAYER';
+  const handlePlayAgain = () => {
+    paidScoreSavedRef.current = false;
+    setPaidScoreSaved(false);
+    setUserRequestedMainMenu(false);
+    setGameCompleted(false);
+    setGameStarted(false);
+    setShowGameEntry(true);
+    setScore(0);
+    setTotalScore(0);
+    setCurrentRound(1);
+    setQuestionNumberInRound(1);
+    if (playerModeChoice === 'trial') {
+      setPlayerModeChoice('paid_solo');
     }
-    
-    return formatTimeRemainingText(timeRemaining);
+  };
+
+  const formatSettlementCountdown = (): string => {
+    if (!settlementCountdown || settlementCountdown.isExpired) {
+      return 'SETTLEMENT SOON';
+    }
+    const { days, hours, minutes, seconds } = settlementCountdown;
+    if (days > 0) {
+      return `${days}d ${hours}h TO PAYOUT`;
+    }
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')} TO PAYOUT`;
+  };
+
+  // Determine what to display in the timer area (weekly on-chain settlement)
+  const getTimerDisplay = () => {
+    if (contractBalanceLoading) return 'Loading...';
+    if (weeklyPayoutStatus.phase === 'counting_down' && settlementCountdown && !settlementCountdown.isExpired) {
+      return formatSettlementCountdown();
+    }
+    if (weeklyPayoutStatus.timerLabel) {
+      return weeklyPayoutStatus.timerLabel;
+    }
+    return 'NEXT SESSION OPENS SOON';
   };
 
   // Determine what to display in the player count area
@@ -490,10 +705,26 @@ function HomePage() {
   // When trial is exhausted, automatically show game entry with paid modes
   // (Trial Games Complete screen has been removed — users go straight to game entry)
   useEffect(() => {
-    if (trialStatus.requiresWallet && !gameCompleted && !gameStarted && !showGameEntry && !showGuestMode && !inMultiplayerLobby) {
+    if (
+      trialStatus.requiresWallet &&
+      !gameCompleted &&
+      !gameStarted &&
+      !showGameEntry &&
+      !showGuestMode &&
+      !inMultiplayerLobby &&
+      !userRequestedMainMenu
+    ) {
       setShowGameEntry(true);
     }
-  }, [trialStatus.requiresWallet, gameCompleted, gameStarted, showGameEntry, showGuestMode, inMultiplayerLobby]);
+  }, [
+    trialStatus.requiresWallet,
+    gameCompleted,
+    gameStarted,
+    showGameEntry,
+    showGuestMode,
+    inMultiplayerLobby,
+    userRequestedMainMenu,
+  ]);
 
   // Paid multiplayer lobby (memory session)
   if (inMultiplayerLobby) {
@@ -513,6 +744,7 @@ function HomePage() {
           setCurrentRound(1);
           setQuestionNumberInRound(1);
           paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
           // Start gameplay
           setGameStarted(true);
           loadRandomQuestion();
@@ -523,7 +755,8 @@ function HomePage() {
         onLeaveLobby={async () => {
           await leaveGame();
           setInMultiplayerLobby(false);
-          setShowGameEntry(true);
+          setUserRequestedMainMenu(true);
+          setShowGameEntry(false);
         }}
       />
     );
@@ -532,8 +765,19 @@ function HomePage() {
   // Show game entry screen with player mode choice
   if (showGameEntry) {
     return (
-      <div className="bg-[#000000] min-h-screen w-full flex items-center justify-center px-4">
+      <div className="bg-[#000000] min-h-screen w-full flex items-start justify-center px-4 py-6">
         <div className="w-full max-w-[390px] md:max-w-[428px] space-y-4">
+          <button
+            type="button"
+            onClick={() => {
+              setUserRequestedMainMenu(true);
+              setShowGameEntry(false);
+            }}
+            className="text-sm text-gray-400 hover:text-white transition-colors"
+            aria-label="Main Menu"
+          >
+            ← Main Menu
+          </button>
           {/* Player mode: Trial | Solo (paid) | Multiplayer (paid) */}
           <Card className="bg-gradient-to-br from-purple-900/20 to-blue-900/20 border-purple-500/30">
             <CardContent className="p-6">
@@ -620,6 +864,9 @@ function HomePage() {
             onDismissJoinStartError={() => setJoinGameStartError(null)}
             sessionBusy={!canJoin}
             sessionTimeRemaining={timeRemaining}
+            isJoiningAfterPayment={isJoiningAfterPayment}
+            joinProgressMessage={joinProgressMessage}
+            allowDisconnect
           />
           {/* Debug info */}
           {/* <div className="text-xs text-gray-500 text-center mt-2">
@@ -649,8 +896,9 @@ function HomePage() {
             <button
               onClick={handleBackToHome}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded-lg"
+              aria-label="Main Menu"
             >
-              Back to Home
+              Main Menu
             </button>
           </div>
         </div>
@@ -696,35 +944,58 @@ function HomePage() {
                 </div>
               )}
 
+              {!completedAsTrial && paidScoreWarning && (
+                <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg p-4 mb-6">
+                  <div className="text-amber-300 text-sm">
+                    <p className="font-medium mb-2">Leaderboard update pending</p>
+                    <p className="text-amber-200/80">{paidScoreWarning}</p>
+                  </div>
+                </div>
+              )}
+
               {/* High Score Display with Reward Claiming */}
               <div className="mb-6">
                 <HighScoreDisplay
                   currentScore={totalScore}
-                  playerName={isGuestMode ? guestName : 'Player'}
+                  playerName={isGuestMode ? guestName : playerDisplayName}
                   isGuest={isGuestMode}
                   isTrialGame={completedAsTrial}
                   walletAddress={!completedAsTrial && address ? address : undefined}
+                  scoreSaved={!completedAsTrial && paidScoreSaved}
                   className="w-full"
                 />
               </div>
 
               {/* Paid Player Success */}
-              {!completedAsTrial && (
+              {!completedAsTrial && !paidScoreWarning && (
                 <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
                   <div className="text-green-300 text-sm">
-                    <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
+                    <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
                     <p className="text-green-200/80">
-                      Your score is saved for the paid leaderboard and prize pool eligibility.
+                      Your latest score is on-chain for this week. Play Again adds another{' '}
+                      {ENTRY_FEE_USDC} USDC to the pool — your most recent run is what ranks you.
                     </p>
                   </div>
                 </div>
+              )}
+
+              {!completedAsTrial && (
+                <button
+                  type="button"
+                  onClick={handlePlayAgain}
+                  className="w-full mb-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg text-lg font-semibold"
+                  aria-label="Play again for one USDC"
+                >
+                  Play Again (1 USDC)
+                </button>
               )}
             </div>
             <button
               onClick={handleBackToHome}
               className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-lg text-lg"
+              aria-label="Main Menu"
             >
-              Back to Home
+              Main Menu
             </button>
           </div>
         </div>
@@ -827,6 +1098,7 @@ function HomePage() {
                 autoPlay={true}
                 clipDurationSeconds={10}
                 onTimeUpdate={handleAudioTimeUpdate}
+                onPlay={handleAudioPlay}
                 onError={handleAudioError}
                 className="bg-transparent border-0 shadow-none"
               />
@@ -869,24 +1141,52 @@ function HomePage() {
                   isAnswered
                     ? isVerifying
                       ? selectedAnswer === index
-                        ? 'bg-purple-600 text-white animate-pulse'  // Pulsing while verifying
+                        ? 'bg-purple-600 text-white animate-pulse'
                         : 'bg-gray-700 text-gray-400'
                       : selectedAnswer === index
-                        ? verifiedCorrectAnswer === index
-                          ? 'bg-green-600 text-white'  // Green if selected AND correct
-                          : 'bg-red-600 text-white'    // Red if selected AND wrong
-                        : verifiedCorrectAnswer === index
-                          ? 'bg-green-600/50 text-white'  // Dim green to reveal correct answer
-                          : 'bg-gray-700 text-gray-400'  // Gray for unselected options
+                        ? verifiedCorrectAnswer === null
+                          ? 'bg-amber-600 text-white'
+                          : verifiedCorrectAnswer === index
+                            ? 'bg-green-600 text-white'
+                            : 'bg-red-600 text-white'
+                        : 'bg-gray-700 text-gray-400'
                     : gameTimeRemaining <= 0
                     ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
                     : 'bg-gray-700 hover:bg-gray-600 text-white border border-gray-600'
                 }`}
               >
-                {option}
+                <span>{option}</span>
+                {isAnswered && !isVerifying && selectedAnswer === index && (
+                  <span className="block mt-1 text-xs font-semibold">
+                    {verifiedCorrectAnswer === null
+                      ? verifyError ?? 'Could not verify'
+                      : verifiedCorrectAnswer === index
+                        ? '✓ Correct'
+                        : '✗ Incorrect'}
+                  </span>
+                )}
               </button>
             ))}
           </div>
+
+          {verifyError ? (
+            <div className="mb-4 rounded-lg border border-amber-500/40 bg-amber-950/30 px-4 py-3 text-center">
+              <p className="text-sm text-amber-200">{verifyError}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedAnswer === null) return;
+                  setIsAnswered(false);
+                  setVerifiedCorrectAnswer(null);
+                  void handleAnswerSelect(selectedAnswer, true);
+                }}
+                disabled={selectedAnswer === null || isVerifying}
+                className="mt-2 text-sm font-semibold text-amber-300 underline hover:text-amber-100"
+              >
+                Retry verification
+              </button>
+            </div>
+          ) : null}
 
           {/* Current Round Stats and Players */}
           <div className="text-center">
@@ -1073,7 +1373,8 @@ function HomePage() {
                     </p>
                   </div>
                   <p className="font-['Audiowide:Regular',_sans-serif] text-[#000000] text-[9px] leading-snug max-w-full">
-                    Current session prize pool. Grows by {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC per paid entry.
+                    Each play costs {contractEntryFee > 0 ? contractEntryFee : ENTRY_FEE_USDC} USDC and grows this week&apos;s pool.
+                    Latest score counts. Top 3 paid weekly.
                   </p>
                   {/* Prize distribution breakdown */}
                   {!contractBalanceLoading && sessionPrizePool > 0 && (
@@ -1100,16 +1401,16 @@ function HomePage() {
             </div>
           </div>
           
-          {/* Container for the TOP EARNERS section */}
+          {/* Container for the weekly top scores section */}
           <div className="flex flex-col items-center w-full">
             <h2 className="text-white text-lg font-['Audiowide:Regular',_sans-serif] mb-1">
-              TOP EARNERS
+              TOP SCORES
             </h2>
             <p className="text-gray-400 text-[10px] font-['Audiowide:Regular',_sans-serif] mb-3 text-center max-w-[328px]">
-              Paid games only — practice / trial scores are not listed
+              Paid games only — resets each week after payout
             </p>
             <div className="w-full max-w-[328px]">
-              <TopEarners limit={10} />
+              <TopEarners limit={10} currentWalletAddress={address ?? undefined} />
             </div>
           </div>
           

@@ -1,9 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Trophy, ArrowLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Confetti } from '@neoconfetti/react';
 import HighScoreDisplay from './HighScoreDisplay';
 
 interface GameScoreCardProps {
@@ -15,8 +14,8 @@ interface GameScoreCardProps {
   isGuest?: boolean;
   guestId?: string;
   isTrialGame: boolean;
-  /** Paid games: wallet for leaderboard persistence (Spacetime via /api/save-paid-score). */
   walletAddress?: string;
+  entryToken?: string | null;
   onPlayAgain?: () => void;
   onBackToEntry: () => void;
   className?: string;
@@ -32,56 +31,41 @@ export default function GameScoreCard({
   guestId,
   isTrialGame,
   walletAddress,
+  entryToken,
   onPlayAgain,
   onBackToEntry,
   className = '',
 }: GameScoreCardProps) {
-  const [showConfetti, setShowConfetti] = useState(false);
   const paidScoreSavedRef = useRef(false);
+  const [paidScoreSaved, setPaidScoreSaved] = useState(false);
 
   useEffect(() => {
-    if (isTrialGame || !walletAddress || !Number.isFinite(finalScore) || finalScore < 0) return;
+    if (isTrialGame || !walletAddress || !entryToken || !Number.isFinite(finalScore) || finalScore < 0) return;
     if (paidScoreSavedRef.current) return;
     paidScoreSavedRef.current = true;
+    setPaidScoreSaved(false);
     void (async () => {
       try {
         const res = await fetch('/api/save-paid-score', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ walletAddress, finalScore }),
+          body: JSON.stringify({ walletAddress, finalScore, entryToken }),
         });
-        if (!res.ok) paidScoreSavedRef.current = false;
+        if (!res.ok) {
+          paidScoreSavedRef.current = false;
+          setPaidScoreSaved(false);
+          return;
+        }
+        setPaidScoreSaved(true);
       } catch {
         paidScoreSavedRef.current = false;
+        setPaidScoreSaved(false);
       }
     })();
-  }, [isTrialGame, walletAddress, finalScore]);
-
-  // Show confetti when component mounts
-  useEffect(() => {
-    setShowConfetti(true);
-    // Auto-hide confetti after animation completes
-    const confettiTimer = setTimeout(() => setShowConfetti(false), 4000);
-    return () => clearTimeout(confettiTimer);
-  }, []);
+  }, [isTrialGame, walletAddress, finalScore, entryToken]);
 
   return (
     <div className={`bg-[#000000] min-h-screen w-full flex items-center justify-center px-4 py-4 relative ${className}`}>
-      {/* Confetti Effect */}
-      {showConfetti && (
-        <div className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center">
-          <Confetti
-            particleCount={200}
-            force={0.6}
-            duration={3500}
-            colors={['#FFC700', '#FFD700', '#FF0000', '#2E3191', '#41BBC7', '#10B981']}
-            particleShape="mix"
-            stageHeight={600}
-            stageWidth={800}
-          />
-        </div>
-      )}
-
       <div className="w-full max-w-[390px] md:max-w-[428px] text-center relative z-10">
         {/* Header Section */}
         <div className="text-white mb-8">
@@ -127,9 +111,9 @@ export default function GameScoreCard({
         {!isTrialGame && (
           <div className="bg-green-500/10 border border-green-500/20 rounded-lg p-4 mb-6">
             <div className="text-green-300 text-sm">
-              <p className="font-medium mb-2">🏆 Prize Pool Entry</p>
+              <p className="font-medium mb-2">🏆 Weekly leaderboard</p>
               <p className="text-green-200/80">
-                Your score is saved for the paid leaderboard and prize pool eligibility.
+                Latest score saved on-chain for this week. Play Again adds another 1 USDC — your most recent run ranks you.
               </p>
             </div>
           </div>
@@ -144,6 +128,7 @@ export default function GameScoreCard({
             guestId={guestId}
             isTrialGame={isTrialGame}
             walletAddress={!isTrialGame ? walletAddress : undefined}
+            scoreSaved={!isTrialGame && paidScoreSaved}
             className="w-full"
           />
         </div>
@@ -157,7 +142,7 @@ export default function GameScoreCard({
               className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white px-6 py-3 rounded-lg text-lg font-semibold"
               size="lg"
             >
-              Play Again
+              Play Again (1 USDC)
             </Button>
           )}
 

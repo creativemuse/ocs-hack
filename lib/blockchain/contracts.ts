@@ -11,13 +11,15 @@ export const USDC_CONTRACT_ADDRESS =
   '0x833589fcd6edb6e08f4c7c32d4f71b54bda02913'; // Base Mainnet default
 
 // Trivia Battle smart contract address
-// Base Sepolia: 0xe72Fc03137A1412354ca97282071d173Ae592D96 (deployed 2025-01-XX)
-// Base Mainnet: 0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6 (deployed 2026-04-01)
-// Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to Sepolia
-// Paid entry verification filters logs by this address — it must match the deployment that emits PlayerJoined.
+// Base Mainnet: 0x76B356d0DCAe65942751A8F2Da2644a83d7f165f (TriviaBattlev5 ticketed per-session)
+// Base Sepolia: 0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB (TriviaBattlev5)
+// Legacy: 0x147d35009a1992c95bDa1C85Eea210c226aCEDd4 (TriviaBattle v5 pre-redeploy)
+// Use environment variable NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS if set, otherwise default to v5 mainnet.
 export const TRIVIA_CONTRACT_ADDRESS =
   (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_TRIVIA_CONTRACT_ADDRESS) ||
-  '0xfF52Ed1DEb46C197aD7fce9DEC93ff9e987f8dB6'; // Base Mainnet default
+  (typeof process !== 'undefined' && process.env?.NEXT_PUBLIC_NETWORK === 'sepolia'
+    ? '0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB'
+    : '0x76B356d0DCAe65942751A8F2Da2644a83d7f165f'); // Base Mainnet v5 default
 
 // Contract ABI for TriviaBattle.sol contract (matches the actual deployed contract)
 // NOTE: This is a session-based contract, not game-based. It does NOT have:
@@ -178,19 +180,6 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
-    "name": "currentSessionPrizePool",
-    "inputs": [],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "distributePrizes",
     "inputs": [],
     "outputs": [],
@@ -238,7 +227,7 @@ const TRIVIA_ABI_INLINE = [
         "internalType": "bytes"
       },
       {
-        "name": "error",
+        "name": "errorData",
         "type": "bytes",
         "internalType": "bytes"
       }
@@ -312,25 +301,6 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "function",
-    "name": "hasParticipated",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "initiateEmergencyWithdraw",
     "inputs": [],
     "outputs": [],
@@ -397,44 +367,6 @@ const TRIVIA_ABI_INLINE = [
         "name": "",
         "type": "uint256",
         "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "playerScores",
-    "inputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "players",
-    "inputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "stateMutability": "view"
@@ -559,6 +491,24 @@ const TRIVIA_ABI_INLINE = [
     "type": "function",
     "name": "startNewSession",
     "inputs": [],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "syncAndDistribute",
+    "inputs": [
+      {
+        "name": "playerAddresses",
+        "type": "address[]",
+        "internalType": "address[]"
+      },
+      {
+        "name": "scores",
+        "type": "uint256[]",
+        "internalType": "uint256[]"
+      }
+    ],
     "outputs": [],
     "stateMutability": "nonpayable"
   },
@@ -698,7 +648,7 @@ const TRIVIA_ABI_INLINE = [
         "internalType": "bytes"
       },
       {
-        "name": "error",
+        "name": "errorData",
         "type": "bytes",
         "indexed": false,
         "internalType": "bytes"
@@ -752,31 +702,6 @@ const TRIVIA_ABI_INLINE = [
   },
   {
     "type": "event",
-    "name": "PlatformFeeDistributed",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
     "name": "PlayerJoined",
     "inputs": [
       {
@@ -788,51 +713,7 @@ const TRIVIA_ABI_INLINE = [
       {
         "name": "sessionId",
         "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "PrizesDistributed",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
         "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "winners",
-        "type": "address[]",
-        "indexed": false,
-        "internalType": "address[]"
-      },
-      {
-        "name": "prizeAmounts",
-        "type": "uint256[]",
-        "indexed": false,
-        "internalType": "uint256[]"
-      }
-    ],
-    "anonymous": false
-  },
-  {
-    "type": "event",
-    "name": "SessionStarted",
-    "inputs": [
-      {
-        "name": "sessionId",
-        "type": "uint256",
-        "indexed": true,
-        "internalType": "uint256"
-      },
-      {
-        "name": "startTime",
-        "type": "uint256",
-        "indexed": false,
         "internalType": "uint256"
       }
     ],
@@ -965,6 +846,172 @@ const TRIVIA_ABI_INLINE = [
     "type": "error",
     "name": "TriviaBattle__ZeroAddress",
     "inputs": []
+  },
+  // ── TriviaBattlev5 per-session functions ──
+  {
+    "type": "function",
+    "name": "submitScoresForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" },
+      { "name": "playerAddresses", "type": "address[]", "internalType": "address[]" },
+      { "name": "scores", "type": "uint256[]", "internalType": "uint256[]" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "syncAndDistributeForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" },
+      { "name": "playerAddresses", "type": "address[]", "internalType": "address[]" },
+      { "name": "scores", "type": "uint256[]", "internalType": "uint256[]" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "distributePrizes",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getSessionInfo",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "isActive", "type": "bool", "internalType": "bool" },
+      { "name": "distributed", "type": "bool", "internalType": "bool" },
+      { "name": "startTime", "type": "uint256", "internalType": "uint256" },
+      { "name": "endTime", "type": "uint256", "internalType": "uint256" },
+      { "name": "prizePool", "type": "uint256", "internalType": "uint256" },
+      { "name": "playerCount", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getCurrentPlayersForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "address[]", "internalType": "address[]" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getPlayerScoreForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" },
+      { "name": "player", "type": "address", "internalType": "address" }
+    ],
+    "outputs": [
+      { "name": "", "type": "uint256", "internalType": "uint256" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "hasAnyScoresForSession",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [
+      { "name": "", "type": "bool", "internalType": "bool" }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "canCreateNewSession",
+    "inputs": [],
+    "outputs": [
+      { "name": "", "type": "bool", "internalType": "bool" }
+    ],
+    "stateMutability": "view"
+  },
+  // ── TriviaBattlev5 errors ──
+  {
+    "type": "error",
+    "name": "TriviaBattle__SessionNotFound",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TriviaBattle__SessionAlreadyDistributed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TriviaBattle__SessionDeadlineNotElapsed",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TriviaBattle__MaxPlayersReached",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "TriviaBattle__EntryAfterDeadline",
+    "inputs": []
+  },
+  // ── TriviaBattlev5 events ──
+  {
+    "type": "event",
+    "name": "SessionStarted",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "startTime", "type": "uint256", "indexed": false, "internalType": "uint256" },
+      { "name": "endTime", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlayerRejoined",
+    "inputs": [
+      { "name": "player", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "sessionId", "type": "uint256", "indexed": true, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PrizesDistributed",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "winners", "type": "address[]", "indexed": false, "internalType": "address[]" },
+      { "name": "prizeAmounts", "type": "uint256[]", "indexed": false, "internalType": "uint256[]" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "PlatformFeeDistributed",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "recipient", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "amount", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "ScoresSubmitted",
+    "inputs": [
+      { "name": "sessionId", "type": "uint256", "indexed": true, "internalType": "uint256" },
+      { "name": "playerCount", "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ],
+    "anonymous": false
   }
 ] as const;
 

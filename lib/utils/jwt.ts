@@ -22,6 +22,8 @@ function getSecret(): Buffer {
 export type EntryTokenPayload = {
   entryId: string;
   sessionId: string;
+  /** On-chain TriviaBattle sessionCounter when paid entry was verified */
+  onChainSessionId?: string;
   identity: { walletAddress?: string; anonId?: string };
   isTrial: boolean;
   playerType: 'trial' | 'paid';
@@ -29,6 +31,10 @@ export type EntryTokenPayload = {
   spacetimeIdentity?: string; // SpacetimeDB identity
   exp: number; // seconds since epoch
 };
+
+/** Paid games can exceed 10 minutes; allow 90 minutes to submit score */
+export const PAID_ENTRY_TOKEN_TTL_SEC = 90 * 60;
+export const TRIAL_ENTRY_TOKEN_TTL_SEC = 10 * 60;
 
 export function signEntryToken(payload: EntryTokenPayload): string {
   const header = { alg: 'HS256', typ: 'JWT' };
@@ -75,6 +81,7 @@ export function getPlayerInfoFromToken(token: string): {
   anonId?: string;
   sessionId: string;
   entryId: string;
+  onChainSessionId?: string;
 } | null {
   const payload = verifyEntryToken(token);
   if (!payload) return null;
@@ -86,6 +93,7 @@ export function getPlayerInfoFromToken(token: string): {
     anonId: payload.identity.anonId,
     sessionId: payload.sessionId,
     entryId: payload.entryId,
+    onChainSessionId: payload.onChainSessionId,
   };
 }
 

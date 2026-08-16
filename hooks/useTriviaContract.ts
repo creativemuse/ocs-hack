@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useEffect } from 'react';
 import { useBaseAccount } from './useBaseAccount';
-import { createBaseAccountSDK } from '@base-org/account';
-import { base } from 'viem/chains';
+import { useBaseAccountContext } from '@/components/providers/BaseAccountProvider';
 import { parseUnits, encodeFunctionData } from 'viem';
 import { TRIVIA_ABI, USDC_ABI, ENTRY_FEE_USDC, TRIVIA_CONTRACT_ADDRESS, USDC_CONTRACT_ADDRESS } from '@/lib/blockchain/contracts';
 
@@ -22,6 +21,7 @@ export interface ContractState {
 
 export function useTriviaContract(useGasless: boolean = true) {
   const { address, isConnected } = useBaseAccount();
+  const { provider } = useBaseAccountContext();
   const [state, setState] = useState<ContractState>({
     isApproving: false,
     isJoining: false,
@@ -42,29 +42,6 @@ export function useTriviaContract(useGasless: boolean = true) {
   const [isConfirmed, setIsConfirmed] = useState(false);
   const [hash, setHash] = useState<string | null>(null);
   const [writeError, setWriteError] = useState<Error | null>(null);
-
-  // Initialize Base Account SDK client-side only
-  const [provider, setProvider] = useState<any>(null);
-
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      try {
-        const sdk = createBaseAccountSDK({
-          appName: 'BEAT ME',
-          appLogoUrl: 'https://base.org/logo.png',
-          appChainIds: [base.id],
-          subAccounts: {
-            creation: 'on-connect',
-            defaultAccount: 'sub',
-          },
-          paymasterUrls: process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT ? [process.env.NEXT_PUBLIC_PAYMASTER_AND_BUNDLER_ENDPOINT] : undefined,
-        });
-        setProvider(sdk.getProvider());
-      } catch (error) {
-        console.error('Failed to initialize Base Account SDK:', error);
-      }
-    }
-  }, []);
 
   // Fetch session info using Base Account SDK
   const fetchSessionInfo = useCallback(async () => {
@@ -101,13 +78,13 @@ export function useTriviaContract(useGasless: boolean = true) {
         args: [],
       });
       
-      const result = await provider.request({
+      const result = (await provider.request({
         method: 'eth_call',
         params: [{
           to: TRIVIA_CONTRACT_ADDRESS,
           data,
         }, 'latest']
-      });
+      })) as string;
       
       // Parse the result - owner() returns an address (20 bytes padded to 32 bytes)
       if (result && result !== '0x') {
@@ -388,35 +365,38 @@ export function useTriviaContract(useGasless: boolean = true) {
     setIsPending(false);
   }, []);
 
-  // Submit score
-  const submitScore = useCallback(async (score: number) => {
-    if (!address || !isConnected || !provider) {
-      setState(prev => ({ ...prev, error: 'Wallet not connected or provider not ready' }));
+  // Submit score — saves off-chain only. On-chain score submission is done
+  // server-side via /api/submit-onchain-scores (owner-only, before distribution).
+  const submitScore = useCallback(async (score: number, entryToken?: string) => {
+    if (!address) {
+      setState(prev => ({ ...prev, error: 'Wallet not connected' }));
+      return;
+    }
+
+    if (!entryToken) {
+      setState(prev => ({ ...prev, error: 'Missing entry token — join a paid game first' }));
       return;
     }
 
     setState(prev => ({ ...prev, isSubmitting: true, error: null }));
-    setIsPending(true);
 
     try {
-      const data = encodeFunctionData({
-        abi: TRIVIA_ABI,
-        functionName: 'submitScores',
-        args: [[address as `0x${string}`], [BigInt(score)]],
+      const response = await fetch('/api/save-paid-score', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ walletAddress: address, finalScore: score, entryToken }),
       });
-      
-      const txHash = await provider.request({
-        method: 'eth_sendTransaction',
-        params: [{
-          from: address,
-          to: TRIVIA_CONTRACT_ADDRESS,
-          data,
-        }]
-      });
-      
-      setHash(txHash as string);
-      setIsPending(false);
-      setIsConfirming(true);
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => ({}));
+        throw new Error(data.error || 'Failed to save score');
+      }
+
+      const data = await response.json();
+      if (data.spacetimeUpdated === false && data.leaderboardReady === false) {
+        throw new Error(data.warning || data.spacetimeError || 'Leaderboard update failed');
+      }
+      setState(prev => ({ ...prev, isSubmitting: false }));
     } catch (error) {
       console.error('Error submitting score:', error);
       setState(prev => ({
@@ -424,10 +404,8 @@ export function useTriviaContract(useGasless: boolean = true) {
         isSubmitting: false,
         error: error instanceof Error ? error.message : 'Failed to submit score',
       }));
-      setIsPending(false);
-      setWriteError(error as Error);
     }
-    }, [address, isConnected, provider]);
+  }, [address]);
 
   const submitTrialScore = useCallback(async (_sessionId: string, _score: number) => {
     setState(prev => ({

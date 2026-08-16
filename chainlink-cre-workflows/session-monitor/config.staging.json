@@ -2,7 +2,7 @@
   "evms": [
     {
       "chainName": "ethereum-testnet-sepolia-base-1",
-      "contractAddress": "0x060d87018EE78c2968959cA2C8a189c12953Cc9A"
+      "contractAddress": "0x5B24440D7702BBc79BCAc7271C8EdE2a578aD0fB"
     }
   ]
 }

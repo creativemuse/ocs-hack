@@ -1,214 +1,165 @@
 /**
  * Sign-In with Ethereum (SIWE) authentication for Base Account
- * 
- * Implements EIP-4361 standard for secure authentication
  */
 
-import { createBaseAccountSDK } from '@base-org/account';
+import { verifyMessage } from 'viem';
+import { getBaseAccountProvider } from '@/lib/base-account/sdk';
 import { base } from 'viem/chains';
 
-function getProvider() {
-  if (typeof window === 'undefined') {
-    throw new Error('Base Account SDK is only available in the browser');
-  }
-  const sdk = createBaseAccountSDK({
-    appName: 'BEAT ME',
-    appLogoUrl: 'https://base.org/logo.png',
-    appChainIds: [base.id],
-    subAccounts: {
-      creation: 'on-connect',
-      defaultAccount: 'sub',
-    },
-  });
-  return sdk.getProvider();
-}
+export const generateNonce = (): string => {
+  return (
+    Math.random().toString(36).substring(2, 15) +
+    Math.random().toString(36).substring(2, 15)
+  );
+};
 
-/**
- * Generate a unique nonce for SIWE authentication
- */
-export function generateNonce(): string {
-  return Math.random().toString(36).substring(2, 15) + 
-         Math.random().toString(36).substring(2, 15);
-}
-
-/**
- * Complete Sign-In with Base (SIWE) flow
- */
-export async function signInWithBase(): Promise<{
+export const signInWithBase = async (
+  signingAddress?: string,
+): Promise<{
   address: string;
   signature: string;
   message: string;
-}> {
-  try {
-    const provider = getProvider();
-    
-    // Generate nonce for this session
-    const nonce = generateNonce();
-    
-    // Create SIWE message following EIP-4361
-    const domain = window.location.host;
-    const uri = window.location.origin;
-    const version = '1';
-    const chainId = base.id;
-    
-    const message = `${domain} wants you to sign in with your Ethereum account:
-${await getAccountAddress()}
+}> => {
+  const provider = getBaseAccountProvider();
+  const nonce = generateNonce();
+  const domain = window.location.host;
+  const uri = window.location.origin;
+  const chainId = base.id;
 
-${getSiweMessage(domain, uri, nonce, version, chainId)}
+  let address = signingAddress?.trim().toLowerCase();
 
-URI: ${uri}
-Version: ${version}
-Chain ID: ${chainId}
-Nonce: ${nonce}
-Issued At: ${new Date().toISOString()}`;
-
-    // Request signature from user
-    const signature = (await provider.request({
-      method: 'personal_sign',
-      params: [message, await getAccountAddress()]
-    })) as string;
-
-    const address = await getAccountAddress();
-    
-    return {
-      address,
-      signature,
-      message,
-    };
-  } catch (error) {
-    console.error('❌ SIWE authentication failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Get the current account address
- */
-async function getAccountAddress(): Promise<string> {
-  const provider = getProvider();
-  let accounts: string[] = [];
-  try {
-    accounts = (await provider.request({
+  if (!address) {
+    const accounts = (await provider.request({
       method: 'eth_accounts',
-      params: []
+      params: [],
     })) as string[];
-  } catch {
-    throw new Error('No account connected');
+
+    if (!accounts.length) {
+      throw new Error('No account connected');
+    }
+
+    // Prefer sub-account (last account) when Base returns [universal, sub].
+    address =
+      accounts.length > 1
+        ? accounts[accounts.length - 1]!.toLowerCase()
+        : accounts[0]!.toLowerCase();
   }
 
-  if (!accounts || accounts.length === 0) {
-    throw new Error('No account connected');
-  }
+  const message = `${domain} wants you to sign in with your Ethereum account:
+${address}
 
-  return accounts[0];
-}
-
-/**
- * Create SIWE message content
- */
-function getSiweMessage(domain: string, uri: string, nonce: string, version: string, chainId: number): string {
-  return `Sign in with Ethereum to the app.
-
-This request will not trigger a blockchain transaction or cost any gas fees.
-
-Your authentication status will reset after 24 hours.
+Sign in with Ethereum to the app.
 
 URI: ${uri}
-Version: ${version}
+Version: 1
 Chain ID: ${chainId}
 Nonce: ${nonce}
 Issued At: ${new Date().toISOString()}`;
-}
 
-/**
- * Verify SIWE signature on the server side
- * This would typically be called from an API route
- */
-export async function verifySignature(
+  const signature = (await provider.request({
+    method: 'personal_sign',
+    params: [message, address],
+  })) as string;
+
+  return { address, signature, message };
+};
+
+export const verifySignature = async (
   message: string,
   signature: string,
   address: string
-): Promise<boolean> {
+): Promise<boolean> => {
   try {
-    // In a real implementation, you would use a library like viem or ethers
-    // to verify the signature on the server side
-    // For now, we'll just validate the format
-    
     if (!message || !signature || !address) {
       return false;
     }
-    
-    // Basic validation - in production, use proper signature verification
-    return signature.startsWith('0x') && address.startsWith('0x');
+
+    return verifyMessage({
+      address: address as `0x${string}`,
+      message,
+      signature: signature as `0x${string}`,
+    });
   } catch (error) {
-    console.error('❌ Signature verification failed:', error);
+    console.error('Signature verification failed:', error);
     return false;
   }
-}
+};
 
-/**
- * Store authentication state
- */
-export function storeAuthState(authData: {
+export const storeAuthState = (authData: {
   address: string;
   signature: string;
   message: string;
-}): void {
-  localStorage.setItem('base_account_auth', JSON.stringify({
-    ...authData,
-    timestamp: Date.now(),
-    expiresAt: Date.now() + (24 * 60 * 60 * 1000), // 24 hours
-  }));
-}
+}): void => {
+  localStorage.setItem(
+    'base_account_auth',
+    JSON.stringify({
+      ...authData,
+      timestamp: Date.now(),
+      expiresAt: Date.now() + 24 * 60 * 60 * 1000,
+    })
+  );
+};
 
-/**
- * Get stored authentication state
- */
-export function getAuthState(): {
+export const getAuthState = (): {
   address: string;
   signature: string;
   message: string;
   timestamp: number;
   expiresAt: number;
-} | null {
+} | null => {
   try {
     const stored = localStorage.getItem('base_account_auth');
-    if (!stored) return null;
-    
+    if (!stored) {
+      return null;
+    }
+
     const authData = JSON.parse(stored);
-    
-    // Check if auth is expired
     if (Date.now() > authData.expiresAt) {
       localStorage.removeItem('base_account_auth');
       return null;
     }
-    
+
     return authData;
   } catch (error) {
-    console.error('❌ Error getting auth state:', error);
+    console.error('Error getting auth state:', error);
     return null;
   }
-}
+};
 
-/**
- * Clear authentication state
- */
-export function clearAuthState(): void {
+export const clearAuthState = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
   localStorage.removeItem('base_account_auth');
-}
+};
 
-/**
- * Check if user is authenticated
- */
-export function isAuthenticated(): boolean {
-  const authState = getAuthState();
-  return authState !== null;
-}
+const MANUAL_DISCONNECT_KEY = 'base_account_manual_disconnect';
 
-/**
- * Get authenticated address
- */
-export function getAuthenticatedAddress(): string | null {
-  const authState = getAuthState();
-  return authState?.address || null;
-}
+export const setManualDisconnect = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  sessionStorage.setItem(MANUAL_DISCONNECT_KEY, '1');
+};
+
+export const clearManualDisconnect = (): void => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  sessionStorage.removeItem(MANUAL_DISCONNECT_KEY);
+};
+
+export const isManualDisconnect = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return sessionStorage.getItem(MANUAL_DISCONNECT_KEY) === '1';
+};
+
+export const isAuthenticated = (): boolean => {
+  return getAuthState() !== null;
+};
+
+export const getAuthenticatedAddress = (): string | null => {
+  return getAuthState()?.address || null;
+};
